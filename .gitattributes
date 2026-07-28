@@ -1,0 +1,2 @@
+# Roblox place files are binary: never text-diff or auto-merge them.
+*.rbxl binary
