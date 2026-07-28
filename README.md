@@ -1,185 +1,227 @@
-# Roblox Template Project
+# Шаблонный проект Roblox
 
-Production-oriented foundation for modular Roblox games built with
-[Rojo](https://rojo.space/). The repository contains reusable infrastructure,
-one working Wallet provider, tests, architecture documentation, agent rules,
-and architecture decision records.
+Основа для создания модульных Roblox-игр, ориентированная на использование в
+production и построенная с помощью [Rojo](https://rojo.space/). Репозиторий
+содержит переиспользуемую инфраструктуру, один рабочий провайдер Wallet, тесты,
+архитектурную документацию, правила для агентов и записи об архитектурных
+решениях.
 
-It deliberately contains no game-specific gameplay, map, HUD, VFX, SFX, or
-third-party packages.
+В проект намеренно не входят игровая логика, карта, HUD, VFX, SFX и сторонние
+пакеты, специфичные для конкретной игры.
 
-## Included systems
+## Включённые системы
 
-- Deterministic server and client initialization with explicit manifests,
-  dependencies, sticky failures, idempotent results, and a non-cancelling
-  30-second watchdog.
-- A `ReplicatedFirst` loading screen that closes only after the complete client
-  bootstrap and initial snapshot succeed.
-- Centralized server/client wrappers around Roblox player and character
-  lifecycle.
-- Ordered RemoteEvent batching with validation, byte/count limits, rate
-  limiting, priorities, sequence numbers, snapshot epochs, backpressure, and
-  automatic resynchronization.
-- Layer-independent save-controller registry and builders.
-- Atomic provider snapshot application with rollback.
-- DataStore persistence through `UpdateAsync`, bounded retry, serialized-size
-  validation, session locking, autosave, player-exit save, and bounded shutdown.
-- Version metadata and an empty migration registry ready for real released
-  migrations.
-- Server-authoritative Wallet with configurable currencies and compact client
-  updates.
-- Read-only client `GameDataClient` facade.
-- Memory-backed Studio persistence and an opt-in real DataStore smoke test.
-- Agent rules and ADRs that preserve the architecture while the template
-  evolves.
+- Детерминированная серверная и клиентская инициализация с явными манифестами,
+  зависимостями, фиксацией ошибок, идемпотентными результатами и 30-секундным
+  наблюдателем, который не отменяет выполняемую команду.
+- Экран загрузки в `ReplicatedFirst`, который закрывается только после успешного
+  завершения клиентского bootstrap и применения начального снимка данных.
+- Централизованные серверная и клиентская обёртки над жизненным циклом игроков
+  и персонажей Roblox.
+- Упорядоченная пакетная отправка RemoteEvent с валидацией, ограничениями по
+  количеству и размеру, rate limiting, приоритетами, номерами
+  последовательности, эпохами снимков, backpressure и автоматической
+  ресинхронизацией.
+- Независимые от конкретного слоя реестр и строители контроллеров сохранения.
+- Атомарное применение снимков провайдеров с полным откатом.
+- Сохранение в DataStore через `UpdateAsync` с ограниченными повторами,
+  проверкой размера сериализованных данных, блокировкой сессии, автосохранением,
+  сохранением при выходе игрока и ограниченным по времени завершением сервера.
+- Метаданные версии и пустой реестр миграций, готовый для будущих миграций между
+  реально выпущенными версиями.
+- Сервер-авторитетный Wallet с настраиваемыми валютами и компактными
+  клиентскими обновлениями.
+- Клиентский фасад `GameDataClient` только для чтения.
+- Хранилище Studio в памяти и отключённый по умолчанию smoke-тест настоящего
+  DataStore.
+- Правила для агентов и ADR, сохраняющие архитектуру по мере развития шаблона.
 
-## Non-goals
+## Что не входит в шаблон
 
-The template does not provide gameplay systems, UI, purchases, inventory,
-analytics, VFX/SFX, matchmaking, or a generic service locator. Add those as
-separate modules with explicit dependencies and initialization commands.
+Шаблон не предоставляет игровые системы, UI, покупки, инвентарь, аналитику,
+VFX/SFX, матчмейкинг или универсальный локатор сервисов. Добавляйте их как
+отдельные модули с явными зависимостями и командами инициализации.
 
-## Requirements
+## Требования
 
 - Roblox Studio
-- [Rokit](https://github.com/rojo-rbx/rokit), or a compatible installation of
-  Rojo 7.7
-- Rojo Studio plugin
+- [Rokit](https://github.com/rojo-rbx/rokit) или совместимая установка Rojo 7.7
+- Плагин Rojo для Roblox Studio
+- [CodeGraph](https://github.com/colbymchenry/codegraph) для разработки с
+  помощью Codex (не требуется игровому runtime Roblox)
 
-Install the pinned toolchain:
+Установите зафиксированный набор инструментов:
 
 ```powershell
 rokit install
 ```
 
-## Quick start
+## Настройка CodeGraph
 
-1. Create a repository from this template.
-2. Open the tracked `template_place.rbxl` in Roblox Studio.
-3. Run `rojo serve default.project.json` and connect the Studio plugin.
-4. Change the project name in `default.project.json`.
-5. Review `VersionConfig.CurrentVersion`.
-6. Choose the production DataStore name and persistence limits in
+Клонирование репозитория не устанавливает CodeGraph и не копирует
+сгенерированный индекс. На каждом компьютере разработчика нужно один раз
+установить CLI, подключить его к Codex и инициализировать клонированный проект.
+
+Установка в Windows без предварительно установленного Node.js:
+
+```powershell
+irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex
+```
+
+Откройте новый терминал, чтобы команда `codegraph` стала доступна через `PATH`,
+а затем выполните:
+
+```powershell
+codegraph install --target=codex --location=global --yes
+cd путь\к\roblox_project_template
+codegraph init
+codegraph status
+```
+
+После подключения MCP-сервера перезапустите Codex или откройте новую задачу.
+Codex запускает сервис CodeGraph по необходимости; отдельно управлять фоновым
+сервисом не требуется.
+
+Установка через npm, проверка, политика хранения файлов и устранение неполадок
+описаны в [docs/CodeGraphSetup.md](docs/CodeGraphSetup.md).
+
+## Быстрый старт
+
+1. Создайте репозиторий из этого шаблона.
+2. Если используете Codex, выполните настройку CodeGraph из раздела выше.
+3. Откройте отслеживаемый файл `template_place.rbxl` в Roblox Studio.
+4. Запустите `rojo serve default.project.json` и подключите плагин Studio.
+5. Измените название проекта в `default.project.json`.
+6. Проверьте `VersionConfig.CurrentVersion`.
+7. Выберите имя production DataStore и ограничения сохранения в
    `StorageConfig`.
-7. Configure currencies and defaults in `WalletConfig`.
+8. Настройте валюты и начальные балансы в `WalletConfig`.
 
-Use a Rojo build for validation or source-only inspection:
+Для проверки сборки или изучения только исходников используйте сборку Rojo:
 
 ```powershell
 rojo build default.project.json --output $env:TEMP\roblox-template-validation.rbxlx
 ```
 
-Do not replace `template_place.rbxl` with that generated build: the build does
-not contain Studio-authored scene data that lives only in the canonical place.
-Publish a dedicated experience before enabling real DataStore testing.
+Не заменяйте `template_place.rbxl` этой сгенерированной сборкой: она не содержит
+данные сцены, созданные в Studio и существующие только в каноническом place-файле.
+Перед проверкой настоящего DataStore опубликуйте отдельный тестовый experience.
 
-## Hybrid Studio and Rojo workflow
+## Гибридный рабочий процесс Studio и Rojo
 
-The template currently uses partial Rojo synchronization. Both kinds of source
-must be preserved:
+В шаблоне используется частичная синхронизация Rojo. Необходимо сохранять оба
+вида исходных данных:
 
-| Source | Owns |
+| Источник | Чем владеет |
 |---|---|
-| `src/` and `default.project.json` | Rojo-managed scripts, Instances, mappings, and declared properties |
-| `template_place.rbxl` | Studio-authored map, models, and other scene data not represented in Rojo source |
+| `src/` и `default.project.json` | Скрипты, Instances, mappings и объявленные свойства под управлением Rojo |
+| `template_place.rbxl` | Карта, модели и другие данные сцены, созданные в Studio и не представленные в исходниках Rojo |
 
-Filesystem-backed Rojo mappings use `$ignoreUnknownInstances: true`, so live
-sync preserves Studio-authored children that are not present under `src`.
-This is a safety boundary, not permission to keep code only in the place:
-scripts and mapped properties must still be changed in text source.
+Для файловых mappings Rojo установлено `$ignoreUnknownInstances: true`, поэтому
+live-синхронизация сохраняет созданные в Studio дочерние объекты, которых нет в
+`src`. Это защитная граница, а не разрешение хранить код только в place-файле:
+скрипты и сопоставленные свойства по-прежнему должны изменяться в текстовых
+исходниках.
 
-Team workflow for scene changes:
+Командный процесс изменения сцены:
 
-1. Finish or commit unrelated work, then pull the latest branch before opening
-   the place.
-2. Coordinate with the team so only one person/branch edits
-   `template_place.rbxl` at a time.
-3. Make scene changes in Studio and save them to that exact file.
-4. Commit the changed place together with any source that depends on it.
-5. Never commit `template_place.rbxl.lock` or generated validation builds.
+1. Завершите или закоммитьте несвязанную работу, затем получите последние
+   изменения ветки перед открытием place-файла.
+2. Согласуйте работу с командой так, чтобы `template_place.rbxl` одновременно
+   изменял только один человек или одна ветка.
+3. Измените сцену в Studio и сохраните её именно в этот файл.
+4. Закоммитьте изменённый place-файл вместе с зависящими от него исходниками.
+5. Никогда не коммитьте `template_place.rbxl.lock` и сгенерированные
+   проверочные сборки.
 
-Git treats `.rbxl` as binary and cannot merge concurrent scene changes. If a
-conflict occurs, keep one complete place version and manually replay the other
-change in Studio. Team Create may be adopted later, but it must not silently
-become a second source of truth while the tracked place is canonical.
+Git считает `.rbxl` бинарным форматом и не умеет объединять параллельные
+изменения сцены. При конфликте выберите одну полную версию place-файла и вручную
+повторите в Studio изменения из другой версии. В будущем проект может перейти
+на Team Create, но пока отслеживаемый place-файл является каноническим, Team
+Create не должен незаметно становиться вторым источником истины.
 
-## Architecture
+## Архитектура
 
-There is one executable bootstrap per side:
+На каждой стороне существует ровно одна исполняемая точка bootstrap:
 
 ```text
 ServerScriptService/Bootstrap.server.luau
 StarterPlayerScripts/Bootstrap.client.luau
 ```
 
-Both use the shared `InitializationRunner`, while composition remains
-side-specific.
+Обе стороны используют общий `InitializationRunner`, при этом композиция
+остаётся раздельной для сервера и клиента.
 
-Server initialization:
+Порядок серверной инициализации:
 
 ```text
 Players → Communication → Save → DomainData → GlobalSave
         → PersistenceSchedule
 ```
 
-Client initialization:
+Порядок клиентской инициализации:
 
 ```text
 Players → Communication → Save → DomainData → GlobalSave
 ```
 
-The global player profile is an ordered composition of independent providers:
+Глобальный профиль игрока представляет собой упорядоченную композицию
+независимых провайдеров:
 
 ```text
 Version → Wallet → project providers
 ```
 
-`SaveModule` does not know what a global, session, or slot save means.
-`GlobalSaveInitializationCommand` creates the current layer explicitly.
-Projects can create additional controllers with different storage, provider
-sets, keys, and lifetimes.
+`SaveModule` не знает, что означает глобальный, сессионный или слотовый слой
+сохранения. Текущий слой явно создаётся в
+`GlobalSaveInitializationCommand`. Проекты могут создавать дополнительные
+контроллеры с другими хранилищами, наборами провайдеров, ключами и временем
+жизни.
 
-Detailed lifecycle and extension documentation:
+Подробное описание жизненного цикла и расширения системы:
 [docs/InitializationAndSaveSystem.md](docs/InitializationAndSaveSystem.md).
 
-## Repository layout
+## Структура репозитория
 
 ```text
 src/
-├── ReplicatedFirst/                  loading screen
+├── ReplicatedFirst/                  экран загрузки
 ├── ReplicatedStorage/
-│   ├── Client/                       client implementations and manifest
-│   └── Shared/                       side-neutral contracts and utilities
+│   ├── Client/                       клиентские реализации и манифест
+│   └── Shared/                       общие контракты и утилиты
 ├── ServerScriptService/
-│   ├── Initialization/               server manifest and commands
-│   ├── Modules/                      server implementations
-│   └── Tests/                        manual Studio test runners
-└── StarterPlayerScripts/             client bootstrap
+│   ├── Initialization/               серверный манифест и команды
+│   ├── Modules/                      серверные реализации
+│   └── Tests/                        запускаемые вручную тесты Studio
+└── StarterPlayerScripts/             клиентский bootstrap
 docs/
-├── adr/                              architecture decision records
+├── adr/                              записи об архитектурных решениях
+├── CodeGraphSetup.md                 настройка CodeGraph на чистом компьютере
 └── InitializationAndSaveSystem.md
-.agents/rules/                        mandatory project editing rules
+.agents/rules/                        обязательные правила изменения проекта
 ```
 
-## Adding a module
+## Добавление модуля
 
-1. Decide which side owns authority and runtime state.
-2. Put only side-neutral contracts/configuration under
-   `ReplicatedStorage/Shared`.
-3. Inject dependencies through the module constructor.
-4. Create a focused server and/or client initialization command.
-5. Declare real dependencies and add the command to the explicit manifest.
-6. Expose the module through `context.Services` only when later commands need
-   it.
-7. Add focused tests and update documentation/rules when the public
-   architecture changes.
+1. Определите, какая сторона владеет авторитетным состоянием и runtime-данными.
+2. Размещайте в `ReplicatedStorage/Shared` только независимые от стороны
+   контракты и конфигурацию.
+3. Передавайте зависимости явно через конструктор модуля.
+4. Создайте отдельную серверную и/или клиентскую команду инициализации.
+5. Объявите реальные зависимости и добавьте команду в явный манифест.
+6. Добавляйте модуль в `context.Services`, только если он нужен последующим
+   командам.
+7. Добавьте целевые тесты и обновите документацию и правила, если изменяется
+   публичная архитектура.
 
-Modules do not self-start and must not add standalone bootstrap Scripts.
+Модули не запускают себя самостоятельно и не должны добавлять отдельные
+bootstrap Scripts.
 
-## Adding profile data
+## Добавление данных профиля
 
-Do not add fields to one global mutable profile table. Create a domain module
-that owns its runtime state and implements the save-provider lifecycle:
+Не добавляйте поля в одну глобальную изменяемую таблицу профиля. Создайте
+доменный модуль, который владеет runtime-состоянием и реализует жизненный цикл
+провайдера сохранения:
 
 ```text
 CreateDefault
@@ -194,17 +236,19 @@ ToClientMemento
 MementoChanged
 ```
 
-Give the provider a stable `Id`, `Version`, and `Authority`. Register it in the
-same intentional order in the server and client global-save commands. Add it to
-`GameDataClient` only when the client is allowed to read it.
+Назначьте провайдеру стабильные `Id`, `Version` и `Authority`. Зарегистрируйте
+его в одинаковом осознанном порядке в серверной и клиентской командах
+глобального сохранения. Добавляйте провайдер в `GameDataClient`, только если
+клиенту разрешено читать его данные.
 
-Snapshot replacement validates all providers before mutation, captures the
-current state, stops in reverse order, installs and runs in forward order, and
-restores the complete previous state if installation fails.
+При замене снимка система сначала валидирует все провайдеры без изменения
+runtime, сохраняет текущее состояние, останавливает провайдеры в обратном
+порядке, устанавливает и запускает их в прямом порядке, а при ошибке полностью
+восстанавливает предыдущее состояние.
 
-## Communication
+## Коммуникация
 
-Normal runtime synchronization uses compact semantic messages:
+Обычная runtime-синхронизация использует компактные семантические сообщения:
 
 ```lua
 communication:Queue(player, "Inventory.ItemAdded", payload, requestId, {
@@ -212,81 +256,84 @@ communication:Queue(player, "Inventory.ItemAdded", payload, requestId, {
 })
 ```
 
-Register and validate every client-originated message on the server before
-mutating domain state. Do not send full provider tables for small changes and
-do not create direct gameplay remotes beside the communication module.
+Регистрируйте и валидируйте на сервере каждое сообщение от клиента до изменения
+доменного состояния. Не отправляйте целые таблицы провайдеров ради небольших
+изменений и не создавайте прямые игровые remotes рядом с модулем коммуникации.
 
-The full snapshot RemoteFunction is reserved for initial load and explicit
-resynchronization. Runtime communication and DataStore serialization use
-separate validators.
+RemoteFunction полного снимка предназначен только для начальной загрузки и
+явной ресинхронизации. Runtime-коммуникация и сериализация DataStore используют
+разные валидаторы.
 
 ## Wallet
 
-`WalletModule` is server-authoritative. The client receives ordered compact
-changes but never sends balances. Purchase modules should send an intention to
-the server, validate the transaction there, and call:
+`WalletModule` является сервер-авторитетным. Клиент получает упорядоченные
+компактные изменения, но никогда не отправляет балансы. Модули покупок должны
+отправлять намерение на сервер, валидировать там транзакцию и вызывать:
 
 ```lua
 walletModule:Add(player, "Coins", amount, reason, metadata)
 walletModule:TrySpend(player, "Coins", price, reason, metadata)
 ```
 
-Customize supported currency IDs and default balances in
+Поддерживаемые идентификаторы валют и начальные балансы настраиваются в
 `ReplicatedStorage/Shared/Wallet/WalletConfig.luau`.
 
-## Persistence configuration
+## Настройка сохранения
 
-Production defaults live in
+Production-настройки по умолчанию находятся в
 `ServerScriptService/Modules/Storage/StorageConfig.luau`.
 
-Studio uses `MemoryStorage` by default, so normal Play sessions do not touch
-DataStore. Production uses `DataStoreStorage` wrapped by
-`SessionLockingStorage`. Autosave targets dirty controllers every 60 seconds;
-exit and shutdown paths save explicitly.
+По умолчанию Studio использует `MemoryStorage`, поэтому обычные Play-сессии не
+обращаются к DataStore. В production используется `DataStoreStorage`, обёрнутый
+в `SessionLockingStorage`. Автосохранение обрабатывает изменённые контроллеры с
+целевым интервалом 60 секунд; при выходе игрока и завершении сервера сохранение
+выполняется явно.
 
-Do not run the real DataStore smoke test against a production place or store.
+Не запускайте smoke-тест настоящего DataStore в production place или
+production-хранилище.
 
-## Tests
+## Тесты
 
-Build validation:
+Проверка сборки:
 
 ```powershell
 rojo build default.project.json --output $env:TEMP\roblox-template-validation.rbxlx
 ```
 
-Run deterministic suites in Studio Play mode from the server command bar:
+Запуск детерминированных наборов тестов из серверной командной строки в режиме
+Studio Play:
 
 ```lua
 require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 ```
 
-Every returned result must have `failed = 0`.
+Каждый возвращённый результат должен содержать `failed = 0`.
 
-The opt-in smoke test requires a published dedicated test place with Studio API
-access:
+Отключённый по умолчанию smoke-тест требует отдельного опубликованного
+тестового place с разрешённым доступом Studio к API:
 
 ```lua
 require(game.ServerScriptService.Tests.RealDataStoreSmokeTest).run()
 ```
 
-It writes a GUID key only to `PlayerData_IntegrationTests_v1` and attempts to
-remove it afterward.
+Он записывает GUID-ключ только в `PlayerData_IntegrationTests_v1`, после чего
+пытается удалить его.
 
-## Project governance
+## Управление проектом
 
-- [AGENTS.md](AGENTS.md) is the mandatory entry point for coding agents.
-- [.agents/rules/index.md](.agents/rules/index.md) routes changes to focused
-  positive and negative implementation rules.
-- [docs/adr/README.md](docs/adr/README.md) indexes durable architectural
-  decisions and rejected alternatives.
+- [AGENTS.md](AGENTS.md) — обязательная точка входа для агентов разработки.
+- [.agents/rules/index.md](.agents/rules/index.md) направляет изменения к
+  специализированным разрешающим и запрещающим правилам реализации.
+- [docs/adr/README.md](docs/adr/README.md) содержит индекс долгосрочных
+  архитектурных решений и отклонённых альтернатив.
 
-Rules describe how the project must be changed. ADRs preserve why lasting
-decisions were made. Current runtime behavior belongs in system documentation
-and tests.
+Правила описывают, как следует изменять проект. ADR сохраняют причины принятых
+долгосрочных решений. Текущее runtime-поведение должно быть отражено в
+системной документации и тестах.
 
-## License
+## Лицензия
 
-Source code and documentation are available under the [MIT License](LICENSE).
-Only add assets that you own or are allowed to redistribute under compatible
-terms.
+Исходный код и документация доступны на условиях [лицензии MIT](LICENSE).
+Добавляйте только те ресурсы, которыми вы владеете или которые разрешено
+распространять на совместимых условиях.

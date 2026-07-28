@@ -18,6 +18,24 @@ Do not begin source edits after reading only this file. Agent rule files are man
 
 For a documentation-only change, read the rules for the system being documented. For an agent-rule-only change, read this file and `.agents/rules/index.md`.
 
+## Code intelligence
+
+CodeGraph is the preferred source-code exploration tool when its MCP tools are
+available and the project has been initialized:
+
+- Use CodeGraph for project structure, symbol lookup, context, call paths, and
+  impact analysis before falling back to filesystem search.
+- Treat CodeGraph as development tooling, not as a runtime dependency or a
+  replacement for Rojo builds, tests, Studio Play checks, or direct inspection
+  when a specific detail requires confirmation.
+- If CodeGraph reports that the project is not initialized, follow
+  `docs/CodeGraphSetup.md`. Do not edit files inside `.codegraph/` manually.
+- Do not install, upgrade, or reconfigure global CodeGraph tooling without
+  explicit user approval.
+- If CodeGraph is unavailable, continue with the best available read-only
+  exploration tools and report that limitation; do not claim graph-backed
+  findings.
+
 ## Core architecture invariants
 
 - The game has one system bootstrap per side: `ServerScriptService/Bootstrap.server.luau` and `StarterPlayerScripts/Bootstrap.client.luau`.
