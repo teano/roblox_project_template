@@ -16,6 +16,9 @@ production и построенная с помощью [Rojo](https://rojo.space
   наблюдателем, который не отменяет выполняемую команду.
 - Экран загрузки в `ReplicatedFirst`, который закрывается только после успешного
   завершения клиентского bootstrap и применения начального снимка данных.
+- Универсальные раздельные серверные и клиентские пулы с адаптерами для Roblox
+  Instances и кастомных объектов, generation lease, лимитами и управляемой
+  очисткой.
 - Централизованные серверная и клиентская обёртки над жизненным циклом игроков
   и персонажей Roblox.
 - Упорядоченная пакетная отправка RemoteEvent с валидацией, ограничениями по
@@ -38,9 +41,10 @@ production и построенная с помощью [Rojo](https://rojo.space
 
 ## Что не входит в шаблон
 
-Шаблон не предоставляет игровые системы, UI, покупки, инвентарь, аналитику,
-VFX/SFX, матчмейкинг или универсальный локатор сервисов. Добавляйте их как
-отдельные модули с явными зависимостями и командами инициализации.
+Шаблон не предоставляет конкретные игровые системы, UI, покупки, инвентарь,
+аналитику, реализации VFX/SFX, матчмейкинг или универсальный локатор сервисов.
+Добавляйте их как отдельные модули с явными зависимостями и командами
+инициализации; инфраструктура пула может использоваться такими модулями.
 
 ## Требования
 
@@ -155,15 +159,19 @@ StarterPlayerScripts/Bootstrap.client.luau
 Порядок серверной инициализации:
 
 ```text
-Players → Communication → Save → DomainData → GlobalSave
+Pooling → Players → Communication → Save → DomainData → GlobalSave
         → PersistenceSchedule
 ```
 
 Порядок клиентской инициализации:
 
 ```text
-Players → Communication → Save → DomainData → GlobalSave
+Pooling → Players → Communication → Save → DomainData → GlobalSave
 ```
+
+`Pooling` инициализирует отдельный реестр на сервере и на каждом клиенте, но не
+создаёт конкретные игровые пулы. Их создают владеющие доменные модули с
+типизированным контекстом, адаптером жизненного цикла и явными лимитами.
 
 Глобальный профиль игрока представляет собой упорядоченную композицию
 независимых провайдеров:
@@ -180,6 +188,8 @@ Version → Wallet → project providers
 
 Подробное описание жизненного цикла и расширения системы:
 [docs/InitializationAndSaveSystem.md](docs/InitializationAndSaveSystem.md).
+Контракт пулов, адаптеров, lease и очистки:
+[docs/ResourceManagement.md](docs/ResourceManagement.md).
 
 ## Структура репозитория
 
@@ -188,7 +198,7 @@ src/
 ├── ReplicatedFirst/                  экран загрузки
 ├── ReplicatedStorage/
 │   ├── Client/                       клиентские реализации и манифест
-│   └── Shared/                       общие контракты и утилиты
+│   └── Shared/                       общие контракты, пулы и утилиты
 ├── ServerScriptService/
 │   ├── Initialization/               серверный манифест и команды
 │   ├── Modules/                      серверные реализации
@@ -197,7 +207,8 @@ src/
 docs/
 ├── adr/                              записи об архитектурных решениях
 ├── CodeGraphSetup.md                 настройка CodeGraph на чистом компьютере
-└── InitializationAndSaveSystem.md
+├── InitializationAndSaveSystem.md
+└── ResourceManagement.md             пулы, адаптеры, lease и очистка
 .agents/rules/                        обязательные правила изменения проекта
 ```
 
@@ -216,6 +227,24 @@ docs/
 
 Модули не запускают себя самостоятельно и не должны добавлять отдельные
 bootstrap Scripts.
+
+## Добавление пула ресурсов
+
+Один доменный модуль должен владеть каждым конкретным пулом: выбирать сторону,
+определять адаптер, контекст выдачи, лимиты и момент уничтожения. Остальные
+модули получают типизированный API владельца или явно переданную ссылку на пул.
+`PoolModule:GetPool(id)` выполняет поиск по side-local ID, а не по типу объекта;
+два пула одного Roblox-класса могут иметь разные правила активации и сброса.
+
+Для Roblox Instances используйте `PoolAdapters.fromInstanceFactory` или
+`PoolAdapters.fromInstanceTemplate`. Для кастомного контроллера реализуйте
+`OnAcquire`, `OnRelease`, `Destroy` и необязательный `IsPoolableValid`, затем
+создайте его через `CreatePoolablePool`.
+
+Каждая выдача возвращает generation lease. Храните его до возврата, а из
+задержанных callbacks используйте `TryReleaseToPool`, чтобы устаревшее событие
+не освободило новое использование того же объекта. Полный контракт и примеры:
+[docs/ResourceManagement.md](docs/ResourceManagement.md).
 
 ## Добавление данных профиля
 
@@ -304,6 +333,7 @@ rojo build default.project.json --output $env:TEMP\roblox-template-validation.rb
 Studio Play:
 
 ```lua
+require(game.ServerScriptService.Tests.ResourceManagementTestRunner).runAll()
 require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 ```

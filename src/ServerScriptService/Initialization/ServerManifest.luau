@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
+local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 
 local Modules = script.Parent.Parent.Modules
 local PlayersModule = require(Modules.Players.PlayersModule)
@@ -20,6 +21,7 @@ local MigrationModule = require(Modules.Migration.MigrationModule)
 local WalletModule = require(Modules.Wallet.WalletModule)
 
 local Commands = script.Parent.Commands
+local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
@@ -27,6 +29,7 @@ local DomainDataInitializationCommand = require(Commands.DomainDataInitializatio
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
 local PersistenceScheduleInitializationCommand = require(Commands.PersistenceScheduleInitializationCommand)
 
+local poolModule = PoolModule.new()
 local playersModule = PlayersModule.new()
 local communication = CommunicationServer.new({
 	PlayersModule = playersModule,
@@ -47,6 +50,7 @@ local migrationModule = MigrationModule.new()
 local walletModule = WalletModule.new(communication)
 
 local services = {
+	Pooling = poolModule,
 	Players = playersModule,
 	Communication = communication,
 	Save = saveModule,
@@ -60,6 +64,7 @@ local services = {
 }
 
 local commands = {
+	PoolingInitializationCommand.new(poolModule),
 	PlayersInitializationCommand.new(playersModule),
 	CommunicationInitializationCommand.new(communication),
 	SaveInitializationCommand.new(saveModule),

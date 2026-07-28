@@ -15,6 +15,7 @@ tradeoffs.
 | [ADR-0004](0004-compact-batched-communication-and-resync.md) | Use compact batched runtime messages with snapshot resync | Accepted |
 | [ADR-0005](0005-centralized-players-lifecycle.md) | Centralize Roblox player lifecycle behind PlayersModule | Accepted |
 | [ADR-0006](0006-hybrid-rojo-and-studio-place-ownership.md) | Track one canonical Studio place alongside partial Rojo source | Accepted |
+| [ADR-0007](0007-side-owned-generation-safe-object-pools.md) | Use side-owned generation-safe object pools | Accepted |
 
 ## When an ADR is required
 

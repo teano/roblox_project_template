@@ -19,15 +19,21 @@ A command taking longer than 30 seconds emits a watchdog error but is not cancel
 Server order:
 
 ```text
-Players → Communication → Save → DomainData → GlobalSave
+Pooling → Players → Communication → Save → DomainData → GlobalSave
         → PersistenceSchedule
 ```
 
 Client order:
 
 ```text
-Players → Communication → Save → DomainData → GlobalSave
+Pooling → Players → Communication → Save → DomainData → GlobalSave
 ```
+
+`Pooling` constructs no concrete pools during bootstrap. It initializes a
+side-owned registry exposed as `context.Services.Pooling`; project modules
+register their homogeneous pools explicitly through composition. The server
+and every client therefore own separate pool state while sharing the same
+side-neutral algorithm. See [ResourceManagement.md](ResourceManagement.md).
 
 To add a system, create a side-specific command, declare its dependency, and place it in that side's manifest. Modules expose `Initialize`; they do not decide their global launch order.
 

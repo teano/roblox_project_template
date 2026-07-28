@@ -22,6 +22,7 @@ affects save-provider and communication contracts.
 | Trigger | Required rules |
 |---|---|
 | New module, subsystem, service, public API, or ownership boundary | `architecture.md`, `initialization.md`, `testing.md` |
+| Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
 | `src/**/Save/**`, storage, autosave, session locks, migration, version persistence | `architecture.md`, `save-system.md`, `testing.md` |
 | Communication, RemoteEvent, RemoteFunction, DTO, protocol, serialization, rate limit, resync | `architecture.md`, `communication.md`, `testing.md` |
@@ -44,6 +45,7 @@ affects save-provider and communication contracts.
 - `domain-data.md`: Wallet, Version, GameData, provider extension and authority.
 - `testing.md`: required verification and test authoring rules.
 - `rojo-project.md`: source-of-truth and Roblox instance mapping rules.
+- `resource-management.md`: pooling ownership, adapters, leases, budgets, and cleanup.
 
 ## Architecture decision records
 

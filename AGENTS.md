@@ -41,6 +41,8 @@ available and the project has been initialized:
 - The game has one system bootstrap per side: `ServerScriptService/Bootstrap.server.luau` and `StarterPlayerScripts/Bootstrap.client.luau`.
 - Initialization order is declared only by the explicit server and client manifests.
 - Modules expose initialization behavior but do not choose their global startup order.
+- The server and every client own separate pooling registries; every concrete
+  pool is homogeneous and returns generation leases instead of raw ownership.
 - `SaveModule` is a controller registry/factory and must not know concrete save layers.
 - Domain modules own runtime data; save controllers only capture, apply, validate, and persist mementos.
 - Wallet and every provider declared with server authority are
