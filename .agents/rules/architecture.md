@@ -5,7 +5,8 @@
 Apply to new modules, cross-module changes, dependency ownership, public APIs, runtime responsibility, and changes spanning server/client/shared code.
 
 Required context: `docs/InitializationAndSaveSystem.md` and, for architectural
-changes, `docs/adr/README.md` plus its relevant Accepted ADRs.
+changes, `docs/adr/README.md` plus relevant Accepted template and project ADRs
+routed there.
 
 ## Intent
 

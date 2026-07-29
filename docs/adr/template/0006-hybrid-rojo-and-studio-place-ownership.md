@@ -1,10 +1,10 @@
 # ADR-0006: Track one canonical Studio place alongside partial Rojo source
 
-- Status: Accepted
+- Status: Superseded by ADR-0008
 - Date: 2026-07-28
 - Deciders: Project maintainers
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR-0008
 
 ## Context
 

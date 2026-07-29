@@ -7,16 +7,34 @@ These instructions apply to the entire repository.
 Before editing, adding, moving, or deleting source code:
 
 1. Read `.agents/rules/index.md` completely.
-2. Use both path triggers and architectural-concern triggers from the index.
-3. Read every matched rule file completely before making source changes.
-4. For a cross-system change, read the rules for every affected system.
-5. Read the linked `docs/` pages when a rule identifies them as required context.
-6. For an architectural change, read `docs/adr/README.md` and every relevant
-   Accepted ADR before proposing or editing the design.
+2. Determine whether this is the template repository or a derived game
+   repository and whether derived-project initialization is complete.
+3. Use both path triggers and architectural-concern triggers from the index.
+4. Read every matched rule file completely before making source changes.
+5. For a cross-system change, read the rules for every affected system.
+6. Read the linked `docs/` pages when a rule identifies them as required context.
+7. For an architectural change, read
+   `.agents/rules/architecture-decisions.md`, `docs/adr/README.md`, then every
+   relevant Accepted ADR from both indexes routed there before proposing or
+   editing the design.
 
 Do not begin source edits after reading only this file. Agent rule files are mandatory constraints, not optional documentation.
 
 For a documentation-only change, read the rules for the system being documented. For an agent-rule-only change, read this file and `.agents/rules/index.md`.
+
+## Derived-project initialization
+
+The reusable template repository intentionally contains no
+`docs/adr/project/` files. A repository derived from this template is
+uninitialized when it has an `upstream` template remote but does not yet have
+`docs/adr/project/README.md`.
+
+Before the first derived-project source change, read and follow
+`.agents/rules/project-initialization.md`. Initialization creates the
+project-owned ADR namespace and initial ADR, assigns the Rojo connection name
+from the repository root directory, and reviews every project-specific
+configuration surface. This is mandatory setup work and does not require the
+user to repeat these instructions.
 
 ## Code intelligence
 
@@ -62,24 +80,31 @@ available and the project has been initialized:
 - Do not add a monolithic mutable profile object that bypasses save providers.
 - Do not add legacy direct gameplay remotes alongside the communication module.
 - Do not programmatically patch binary place files or edit their lock files.
-  Scene changes belong in the canonical `template_place.rbxl`, must be made
+  Scene changes belong in the canonical `place.rbxl`, must be made
   through Roblox Studio when explicitly requested, and must be committed.
 - Do not treat generated `.rbxlx` builds or `sourcemap.json` as source.
 - Preserve the hybrid ownership boundary documented in
   `.agents/rules/rojo-project.md`.
+- Keep template-owned ADRs and their index under `docs/adr/template/`.
+  Repositories derived from this template record their own decisions only
+  under a project-created `docs/adr/project/` namespace and maintain a separate
+  project index. The template repository must not contain that namespace.
 - Preserve unrelated user changes.
 
 If an explicit request intentionally changes an invariant, do not silently work around this file. Explain the conflict, update the relevant agent rules and documentation as part of the authorized architectural change, and add or update enforcement tests.
 
 Accepted ADRs are historical records. Do not materially rewrite one after its
-decision changes; create a new ADR that supersedes it and update the ADR index.
+decision changes; create a new ADR in the owning namespace that supersedes it
+and update only that namespace's index. A derived project must not edit a
+template ADR or the template ADR index.
 
 ## Rule precedence
 
 1. System, developer, and explicit user instructions.
 2. This `AGENTS.md`.
 3. Matched files under `.agents/rules/`.
-4. Accepted architectural decisions under `docs/adr/`.
+4. Accepted project decisions under `docs/adr/project/`, then Accepted template
+   decisions under `docs/adr/template/`.
 5. Descriptive documentation under `docs/`.
 
 More specific matched rule files refine general rules. If rules, Accepted ADRs,

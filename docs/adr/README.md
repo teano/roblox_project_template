@@ -1,72 +1,55 @@
 # Architecture decision records
 
-Architecture decision records (ADRs) preserve why durable project constraints
-exist. Current behavior belongs in system documentation, mandatory editing
-constraints belong in `.agents/rules/`, and ADRs preserve the decision and its
-tradeoffs.
+This file routes architecture decisions without making template updates and
+game-specific work share an index.
 
-## Decision index
+## Decision namespaces
 
-| ID | Decision | Status |
+| Namespace | Index | Owner |
 |---|---|---|
-| [ADR-0001](0001-explicit-initialization-manifests.md) | Use explicit side-specific initialization manifests | Accepted |
-| [ADR-0002](0002-layer-agnostic-save-module.md) | Keep SaveModule independent of save-layer meaning | Accepted |
-| [ADR-0003](0003-domain-owned-runtime-and-atomic-snapshots.md) | Domain modules own runtime state and snapshots apply atomically | Accepted |
-| [ADR-0004](0004-compact-batched-communication-and-resync.md) | Use compact batched runtime messages with snapshot resync | Accepted |
-| [ADR-0005](0005-centralized-players-lifecycle.md) | Centralize Roblox player lifecycle behind PlayersModule | Accepted |
-| [ADR-0006](0006-hybrid-rojo-and-studio-place-ownership.md) | Track one canonical Studio place alongside partial Rojo source | Accepted |
-| [ADR-0007](0007-side-owned-generation-safe-object-pools.md) | Use side-owned generation-safe object pools | Accepted |
+| Template | [template/README.md](template/README.md) | Reusable upstream template |
+| Project | `project/README.md` | The derived game repository |
 
-## When an ADR is required
+Template ADRs describe durable constraints shipped by the reusable template.
+Derived repositories receive them from `upstream` and must not edit their files
+or index.
 
-Create an ADR when a decision:
+Project ADRs describe decisions made by one game. The template intentionally
+contains no `project/` directory or project ADR files. During mandatory
+derived-project initialization, the agent creates `project/README.md` and the
+initial project ADR by following
+[`project-initialization.md`](../../.agents/rules/project-initialization.md).
+Those files belong only to the derived repository; the template never tracks
+or updates them.
 
-- changes ownership, authority, lifecycle, persistence, or synchronization
-  across module boundaries;
-- introduces or removes a subsystem or public architectural contract;
-- chooses between plausible alternatives with meaningful long-term cost;
-- intentionally reverses an Accepted decision.
-
-Do not create an ADR for a local refactor, bug fix, naming choice, dependency
-update, or implementation detail that does not constrain future design.
-
-## Lifecycle
-
-Use one of these statuses:
-
-- `Proposed`: under discussion and not yet an active constraint.
-- `Accepted`: approved and currently applicable.
-- `Deprecated`: retained for history but no longer recommended.
-- `Superseded by ADR-XXXX`: replaced by a later decision.
-- `Rejected`: considered but never adopted.
-
-The decision body of an Accepted ADR is immutable as a historical record except
-for spelling, broken links, or clarifications that do not change meaning.
-Status metadata may change only to reflect deprecation or supersession. To
-reverse a decision:
-
-1. Create a new ADR that names the old ADR under `Supersedes`.
-2. Change the old status to `Superseded by ADR-XXXX`.
-3. Update this index, applicable agent rules, current documentation, and
-   enforcement tests in the same architectural change.
-
-## Naming and numbering
-
-- Copy `_template.md`.
-- Allocate the next four-digit ID; never reuse a removed or rejected ID.
-- Use `NNNN-short-kebab-case-title.md`.
-- Write the decision in present tense and the context in terms of constraints,
-  not a transcript of the discussion.
-- Link concrete rules, documentation, code boundaries, and tests under
-  `Enforcement`.
+The namespaces have independent four-digit numbering. Refer to an ambiguous ID
+as `template/ADR-0001` or `project/ADR-0001`.
 
 ## Reading policy
 
-Before an architectural change, select every ADR related to the affected
-ownership, lifecycle, authority, persistence, or synchronization concern.
-Local edits that preserve architecture do not require reading the entire ADR
-set.
+Before an architectural change:
+
+1. Read this router.
+2. Read the template index and every relevant Accepted template ADR.
+3. If `project/README.md` exists, read the project index and every relevant
+   Accepted project ADR.
 
 If an ADR conflicts with current agent rules, code, tests, or system
 documentation, report the drift instead of silently choosing whichever version
 is easier to implement.
+
+## Writing policy
+
+- Template maintainers add template ADRs only under `template/` and update only
+  `template/README.md`.
+- Derived projects add game ADRs only under `project/` and update only
+  `project/README.md`.
+- Never index numbered decisions in this router.
+- Copy `_template.md` into the owning namespace.
+- Allocate the next four-digit number within that namespace and never reuse a
+  removed or rejected number.
+- Accepted ADR bodies remain historical. Reverse a decision with a new ADR in
+  the owning namespace.
+- A project may locally supersede a template decision without editing template
+  history. Its project ADR must identify the template ADR and update applicable
+  higher-precedence project rules, current documentation, and tests.

@@ -24,6 +24,15 @@ rojo build default.project.json --output $env:TEMP\roblox-template-validation.rb
 
 Do not write validation builds into the repository.
 
+Validate repository-owned file and ADR boundaries:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-layout.ps1
+```
+
+Run this check after canonical place, ADR, agent-rule, or repository-layout
+changes.
+
 ## Studio suites
 
 Run in Play mode from the server:

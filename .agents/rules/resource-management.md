@@ -6,7 +6,7 @@ Apply to object pools, reusable runtime resources, pool adapters, leases,
 resource cleanup, and server/client pooling registries.
 
 Required context: `docs/ResourceManagement.md`, `docs/adr/README.md`, and every
-relevant Accepted ADR selected from its index.
+relevant Accepted template and project ADR selected from the routed indexes.
 
 ## Mandatory rules
 

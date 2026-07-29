@@ -1,6 +1,6 @@
 # Generated Rojo builds. The canonical Studio place is intentionally tracked.
 /*.rbxl
-!/template_place.rbxl
+!/place.rbxl
 /*.rbxlx
 
 # Roblox Studio lock files

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Apply to `default.project.json`, `template_place.rbxl`, source placement,
+Apply to `default.project.json`, `place.rbxl`, source placement,
 Roblox instance mappings, `.model.json` assets, and executable
 Script/LocalScript files.
 
@@ -12,7 +12,7 @@ This repository intentionally uses hybrid ownership:
 
 - `src/` and `default.project.json` are the source of truth for every
   Rojo-managed Instance, script, and property.
-- `template_place.rbxl` is the tracked source of truth for Studio-authored
+- `place.rbxl` is the tracked source of truth for Studio-authored
   scene data that is outside the Rojo mappings.
 - `default.project.json` MUST set `$ignoreUnknownInstances` to `true` on
   filesystem-backed containers while hybrid ownership is active. This prevents
@@ -24,19 +24,19 @@ This repository intentionally uses hybrid ownership:
 If an Instance or property is described by `default.project.json` or `src/`,
 the text source wins. Do not make a competing place-only edit to it. Everything
 else in the scene is preserved by saving and committing
-`template_place.rbxl`.
+`place.rbxl`.
 
 ## Mandatory rules
 
 - Preserve the existing top-level mappings unless an architectural change requires otherwise.
 - New shared/client/server files MUST be placed under the correct mapped container.
 - System startup code MUST remain limited to the two bootstraps plus the dedicated ReplicatedFirst loading LocalScript.
-- Open `template_place.rbxl` for normal Studio work; do not replace it with a
+- Open `place.rbxl` for normal Studio work; do not replace it with a
   source-only validation build.
 - Pull the latest branch and verify that the place has no unresolved Git
   change before beginning a new scene-editing session.
 - Coordinate binary scene ownership so only one branch/person changes
-  `template_place.rbxl` at a time.
+  `place.rbxl` at a time.
 - Make authorized scene edits through Roblox Studio, save the exact canonical
   file, and include it in the same change that depends on the scene update.
 - When a binary conflict occurs, choose one complete place version and
@@ -49,7 +49,7 @@ else in the scene is preserved by saving and committing
 ## Forbidden patterns
 
 - MUST NOT programmatically or hex-edit binary `.rbxl` files.
-- MUST NOT ignore `template_place.rbxl` while the repository uses partial
+- MUST NOT ignore `place.rbxl` while the repository uses partial
   Rojo synchronization.
 - MUST NOT use Team Create as an undocumented second source of truth.
 - MUST NOT commit temporary `.rbxlx` validation builds.
@@ -70,17 +70,17 @@ The loading LocalScript is explicitly reproducible from source.
 
 ## Negative example
 
-Adding a server Script only inside `template_place.rbxl` makes code behavior
+Adding a server Script only inside `place.rbxl` makes code behavior
 invisible to review and non-reproducible from Rojo source.
 
-Ignoring `template_place.rbxl` after adding an unmanaged map model means the
+Ignoring `place.rbxl` after adding an unmanaged map model means the
 model exists only on one developer's machine.
 
 ## Verification
 
 - Rojo build to a temporary output path.
-- Confirm `template_place.rbxl` is tracked and not ignored.
-- Confirm generated validation builds and `template_place.rbxl.lock` remain
+- Confirm `place.rbxl` is tracked and not ignored.
+- Confirm generated validation builds and `place.rbxl.lock` remain
   ignored.
 - Inspect executable scripts with:
 

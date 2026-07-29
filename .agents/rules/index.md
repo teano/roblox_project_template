@@ -6,13 +6,17 @@ This file is the mandatory router for project agent rules.
 
 Before source edits:
 
-1. Identify every affected path.
-2. Identify every affected architectural concern, even when its implementation lives elsewhere.
-3. Read all matching rule files completely.
-4. Always include `testing.md`.
-5. Include `architecture.md` for new modules, new commands, cross-system changes, ownership changes, or public contract changes.
-6. For those architectural changes, read `docs/adr/README.md` and all relevant
-   Accepted ADRs selected from its index.
+1. Determine whether the repository is the reusable template or a derived game.
+2. If a derived repository has no `docs/adr/project/README.md`, include
+   `project-initialization.md` before its first source change.
+3. Identify every affected path.
+4. Identify every affected architectural concern, even when its implementation lives elsewhere.
+5. Read all matching rule files completely.
+6. Always include `testing.md`.
+7. Include `architecture.md` for new modules, new commands, cross-system changes, ownership changes, or public contract changes.
+8. For those architectural changes, include `architecture-decisions.md`, read
+   `docs/adr/README.md`, and read all relevant Accepted ADRs selected from both
+   indexes routed there.
 
 Path matching alone is insufficient. For example, editing `WalletModule` also
 affects save-provider and communication contracts.
@@ -21,6 +25,7 @@ affects save-provider and communication contracts.
 
 | Trigger | Required rules |
 |---|---|
+| First source change in a derived repository without `docs/adr/project/README.md` | `project-initialization.md`, `architecture-decisions.md`, `rojo-project.md`, `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
 | New module, subsystem, service, public API, or ownership boundary | `architecture.md`, `initialization.md`, `testing.md` |
 | Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
@@ -30,14 +35,18 @@ affects save-provider and communication contracts.
 | Wallet, Version, GameData, a save provider, or an authority change | `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
 | `ReplicatedFirst/Loading.client.luau` | `architecture.md`, `initialization.md`, `testing.md` |
 | `default.project.json`, Rojo mappings, `.model.json`, executable script placement | `rojo-project.md`, `architecture.md`, `testing.md` |
-| `template_place.rbxl`, Studio-authored scene data, or hybrid source ownership | `rojo-project.md`, `architecture.md`, `testing.md` |
+| `place.rbxl`, Studio-authored scene data, or hybrid source ownership | `rojo-project.md`, `architecture.md`, `testing.md` |
 | Any test runner or test contract | `testing.md` plus the tested subsystem rule |
 | Documentation that describes runtime behavior | The corresponding subsystem rules |
-| New or changed architecture decision record | `architecture.md` plus every affected subsystem rule |
+| New or changed architecture decision record | `architecture-decisions.md`, `architecture.md` plus every affected subsystem rule |
 
 ## Available rule files
 
 - `architecture.md`: dependency ownership, module boundaries, cross-system design.
+- `architecture-decisions.md`: template/project ADR ownership, indexes,
+  numbering, supersession, and reading/writing workflow.
+- `project-initialization.md`: mandatory one-time setup for a repository
+  derived from this template.
 - `initialization.md`: runner, manifests, commands, bootstraps, loading completion.
 - `save-system.md`: controllers, providers, lifecycle, rollback, storage, shutdown.
 - `communication.md`: batching, validation, priorities, sequencing, epochs, resync.
@@ -49,11 +58,17 @@ affects save-provider and communication contracts.
 
 ## Architecture decision records
 
-`docs/adr/README.md` is the decision router. ADRs explain why durable
-architectural constraints exist; they do not replace agent rules or current
-system documentation.
+`docs/adr/README.md` is the decision router. Template-owned decisions and their
+index live under `docs/adr/template/`. A derived repository creates and owns
+its separate index and decisions under `docs/adr/project/`. ADRs explain why
+durable architectural constraints exist; they do not replace agent rules or
+current system documentation.
 
-Read relevant Accepted ADRs when a change:
+The template repository MUST NOT contain `docs/adr/project/`. Agents initialize
+that namespace only in a derived repository by following
+`project-initialization.md`.
+
+Read relevant Accepted ADRs from both namespaces when a change:
 
 - introduces or removes a subsystem;
 - changes ownership, authority, lifecycle, persistence, or synchronization;
@@ -62,6 +77,11 @@ Read relevant Accepted ADRs when a change:
 
 Do not require every ADR for a local implementation edit whose architecture is
 unchanged.
+
+Write a template decision only under `docs/adr/template/` and update only the
+template index. Write a game-specific decision only under `docs/adr/project/`
+and update only the project index. Never add numbered ADR entries directly to
+the router.
 
 ## Ambiguous changes
 
