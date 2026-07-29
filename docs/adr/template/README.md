@@ -20,6 +20,7 @@ Repositories derived from the template receive these records from their
 | [ADR-0010](0010-adr-grounded-upstream-merges.md) | Use ADR-grounded upstream merges and preserve the project place | Accepted |
 | [ADR-0011](0011-user-selected-template-update-branch.md) | Let the user choose the template update destination branch | Accepted |
 | [ADR-0012](0012-project-specific-rojo-server-ports.md) | Assign and preserve project-specific Rojo server ports | Accepted |
+| [ADR-0013](0013-side-owned-static-asset-catalogs.md) | Use side-owned immutable static asset catalogs | Accepted |
 
 ## Ownership and numbering
 

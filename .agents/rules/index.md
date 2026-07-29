@@ -30,6 +30,7 @@ affects save-provider and communication contracts.
 | Fetching, merging, reviewing, or resolving changes from template `upstream` | `template-updates.md`, `architecture-decisions.md`, `rojo-project.md`, `testing.md`, plus every affected subsystem rule |
 | Modifying or deleting a path that also exists in template `upstream` | `template-updates.md`, `architecture-decisions.md`, plus every affected subsystem rule |
 | New module, subsystem, service, public API, or ownership boundary | `architecture.md`, `initialization.md`, `testing.md` |
+| `AssetRegistry`, `AssetKey`, static asset lookup, asset roots, or asset folder/query contracts | `assets.md`, `architecture.md`, `initialization.md`, `rojo-project.md`, `testing.md` |
 | Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
 | `src/**/Save/**`, storage, autosave, session locks, migration, version persistence | `architecture.md`, `save-system.md`, `testing.md` |
@@ -59,6 +60,8 @@ affects save-provider and communication contracts.
 - `domain-data.md`: Wallet, Version, GameData, provider extension and authority.
 - `testing.md`: required verification and test authoring rules.
 - `rojo-project.md`: source-of-truth and Roblox instance mapping rules.
+- `assets.md`: side-owned static asset catalogs, roots, paths, keys, queries,
+  folder rules, and startup immutability.
 - `resource-management.md`: pooling ownership, adapters, leases, budgets, and cleanup.
 
 ## Architecture decision records

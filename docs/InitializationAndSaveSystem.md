@@ -19,15 +19,21 @@ A command taking longer than 30 seconds emits a watchdog error but is not cancel
 Server order:
 
 ```text
-Pooling → Players → Communication → Save → DomainData → GlobalSave
-        → PersistenceSchedule
+Assets → Pooling → Players → Communication → Save → DomainData
+       → GlobalSave → PersistenceSchedule
 ```
 
 Client order:
 
 ```text
-Pooling → Players → Communication → Save → DomainData → GlobalSave
+Assets → Pooling → Players → Communication → Save → DomainData → GlobalSave
 ```
+
+`Assets` builds an immutable side-owned catalog from explicit roots before
+game systems consume static templates. The server indexes `Shared` and
+`Server`; each client indexes `Shared` and `Client`. It discovers no startup
+commands and does not scan runtime hierarchies. See
+[AssetRegistry.md](AssetRegistry.md).
 
 `Pooling` constructs no concrete pools during bootstrap. It initializes a
 side-owned registry exposed as `context.Services.Pooling`; project modules

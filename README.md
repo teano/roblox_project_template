@@ -14,6 +14,9 @@ production и построенная с помощью [Rojo](https://rojo.space
 - Детерминированная серверная и клиентская инициализация с явными манифестами,
   зависимостями, фиксацией ошибок, идемпотентными результатами и 30-секундным
   наблюдателем, который не отменяет выполняемую команду.
+- Раздельные серверный и клиентский каталоги статических ассетов с путями,
+  стабильными ключами-атрибутами, запросами по папкам, классам, тегам и
+  метаданным.
 - Экран загрузки в `ReplicatedFirst`, который закрывается только после успешного
   завершения клиентского bootstrap и применения начального снимка данных.
 - Универсальные раздельные серверные и клиентские пулы с адаптерами для Roblox
@@ -266,15 +269,19 @@ StarterPlayerScripts/Bootstrap.client.luau
 Порядок серверной инициализации:
 
 ```text
-Pooling → Players → Communication → Save → DomainData → GlobalSave
-        → PersistenceSchedule
+Assets → Pooling → Players → Communication → Save → DomainData
+       → GlobalSave → PersistenceSchedule
 ```
 
 Порядок клиентской инициализации:
 
 ```text
-Pooling → Players → Communication → Save → DomainData → GlobalSave
+Assets → Pooling → Players → Communication → Save → DomainData → GlobalSave
 ```
+
+`Assets` один раз индексирует только явно заданные статические корни. Сервер
+получает пространства `Shared` и `Server`, а каждый клиент — `Shared` и
+`Client`. Каталог не ищет сервисы, remotes, модули или runtime-объекты.
 
 `Pooling` инициализирует отдельный реестр на сервере и на каждом клиенте, но не
 создаёт конкретные игровые пулы. Их создают владеющие доменные модули с
@@ -295,6 +302,8 @@ Version → Wallet → project providers
 
 Подробное описание жизненного цикла и расширения системы:
 [docs/InitializationAndSaveSystem.md](docs/InitializationAndSaveSystem.md).
+Контракт папок, путей, `AssetKey` и запросов:
+[docs/AssetRegistry.md](docs/AssetRegistry.md).
 Контракт пулов, адаптеров, lease и очистки:
 [docs/ResourceManagement.md](docs/ResourceManagement.md).
 
@@ -305,16 +314,18 @@ src/
 ├── ReplicatedFirst/                  экран загрузки
 ├── ReplicatedStorage/
 │   ├── Client/                       клиентские реализации и манифест
-│   └── Shared/                       общие контракты, пулы и утилиты
+│   └── Shared/                       общие контракты, каталог, пулы и утилиты
 ├── ServerScriptService/
 │   ├── Initialization/               серверный манифест и команды
 │   ├── Modules/                      серверные реализации
 │   └── Tests/                        запускаемые вручную тесты Studio
 └── StarterPlayerScripts/             клиентский bootstrap
+default.project.json                  Rojo mappings, включая три asset root
 docs/
 ├── adr/
 │   └── template/                    решения, принадлежащие шаблону
 ├── CodeGraphSetup.md                 настройка CodeGraph на чистом компьютере
+├── AssetRegistry.md                  папки, пути, ключи и запросы ассетов
 ├── InitializationAndSaveSystem.md
 └── ResourceManagement.md             пулы, адаптеры, lease и очистка
 .agents/rules/                        обязательные правила изменения проекта
@@ -335,6 +346,33 @@ docs/
 
 Модули не запускают себя самостоятельно и не должны добавлять отдельные
 bootstrap Scripts.
+
+## Добавление статического ассета
+
+Выберите корень по реальной видимости:
+
+- `ReplicatedStorage.Assets.Shared` — шаблон нужен серверу и клиенту;
+- `ReplicatedStorage.Assets.Client` — шаблон нужен только клиентскому
+  представлению;
+- `ServerStorage.Assets` — шаблон нужен только серверу.
+
+Создавайте ниже семантические папки и сохраняйте уникальные имена соседей.
+Путь строится автоматически, например `Shared/Audio/UI/Click`. Если другой
+модуль должен ссылаться на ресурс независимо от его перемещения, добавьте
+строковый атрибут `AssetKey`, например `ui.click`. Ключ должен быть уникальным
+во всём каталоге стороны.
+
+Получайте обязательные одиночные ресурсы с проверкой класса:
+
+```lua
+local click = services.Assets:RequireByKey("ui.click", "Sound")
+local slime = services.Assets:Clone("Server/Enemies/Slime", "Model")
+```
+
+Каталог является неизменяемым снимком startup. Не перемещайте и не изменяйте
+оригиналы после bootstrap; клонируйте их. Динамические объекты, remotes,
+ModuleScripts, сервисы и содержимое `Workspace` в каталог не входят. Полные
+правила папок и запросов: [docs/AssetRegistry.md](docs/AssetRegistry.md).
 
 ## Добавление пула ресурсов
 
@@ -442,6 +480,7 @@ Studio Play:
 
 ```lua
 require(game.ServerScriptService.Tests.ResourceManagementTestRunner).runAll()
+require(game.ServerScriptService.Tests.AssetRegistryTestRunner).runAll()
 require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 ```

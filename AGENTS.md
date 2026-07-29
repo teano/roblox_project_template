@@ -106,6 +106,9 @@ available and the project has been initialized:
 - Modules expose initialization behavior but do not choose their global startup order.
 - The server and every client own separate pooling registries; every concrete
   pool is homogeneous and returns generation leases instead of raw ownership.
+- The server and every client own separate immutable startup asset catalogs
+  built only from explicit side-appropriate roots; `AssetKey` is unique within
+  every catalog that can observe it.
 - `SaveModule` is a controller registry/factory and must not know concrete save layers.
 - Domain modules own runtime data; save controllers only capture, apply, validate, and persist mementos.
 - Wallet and every provider declared with server authority are
@@ -124,6 +127,8 @@ available and the project has been initialized:
 - Do not create a second bootstrap, standalone startup Script, or LocalScript for a module.
 - Do not add a monolithic mutable profile object that bypasses save providers.
 - Do not add legacy direct gameplay remotes alongside the communication module.
+- Do not turn `AssetRegistry` into a generic service locator, runtime-world
+  tracker, ModuleScript resolver, remote registry, or live descendant watcher.
 - Do not programmatically patch binary place files or edit their lock files.
   Scene changes belong in the canonical `place.rbxl`, must be made
   through Roblox Studio when explicitly requested, and must be committed.

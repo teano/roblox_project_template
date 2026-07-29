@@ -178,8 +178,12 @@ local ServerStorage = game:GetService("ServerStorage")
 local PoolAdapters = require(ReplicatedStorage.Shared.Pooling.PoolAdapters)
 
 local pooling = services.Pooling
-local poolParent = ServerStorage.Pools.Enemies
-local template = ServerStorage.Templates.Enemies.Slime
+local assets = services.Assets
+local template = assets:RequireByKey("enemy.slime.template", "Model")
+
+local poolParent = Instance.new("Folder")
+poolParent.Name = "EnemyPools"
+poolParent.Parent = ServerStorage
 
 type SpawnContext = {
 	Parent: Instance,
@@ -212,7 +216,9 @@ slimePool:Warmup(10)
 ```
 
 `PoolParent` is assigned on creation and after the object-specific `Release`
-callback. `Acquire` owns activation and active parentage.
+callback. `Acquire` owns activation and active parentage. `AssetRegistry`
+supplies the static template; the owning domain module still owns the runtime
+pool container, adapter, budgets, and cleanup.
 
 ## Custom Poolable example
 

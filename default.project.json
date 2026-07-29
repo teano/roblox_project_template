@@ -6,7 +6,19 @@
 
     "ReplicatedStorage": {
       "$path": "src/ReplicatedStorage",
-      "$ignoreUnknownInstances": true
+      "$ignoreUnknownInstances": true,
+      "Assets": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "Shared": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true
+        },
+        "Client": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true
+        }
+      }
     },
 
     "ReplicatedFirst": {
@@ -17,6 +29,14 @@
     "ServerScriptService": {
       "$path": "src/ServerScriptService",
       "$ignoreUnknownInstances": true
+    },
+
+    "ServerStorage": {
+      "$ignoreUnknownInstances": true,
+      "Assets": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true
+      }
     },
 
     "StarterPlayer": {

@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
+local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
 local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 local PlayersModule = require(ReplicatedStorage.Client.Players.PlayersModule)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
@@ -11,6 +12,7 @@ local VersionClient = require(ReplicatedStorage.Client.Version.VersionClient)
 local WalletClient = require(ReplicatedStorage.Client.Wallet.WalletClient)
 
 local Commands = script.Parent.Commands
+local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
 local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
@@ -18,6 +20,23 @@ local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
 local DomainDataInitializationCommand = require(Commands.DomainDataInitializationCommand)
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
 
+local replicatedAssets = ReplicatedStorage:FindFirstChild("Assets")
+assert(replicatedAssets ~= nil and replicatedAssets:IsA("Folder"), "ReplicatedStorage.Assets must be a Folder")
+local sharedAssets = replicatedAssets:FindFirstChild("Shared")
+assert(sharedAssets ~= nil and sharedAssets:IsA("Folder"), "ReplicatedStorage.Assets.Shared must be a Folder")
+local clientAssets = replicatedAssets:FindFirstChild("Client")
+assert(clientAssets ~= nil and clientAssets:IsA("Folder"), "ReplicatedStorage.Assets.Client must be a Folder")
+
+local assetRegistry = AssetRegistry.new({
+	{
+		Namespace = "Shared",
+		Root = sharedAssets,
+	},
+	{
+		Namespace = "Client",
+		Root = clientAssets,
+	},
+})
 local poolModule = PoolModule.new()
 local playersModule = PlayersModule.new()
 local communication = CommunicationClient.new()
@@ -26,6 +45,7 @@ local versionClient = VersionClient.new()
 local walletClient = WalletClient.new(communication)
 
 local services = {
+	Assets = assetRegistry,
 	Pooling = poolModule,
 	Players = playersModule,
 	Communication = communication,
@@ -38,6 +58,7 @@ return {
 	Services = services,
 	Logger = Logger.new("ClientInitialization", "info"),
 	Commands = {
+		AssetRegistryInitializationCommand.new(assetRegistry),
 		PoolingInitializationCommand.new(poolModule),
 		PlayersInitializationCommand.new(playersModule),
 		CommunicationInitializationCommand.new(communication),

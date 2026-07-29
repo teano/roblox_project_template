@@ -1,8 +1,10 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
+local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
 local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 
 local Modules = script.Parent.Parent.Modules
@@ -21,6 +23,7 @@ local MigrationModule = require(Modules.Migration.MigrationModule)
 local WalletModule = require(Modules.Wallet.WalletModule)
 
 local Commands = script.Parent.Commands
+local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
 local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
@@ -29,6 +32,23 @@ local DomainDataInitializationCommand = require(Commands.DomainDataInitializatio
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
 local PersistenceScheduleInitializationCommand = require(Commands.PersistenceScheduleInitializationCommand)
 
+local replicatedAssets = ReplicatedStorage:FindFirstChild("Assets")
+assert(replicatedAssets ~= nil and replicatedAssets:IsA("Folder"), "ReplicatedStorage.Assets must be a Folder")
+local sharedAssets = replicatedAssets:FindFirstChild("Shared")
+assert(sharedAssets ~= nil and sharedAssets:IsA("Folder"), "ReplicatedStorage.Assets.Shared must be a Folder")
+local serverAssets = ServerStorage:FindFirstChild("Assets")
+assert(serverAssets ~= nil and serverAssets:IsA("Folder"), "ServerStorage.Assets must be a Folder")
+
+local assetRegistry = AssetRegistry.new({
+	{
+		Namespace = "Shared",
+		Root = sharedAssets,
+	},
+	{
+		Namespace = "Server",
+		Root = serverAssets,
+	},
+})
 local poolModule = PoolModule.new()
 local playersModule = PlayersModule.new()
 local communication = CommunicationServer.new({
@@ -50,6 +70,7 @@ local migrationModule = MigrationModule.new()
 local walletModule = WalletModule.new(communication)
 
 local services = {
+	Assets = assetRegistry,
 	Pooling = poolModule,
 	Players = playersModule,
 	Communication = communication,
@@ -64,6 +85,7 @@ local services = {
 }
 
 local commands = {
+	AssetRegistryInitializationCommand.new(assetRegistry),
 	PoolingInitializationCommand.new(poolModule),
 	PlayersInitializationCommand.new(playersModule),
 	CommunicationInitializationCommand.new(communication),

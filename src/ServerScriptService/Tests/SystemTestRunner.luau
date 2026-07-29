@@ -1,13 +1,14 @@
 --!strict
 
 --[[
-	Manual Studio harness for initialization, layered saves, locks and domain data.
+	Manual Studio harness for initialization, assets, layered saves, locks and domain data.
 
 	require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
+local ServerStorage = game:GetService("ServerStorage")
 
 local InitializationRunner = require(ReplicatedStorage.Shared.Initialization.InitializationRunner)
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
@@ -16,6 +17,7 @@ local SessionLockingStorage = require(ServerScriptService.Modules.Storage.Sessio
 local ServerSaveController = require(ServerScriptService.Modules.Save.ServerSaveController)
 local MigrationModule = require(ServerScriptService.Modules.Migration.MigrationModule)
 local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
+local ServerManifest = require(ServerScriptService.Initialization.ServerManifest)
 
 local SystemTestRunner = {}
 
@@ -123,6 +125,15 @@ function SystemTestRunner.runAll()
 		assertEqual(first.Ok, false)
 		assertEqual(second.Ok, false)
 		assertEqual(attempts, 1)
+	end)
+
+	test("server manifest exposes the initialized side-owned asset catalog", function()
+		local assets = ServerManifest.Services.Assets
+		assertTrue(assets ~= nil, "server manifest must expose Services.Assets")
+		assertTrue(assets:IsInitialized(), "server asset catalog must initialize during bootstrap")
+		assertEqual(assets:Get("Shared"), ReplicatedStorage.Assets.Shared)
+		assertEqual(assets:Get("Server"), ServerStorage.Assets)
+		assertEqual(assets:Get("Client"), nil, "server catalog must not expose the client namespace")
 	end)
 
 	test("session lock blocks a second live owner", function()
