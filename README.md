@@ -277,12 +277,18 @@ Assets → Pooling → Players → Communication → Save → DomainData
 Порядок клиентской инициализации:
 
 ```text
-Assets → Pooling → Players → Communication → Save → DomainData → GlobalSave
+Assets → StartupContentPreload → Pooling → Players → Communication
+       → Save → DomainData → GlobalSave
 ```
 
 `Assets` один раз индексирует только явно заданные статические корни. Сервер
 получает пространства `Shared` и `Server`, а каждый клиент — `Shared` и
 `Client`. Каталог не ищет сервисы, remotes, модули или runtime-объекты.
+
+`StartupContentPreload` выбирает через каталог все клиентские ресурсы с тегом
+`Preload`. Весь production-код выполняет предзагрузку через
+`ContentPreloader`, а не обращается к встроенному
+`ContentProvider:PreloadAsync()` напрямую.
 
 `Pooling` инициализирует отдельный реестр на сервере и на каждом клиенте, но не
 создаёт конкретные игровые пулы. Их создают владеющие доменные модули с
@@ -305,6 +311,8 @@ Version → Wallet → project providers
 [docs/InitializationAndSaveSystem.md](docs/InitializationAndSaveSystem.md).
 Контракт папок, путей, `AssetKey` и запросов:
 [docs/AssetRegistry.md](docs/AssetRegistry.md).
+Единая точка предзагрузки, группы, прогресс и ошибки:
+[docs/ContentPreloading.md](docs/ContentPreloading.md).
 Контракт пулов, адаптеров, lease и очистки:
 [docs/ResourceManagement.md](docs/ResourceManagement.md).
 
@@ -327,6 +335,7 @@ docs/
 │   └── template/                    решения, принадлежащие шаблону
 ├── CodeGraphSetup.md                 настройка CodeGraph на чистом компьютере
 ├── AssetRegistry.md                  папки, пути, ключи и запросы ассетов
+├── ContentPreloading.md              единая точка предзагрузки контента
 ├── InitializationAndSaveSystem.md
 └── ResourceManagement.md             пулы, адаптеры, lease и очистка
 .agents/rules/                        обязательные правила изменения проекта
@@ -482,6 +491,7 @@ Studio Play:
 ```lua
 require(game.ServerScriptService.Tests.ResourceManagementTestRunner).runAll()
 require(game.ServerScriptService.Tests.AssetRegistryTestRunner).runAll()
+require(game.ServerScriptService.Tests.ContentPreloaderTestRunner).runAll()
 require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 ```

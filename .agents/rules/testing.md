@@ -50,6 +50,7 @@ Expected: every result has `failed = 0`.
 |---|---|
 | Initialization, manifests, module composition | System + clean server/client bootstrap |
 | Asset registry, roots, paths, keys, tags, metadata, or asset folder mappings | AssetRegistry + System + clean server/client bootstrap |
+| Content preloader, preload selectors, progress, policies, or startup preload command | ContentPreloader + AssetRegistry + System + clean server/client bootstrap |
 | Pool core, adapters, leases, registry, or resource cleanup | ResourceManagement + System; add clean Play when manifests or concrete Roblox resources change |
 | Save, providers, storage, locks, autosave, shutdown | System + Production |
 | Communication, DTO, serializer, remotes, resync | Production + clean client/server Play |

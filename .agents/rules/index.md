@@ -31,6 +31,7 @@ affects save-provider and communication contracts.
 | Modifying or deleting a path that also exists in template `upstream` | `template-updates.md`, `architecture-decisions.md`, plus every affected subsystem rule |
 | New module, subsystem, service, public API, or ownership boundary | `architecture.md`, `initialization.md`, `testing.md` |
 | `AssetRegistry`, `AssetKey`, static asset lookup, asset roots, or asset folder/query contracts | `assets.md`, `architecture.md`, `initialization.md`, `rojo-project.md`, `testing.md` |
+| `ContentPreloader`, `ContentProvider`, `PreloadAsync`, preload tags/groups, startup content loading, or loading before pool warmup | `content-preloading.md`, `assets.md`, `architecture.md`, `initialization.md`, `testing.md` |
 | Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
 | `src/**/Save/**`, storage, autosave, session locks, migration, version persistence | `architecture.md`, `save-system.md`, `testing.md` |
@@ -62,6 +63,8 @@ affects save-provider and communication contracts.
 - `rojo-project.md`: source-of-truth and Roblox instance mapping rules.
 - `assets.md`: side-owned static asset catalogs, roots, paths, keys, queries,
   folder rules, and startup immutability.
+- `content-preloading.md`: the single preloading entry point, catalog-backed
+  selection, named requests, progress, failure policy, and startup loading.
 - `resource-management.md`: pooling ownership, adapters, leases, budgets, and cleanup.
 
 ## Architecture decision records

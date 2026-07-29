@@ -225,8 +225,10 @@ obtain one typed template from `Services.Assets`, then create and own a
 homogeneous pool from that template.
 
 Content loading may yield, while registry scanning and pool adapters may not.
-Use an explicit preload/provider phase before pool warmup; do not add yielding
-loading to `AssetRegistry:Initialize`, `FindAll`, or a pool adapter.
+Route it through the project `ContentPreloader` before pool warmup; do not add
+yielding loading to `AssetRegistry:Initialize`, `FindAll`, or a pool adapter.
+Production consumers do not call `ContentProvider:PreloadAsync()` directly.
+See [ContentPreloading.md](ContentPreloading.md).
 
 ## Verification
 
@@ -240,6 +242,7 @@ Run in a fresh server Studio Play session:
 
 ```lua
 require(game.ServerScriptService.Tests.AssetRegistryTestRunner).runAll()
+require(game.ServerScriptService.Tests.ContentPreloaderTestRunner).runAll()
 require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 ```
 

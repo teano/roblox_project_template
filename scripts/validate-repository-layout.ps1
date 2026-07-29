@@ -300,6 +300,33 @@ if (
 	)
 }
 
+$contentPreloaderImplementation = (
+	"src/ReplicatedStorage/Shared/ContentPreloading/ContentPreloader.luau"
+)
+$directPreloadCalls = @(
+	Get-ChildItem -LiteralPath (Join-Path $repositoryRoot "src") -Recurse -File -Filter "*.luau" |
+		ForEach-Object {
+			$relativePath = $_.FullName.Substring($repositoryRoot.Length + 1)
+			$relativePath = $relativePath.Replace("\", "/")
+			if (
+				$relativePath -eq $contentPreloaderImplementation -or
+				$relativePath.StartsWith("src/ServerScriptService/Tests/")
+			) {
+				return
+			}
+			$content = Get-Content -LiteralPath $_.FullName -Raw
+			if ([regex]::IsMatch($content, ':PreloadAsync\s*\(')) {
+				$relativePath
+			}
+		}
+)
+foreach ($directPreloadCall in $directPreloadCalls) {
+	Add-Failure (
+		"Production content preloading must route through ContentPreloader; " +
+		"direct PreloadAsync call found in '$directPreloadCall'."
+	)
+}
+
 if ($failures.Count -gt 0) {
 	foreach ($failure in $failures) {
 		Write-Error -Message $failure -ErrorAction Continue

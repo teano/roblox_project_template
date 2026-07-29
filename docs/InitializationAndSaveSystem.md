@@ -26,7 +26,8 @@ Assets → Pooling → Players → Communication → Save → DomainData
 Client order:
 
 ```text
-Assets → Pooling → Players → Communication → Save → DomainData → GlobalSave
+Assets → StartupContentPreload → Pooling → Players → Communication
+       → Save → DomainData → GlobalSave
 ```
 
 `Assets` builds an immutable side-owned catalog from explicit roots before
@@ -34,6 +35,14 @@ game systems consume static templates. The server indexes `Shared` and
 `Server`; each client indexes `Shared` and `Client`. It discovers no startup
 commands and does not scan runtime hierarchies. See
 [AssetRegistry.md](AssetRegistry.md).
+
+`StartupContentPreload` uses the client-owned `ContentPreloader` to select
+catalog entries tagged `Preload` and route them through the injected Roblox
+`ContentProvider`. The request completes before `ClientInitialized`; delivery
+failures are logged under the best-effort startup policy. All production
+preloading uses this module instead of calling `ContentProvider:PreloadAsync()`
+directly. See
+[ContentPreloading.md](ContentPreloading.md).
 
 `Pooling` constructs no concrete pools during bootstrap. It initializes a
 side-owned registry exposed as `context.Services.Pooling`; project modules

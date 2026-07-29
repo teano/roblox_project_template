@@ -5,9 +5,9 @@
 Apply to `AssetRegistry`, `AssetKey`, asset queries, asset folder mappings,
 static templates, and code that discovers or clones authored resources.
 
-Required context: `docs/AssetRegistry.md`, `docs/InitializationAndSaveSystem.md`,
-`docs/adr/README.md`, and every relevant Accepted template and project ADR
-selected from the routed indexes.
+Required context: `docs/AssetRegistry.md`, `docs/ContentPreloading.md`,
+`docs/InitializationAndSaveSystem.md`, `docs/adr/README.md`, and every relevant
+Accepted template and project ADR selected from the routed indexes.
 
 This subsystem catalogs static authored `Instance` templates. It is distinct
 from pooling and does not own runtime object lifetimes.
@@ -81,6 +81,10 @@ from pooling and does not own runtime object lifetimes.
   Instances belong to their domain owners, not to `AssetRegistry`.
 - Yielding content preloading is a separate phase or module. It MUST NOT be
   hidden inside the synchronous scan or lookup API.
+- Catalog-backed preloading MUST route through `ContentPreloader`; production
+  consumers MUST NOT call `ContentProvider:PreloadAsync()` directly.
+- The startup preload set uses tag `Preload`. This selects content only and
+  MUST NOT define module startup order.
 
 ## Forbidden patterns
 
@@ -115,6 +119,7 @@ from pooling and does not own runtime object lifetimes.
 
 - Rojo build to a temporary output path.
 - `AssetRegistryTestRunner`.
+- `ContentPreloaderTestRunner` after preload selection or integration changes.
 - `SystemTestRunner`.
 - Clean server/client bootstrap with no asset catalog errors after manifest,
   mapping, root, or canonical-place changes.

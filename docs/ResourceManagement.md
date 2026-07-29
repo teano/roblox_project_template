@@ -239,7 +239,8 @@ local lease = effectPool:Acquire({
 `EffectController:OnRelease()` must disconnect per-lease signals, disable and
 clear emitters, reset mutable state, and return its model to the client pool
 container. Asset preloading belongs before `Warmup`; the core pool does not
-provide an async acquire API.
+provide an async acquire API. Route the owning domain's request through
+`ContentPreloader`; see [ContentPreloading.md](ContentPreloading.md).
 
 ## Verification
 

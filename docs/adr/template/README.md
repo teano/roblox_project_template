@@ -21,6 +21,7 @@ Repositories derived from the template receive these records from their
 | [ADR-0011](0011-user-selected-template-update-branch.md) | Let the user choose the template update destination branch | Accepted |
 | [ADR-0012](0012-project-specific-rojo-server-ports.md) | Assign and preserve project-specific Rojo server ports | Superseded by ADR-0015 |
 | [ADR-0013](0013-side-owned-static-asset-catalogs.md) | Use side-owned immutable static asset catalogs | Accepted |
+| [ADR-0014](0014-catalog-integrated-content-preloading.md) | Route content preloading through a catalog-integrated module | Accepted |
 | [ADR-0015](0015-default-rojo-port-with-project-overrides.md) | Use Rojo's default port with optional project overrides | Accepted |
 
 ## Ownership and numbering

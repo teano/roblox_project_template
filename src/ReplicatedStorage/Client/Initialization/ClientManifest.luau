@@ -1,9 +1,11 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ContentProvider = game:GetService("ContentProvider")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
+local ContentPreloader = require(ReplicatedStorage.Shared.ContentPreloading.ContentPreloader)
 local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 local PlayersModule = require(ReplicatedStorage.Client.Players.PlayersModule)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
@@ -13,6 +15,7 @@ local WalletClient = require(ReplicatedStorage.Client.Wallet.WalletClient)
 
 local Commands = script.Parent.Commands
 local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
+local StartupContentPreloadCommand = require(Commands.StartupContentPreloadCommand)
 local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
@@ -37,6 +40,11 @@ local assetRegistry = AssetRegistry.new({
 		Root = clientAssets,
 	},
 })
+local contentPreloader = ContentPreloader.new({
+	Assets = assetRegistry,
+	ContentProvider = ContentProvider,
+	Logger = Logger.new("ContentPreloader.Client", "info"),
+})
 local poolModule = PoolModule.new()
 local playersModule = PlayersModule.new()
 local communication = CommunicationClient.new()
@@ -46,6 +54,7 @@ local walletClient = WalletClient.new(communication)
 
 local services = {
 	Assets = assetRegistry,
+	ContentPreloader = contentPreloader,
 	Pooling = poolModule,
 	Players = playersModule,
 	Communication = communication,
@@ -59,6 +68,7 @@ return {
 	Logger = Logger.new("ClientInitialization", "info"),
 	Commands = {
 		AssetRegistryInitializationCommand.new(assetRegistry),
+		StartupContentPreloadCommand.new(contentPreloader),
 		PoolingInitializationCommand.new(poolModule),
 		PlayersInitializationCommand.new(playersModule),
 		CommunicationInitializationCommand.new(communication),
