@@ -1,10 +1,10 @@
 # ADR-0012: Assign and preserve project-specific Rojo server ports
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-29
 - Deciders: Project maintainers
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR-0015
 
 ## Context
 

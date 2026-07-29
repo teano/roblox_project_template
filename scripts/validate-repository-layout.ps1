@@ -281,16 +281,18 @@ if ($projectConfiguration.name -cne $expectedRojoConnectionName) {
 }
 
 $servePortProperty = $projectConfiguration.PSObject.Properties["servePort"]
-if ($null -eq $servePortProperty) {
-	Add-Failure "default.project.json must define a fixed servePort."
-} elseif (
+if (
+	$null -ne $servePortProperty -and
 	$servePortProperty.Value -isnot [int] -and
 	$servePortProperty.Value -isnot [long]
 ) {
 	Add-Failure "default.project.json servePort must be an integer."
 } elseif (
-	$servePortProperty.Value -lt 34872 -or
-	$servePortProperty.Value -gt 34999
+	$null -ne $servePortProperty -and
+	(
+		$servePortProperty.Value -lt 34872 -or
+		$servePortProperty.Value -gt 34999
+	)
 ) {
 	Add-Failure (
 		"default.project.json servePort must be in the reserved project range " +
