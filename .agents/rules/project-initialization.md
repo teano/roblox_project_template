@@ -64,17 +64,29 @@ Use this procedure:
 3. Set `default.project.json` `name` exactly to the repository root directory
    name. This is the Rojo connection name shown in Studio and distinguishes
    concurrently running project servers.
-4. Replace template-facing root README content with the game's name, purpose,
+4. Assign a dedicated fixed Rojo server port:
+   - inspect `servePort` in other `*.project.json` files under the target
+     repository's parent directory and every available local workspace root,
+     excluding the target repository's own configuration;
+   - inspect active TCP listeners so a port reserved by another process is not
+     selected;
+   - choose the first port that is neither configured elsewhere nor actively
+     listening in the inclusive range `34872` through `34999`;
+   - write that integer to `default.project.json` as `servePort`;
+   - if the range cannot be inspected reliably or has no free port, stop and
+     ask the user instead of reusing or inventing a port outside the range.
+5. Replace template-facing root README content with the game's name, purpose,
    local start commands, upstream update workflow, and a link to the template
    README.
-5. Create `docs/adr/project/README.md` with an empty decision-index table and
+6. Create `docs/adr/project/README.md` with an empty decision-index table and
    independent numbering instructions.
-6. Copy the structure of `docs/adr/_template.md` into
+7. Copy the structure of `docs/adr/_template.md` into
    `docs/adr/project/0001-initialize-project-from-template.md`, mark it
    Accepted, add it to the project index, and record:
    - project identity and repository;
    - template upstream URL and baseline commit;
    - Rojo connection name;
+   - selected Rojo `servePort`;
    - canonical `place.rbxl` ownership;
    - initial version, DataStore, and Wallet decisions;
    - any explicitly unresolved project choices;
@@ -85,24 +97,29 @@ Use this procedure:
      Also list `place.rbxl` as an ownership/merge-policy entry even when its
      binary content was not changed, and record that the initialized project's
      complete place is preserved on future upstream updates.
+     For `default.project.json`, state the project invariant that `name`
+     matches the repository directory and `servePort` remains the selected
+     dedicated port. Its upstream merge policy must reconcile other incoming
+     JSON changes while always preserving the project's current `name` and
+     `servePort`.
    Project ADR-0001 remains the owning record for these initialization
    divergences. Future template merges reuse it while those invariants and
    merge policies remain unchanged; they do not create migration or duplicate
    ADRs for the same paths.
-7. Review every project-specific configuration surface:
-   - `default.project.json` project/connection name;
+8. Review every project-specific configuration surface:
+   - `default.project.json` project/connection name and fixed `servePort`;
    - `VersionConfig.CurrentVersion`;
    - `StorageConfig.DataStoreName`, scope, prefix, limits, and Studio storage;
    - `WalletConfig` currencies and defaults;
    - root README and canonical `place.rbxl`.
-8. Use deterministic project-derived values where semantics are clear. Do not
+9. Use deterministic project-derived values where semantics are clear. Do not
    invent production economy, persistence compatibility, or product behavior.
    If those choices cannot be inferred from the project request, keep the safe
    template behavior, record the unresolved decision in project ADR-0001, and
    ask one focused user question before production-dependent work.
-9. Initialize local CodeGraph according to `docs/CodeGraphSetup.md` when the
+10. Initialize local CodeGraph according to `docs/CodeGraphSetup.md` when the
    tool is available. Generated index files remain untracked.
-10. Read `template-updates.md` so future upstream merges preserve documented
+11. Read `template-updates.md` so future upstream merges preserve documented
     project decisions.
 
 ## Required verification
@@ -114,9 +131,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-
 rojo build default.project.json --output $env:TEMP\project-validation.rbxlx
 ```
 
-Then open `place.rbxl`, start `rojo serve default.project.json`, confirm that
-Studio shows the repository directory name as the connection, run a clean Play
-session, and inspect both server and client output.
+Immediately before starting Rojo, recheck that the selected `servePort` is not
+owned by another active listener. Then open `place.rbxl`, start
+`rojo serve default.project.json` without a `--port` override, and confirm that
+Rojo reports the port recorded in `default.project.json` and Studio shows the
+repository directory name as the connection. If binding fails, repeat the port
+selection and update project ADR-0001 before committing. Run a clean Play
+session and inspect both server and client output.
 
 Do not automatically commit, push, publish a Roblox experience, enable
 production DataStore access, or overwrite an existing canonical place unless

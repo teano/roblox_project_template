@@ -112,8 +112,10 @@ https://github.com/OWNER/PROJECT.git
 4. добавить переданный URL как `origin`;
 5. создать собственные project ADR index и ADR-0001;
 6. назначить Rojo connection имя каталога проекта;
-7. проверить Version, DataStore, Wallet, README и `place.rbxl`;
-8. выполнить проверки, создать initialization commit и отправить его в
+7. проверить порты других локальных Rojo-проектов и активных процессов,
+   закрепить отдельный `servePort` и записать его merge policy в ADR-0001;
+8. проверить Version, DataStore, Wallet, README и `place.rbxl`;
+9. выполнить проверки, создать initialization commit и отправить его в
    `origin/main`.
 
 Эквивалентная ручная настройка для пустого target-репозитория:

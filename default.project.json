@@ -1,5 +1,6 @@
 {
   "name": "roblox_project_template",
+  "servePort": 34873,
   "tree": {
     "$className": "DataModel",
 

@@ -107,6 +107,19 @@ action.
   desired, replay them manually in Roblox Studio as a separate authorized
   project change.
 
+### Rojo project identity and server port
+
+- Treat the initialized project's `default.project.json` `name` and
+  `servePort` as project-owned values documented by project ADR-0001.
+- When upstream also changes `default.project.json`, reconcile the JSON
+  structure and apply compatible incoming mappings or settings, but preserve
+  the project's current `name` and `servePort` regardless of conflict shape.
+- Never replace either field with the template value or remove `servePort`
+  merely because the incoming file changed cleanly.
+- If the active owning project ADR does not name `default.project.json`, does
+  not state this invariant, or disagrees with the current values, stop and ask
+  the user instead of guessing which identity or port should win.
+
 ### Text source, scripts, services, rules, and documentation
 
 - Apply incoming template additions, modifications, and deletions as delivered
