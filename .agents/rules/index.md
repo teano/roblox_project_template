@@ -25,6 +25,7 @@ affects save-provider and communication contracts.
 
 | Trigger | Required rules |
 |---|---|
+| Request to create or initialize a project from a target repository URL | `project-initialization.md`, then every rule required by its initialization checklist |
 | First source change in a derived repository without `docs/adr/project/README.md` | `project-initialization.md`, `architecture-decisions.md`, `rojo-project.md`, `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
 | New module, subsystem, service, public API, or ownership boundary | `architecture.md`, `initialization.md`, `testing.md` |
 | Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |

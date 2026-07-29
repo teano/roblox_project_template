@@ -89,19 +89,79 @@ Codex запускает сервис CodeGraph по необходимости;
 Установка через npm, проверка, политика хранения файлов и устранение неполадок
 описаны в [docs/CodeGraphSetup.md](docs/CodeGraphSetup.md).
 
-## Быстрый старт
+## Создание проекта с обновлениями из upstream
 
-1. Создайте репозиторий из этого шаблона.
-2. Если используете Codex, выполните настройку CodeGraph из раздела выше.
-3. Откройте отслеживаемый файл `place.rbxl` в Roblox Studio.
-4. Запустите `rojo serve default.project.json` и подключите плагин Studio.
-5. Убедитесь, что поле `name` в `default.project.json` совпадает с именем
+Создайте на GitHub пустой репозиторий игры без README, `.gitignore` и лицензии.
+Не используйте **Use this template**: GitHub создаст отдельную историю, которую
+потребуется специально объединять с шаблоном.
+
+Чтобы агент выполнил весь процесс самостоятельно, достаточно передать ему URL
+нового репозитория, например:
+
+```text
+Инициализируй новый проект из Roblox-шаблона:
+https://github.com/OWNER/PROJECT.git
+```
+
+Согласно [обязательному правилу инициализации](.agents/rules/project-initialization.md),
+агент должен без дополнительных пошаговых указаний:
+
+1. определить локальный каталог `PROJECT` из URL;
+2. клонировать этот шаблон;
+3. переименовать remote шаблона в `upstream`;
+4. добавить переданный URL как `origin`;
+5. создать собственные project ADR index и ADR-0001;
+6. назначить Rojo connection имя каталога проекта;
+7. проверить Version, DataStore, Wallet, README и `place.rbxl`;
+8. выполнить проверки, создать initialization commit и отправить его в
+   `origin/main`.
+
+Эквивалентная ручная настройка для пустого target-репозитория:
+
+```powershell
+$TemplateRepository = "https://github.com/teano/roblox_project_template.git"
+$ProjectRepository = "https://github.com/OWNER/PROJECT.git"
+$ProjectDirectory = [IO.Path]::GetFileNameWithoutExtension($ProjectRepository)
+
+git clone $TemplateRepository $ProjectDirectory
+Set-Location $ProjectDirectory
+git remote rename origin upstream
+git remote add origin $ProjectRepository
+git remote -v
+```
+
+После настройки и до первого push выполните проектную инициализацию из
+`.agents/rules/project-initialization.md`. Если target уже содержит только
+автоматически созданный README, агент использует одно начальное объединение с
+`--allow-unrelated-histories`; существующий проект с исходниками он не
+перезаписывает без отдельного подтверждения.
+
+Последующие обновления шаблона выполняйте в отдельной ветке:
+
+```powershell
+git switch main
+git pull --ff-only origin main
+git fetch upstream
+git switch -c chore/template-update
+git merge upstream/main
+```
+
+После проверок отправьте ветку в `origin` и объедините её с `main` через pull
+request. Project ADR находятся только в `docs/adr/project/`, поэтому upstream
+их не изменяет и не обновляет их индекс.
+
+## Локальный запуск
+
+1. Если используете Codex, выполните настройку CodeGraph из раздела выше.
+2. Откройте отслеживаемый файл `place.rbxl` в Roblox Studio.
+3. Запустите `rojo serve default.project.json` и подключите плагин Studio.
+4. Убедитесь, что поле `name` в `default.project.json` совпадает с именем
    корневого каталога репозитория. Это уникальное имя Rojo-подключения,
    отображаемое в Studio.
-6. Проверьте `VersionConfig.CurrentVersion`.
-7. Выберите имя production DataStore и ограничения сохранения в
+5. Проверьте `VersionConfig.CurrentVersion`.
+6. Выберите имя production DataStore и ограничения сохранения в
    `StorageConfig`.
-8. Настройте валюты и начальные балансы в `WalletConfig`.
+7. Настройте валюты и начальные балансы в `WalletConfig`.
 
 Для проверки сборки или изучения только исходников используйте сборку Rojo:
 

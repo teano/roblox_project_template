@@ -10,6 +10,50 @@ the checklist below has been completed.
 Required subsystem rules: `architecture-decisions.md`, `rojo-project.md`,
 `domain-data.md`, `save-system.md`, `communication.md`, and `testing.md`.
 
+## Bootstrap from a target repository URL
+
+When the user asks to create or initialize a project from this template and
+supplies the target repository URL, that single request authorizes the normal
+end-to-end bootstrap within the named target: clone/fetch, configure remotes,
+initialize project-owned files, verify, create the initialization commit, and
+push it to the target `origin`. It does not authorize deleting existing work,
+replacing an unrelated repository, force-pushing, publishing a Roblox
+experience, or enabling production DataStore access.
+
+Use this procedure:
+
+1. Treat the supplied URL as the derived project's `origin`.
+2. Derive the local directory from the repository URL without its trailing
+   `.git`, unless the user supplied an explicit destination.
+3. Resolve and inspect the destination before writing. Refuse to overwrite a
+   non-empty directory that belongs to another repository.
+4. Inspect the target remote before choosing a history strategy.
+5. For an empty target remote:
+   - clone `https://github.com/teano/roblox_project_template.git` into the
+     destination;
+   - rename the cloned `origin` remote to `upstream`;
+   - add the supplied target URL as `origin`;
+   - continue with Mandatory initialization before the first push.
+6. For a target containing only bootstrap content such as an initial README:
+   - clone the target;
+   - add the template URL as `upstream`;
+   - fetch `upstream`;
+   - merge `upstream/main` once with `--allow-unrelated-histories --no-commit`;
+   - resolve bootstrap-document conflicts as project-owned content;
+   - stop and ask before continuing if source, binary place, or other
+     non-bootstrap conflicts appear.
+7. For a target that already shares template history, configure or verify
+   `upstream`, fetch it, and use a normal merge.
+8. For a non-empty target with unrelated source or project data, do not import
+   automatically. Report the existing contents and ask whether the user wants
+   a reviewed migration.
+9. Never use GitHub **Use this template** for a new repository that must receive
+   normal upstream merges; it creates an unrelated history.
+10. After Mandatory initialization and Required verification succeed, create
+    one initialization commit and push `main` to the supplied `origin`. Use a
+    normal push only; if it is rejected, report the remote change instead of
+    forcing it.
+
 ## Mandatory initialization
 
 1. Resolve the repository root with `git rev-parse --show-toplevel` and use the
@@ -63,4 +107,6 @@ session, and inspect both server and client output.
 
 Do not automatically commit, push, publish a Roblox experience, enable
 production DataStore access, or overwrite an existing canonical place unless
-the user has authorized that action.
+the user has authorized that action. A request to create or initialize from a
+supplied target repository URL authorizes only the initialization commit and
+normal push described above.

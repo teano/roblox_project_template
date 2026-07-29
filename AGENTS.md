@@ -36,6 +36,14 @@ from the repository root directory, and reviews every project-specific
 configuration surface. This is mandatory setup work and does not require the
 user to repeat these instructions.
 
+When the user asks to create or initialize a project and supplies only the
+target repository URL, treat that URL as the project `origin`, derive the local
+directory name from it, and follow the URL bootstrap procedure in
+`project-initialization.md`. Continue through clone, remote setup, project
+initialization, verification, initialization commit, and push without asking
+the user to restate each step. Never overwrite a non-empty unrelated repository
+or force-push it under this implicit workflow.
+
 ## Code intelligence
 
 CodeGraph is the preferred source-code exploration tool when its MCP tools are
