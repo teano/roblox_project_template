@@ -51,6 +51,14 @@ Before changing a template-owned file in a derived repository or merging
 change to a path supplied by the template must be explained by a project ADR
 with its exact paths, baseline, invariant, and future merge policy.
 
+Before creating a branch or starting the merge, fetch `upstream` and determine
+whether `upstream/main` is already contained in the current `HEAD`. If it is,
+report that the project is current and make no merge change. Otherwise ask the
+user whether to merge into the current branch or create the deterministic
+`template-update/{commit_from}_{commit_to}` branch from the current `HEAD`.
+Never choose an arbitrary update branch or force a dedicated branch when the
+user wants to own the merge in their current branch.
+
 During the first import into an empty project, accept `place.rbxl` from the
 template unchanged. After project initialization, the existing project
 `place.rbxl` always wins over an incoming template version; preserve that whole

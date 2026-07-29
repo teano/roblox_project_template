@@ -42,23 +42,45 @@ historical intent during an upstream merge.
 
 Before merging:
 
-1. Require a clean worktree and update local `main` from `origin` with a
-   fast-forward-only pull.
-2. Fetch `upstream` and record:
+1. Require a clean worktree and a named current branch. Stop on detached
+   `HEAD`; do not invent a destination branch.
+2. Fetch `upstream`.
+3. Check whether `upstream/main` is already an ancestor of the current `HEAD`.
+   If it is, report that the current branch already contains the latest
+   template commit and stop without creating a branch or running a merge.
+4. When an update exists, record:
    - the pre-merge project commit;
    - the previous template merge-base;
    - the target `upstream/main` commit.
-3. Inspect incoming template changes from the previous merge-base to
+5. Inspect incoming template changes from the previous merge-base to
    `upstream/main`.
-4. Inspect project divergences from the previous merge-base to the current
+6. Inspect project divergences from the previous merge-base to the current
    project tree.
-5. Intersect incoming paths with project-divergence paths.
-6. For every intersection, locate and read the project ADR that names the
+7. Intersect incoming paths with project-divergence paths.
+8. For every intersection, locate and read the project ADR that names the
    exact path.
-7. Stop before merging when a local template-owned change has no project ADR.
+9. Stop before merging when a local template-owned change has no project ADR.
 
-Perform the update in a dedicated branch. Do not merge directly into a dirty
-or unreviewed `main`.
+Do not switch branches or start the merge until the user chooses one of these
+destinations:
+
+- merge `upstream/main` into the current named branch;
+- create a deterministic update branch from the current `HEAD`, switch to it,
+  and merge there.
+
+For a shared history, name the update branch
+`template-update/{commit_from}_{commit_to}`, where both values are the first 12
+hexadecimal characters of the recorded merge-base and target template commit.
+For the reviewed first import with unrelated histories, use
+`template-update/initial_{commit_to}`. If that local branch name already exists,
+do not reset, overwrite, reuse, or switch to it automatically; report the
+collision and ask the user.
+
+The user's branch choice changes only where the merge is performed. It does not
+waive clean-worktree, ADR, conflict-resolution, canonical-place, verification,
+or reporting requirements. Do not pull another branch, push the result, or
+open a pull request unless the user's request separately authorizes that
+action.
 
 ## Merge policy
 
