@@ -58,6 +58,7 @@ Expected: every result has `failed = 0`.
 | Project-specific gameplay or presentation | Its focused suite plus Production when communication or persistence is involved |
 | Players lifecycle | System + Production + join/leave/respawn Play checks |
 | Rojo mapping or executable placement | Rojo build + clean bootstrap |
+| Rojo server process, endpoint ownership, or Studio preflight | Repository layout validator + two consecutive `ensure-rojo-server.ps1` runs |
 
 ## Real DataStore
 

@@ -64,19 +64,9 @@ Use this procedure:
 3. Set `default.project.json` `name` exactly to the repository root directory
    name. This is the Rojo connection name shown in Studio and distinguishes
    concurrently running project servers.
-4. Keep `servePort` absent so Rojo uses its default port unless the project
-   explicitly needs a stable override, such as for intentionally concurrent
-   local Rojo servers. When an override is required:
-   - inspect `servePort` in other `*.project.json` files under the target
-     repository's parent directory and every available local workspace root,
-     excluding the target repository's own configuration;
-   - inspect active TCP listeners so a port reserved by another process is not
-     selected;
-   - choose the first port that is neither configured elsewhere nor actively
-     listening in the inclusive range `34872` through `34999`;
-   - write that integer to `default.project.json` as `servePort`;
-   - if the range cannot be inspected reliably or has no free port, stop and
-     ask the user instead of reusing or inventing a port outside the range.
+4. Keep `servePort` absent. All template-derived projects share Rojo's default
+   endpoint and use `scripts/ensure-rojo-server.ps1` to make the current
+   repository the active server before source edits or Studio work.
 5. Replace template-facing root README content with the game's name, purpose,
    local start commands, upstream update workflow, and a link to the template
    README.
@@ -88,8 +78,7 @@ Use this procedure:
    - project identity and repository;
    - template upstream URL and baseline commit;
    - Rojo connection name;
-   - whether Rojo uses the default port or an intentional `servePort`
-     override, including the selected value when present;
+   - the shared default Rojo endpoint and required absence of `servePort`;
    - canonical `place.rbxl` ownership;
    - initial version, DataStore, and Wallet decisions;
    - any explicitly unresolved project choices;
@@ -101,17 +90,16 @@ Use this procedure:
      binary content was not changed, and record that the initialized project's
      complete place is preserved on future upstream updates.
      For `default.project.json`, state the project invariant that `name`
-     matches the repository directory and record whether `servePort` remains
-     absent or is an intentional project override. Its upstream merge policy
-     must reconcile other incoming JSON changes while always preserving the
-     project's current `name` and any documented `servePort` override.
+     matches the repository directory and `servePort` remains absent. Its
+     upstream merge policy must reconcile other incoming JSON changes while
+     always preserving the project's current `name` and removing any incoming
+     `servePort`.
    Project ADR-0001 remains the owning record for these initialization
    divergences. Future template merges reuse it while those invariants and
    merge policies remain unchanged; they do not create migration or duplicate
    ADRs for the same paths.
 8. Review every project-specific configuration surface:
-   - `default.project.json` project/connection name and optional intentional
-     `servePort` override;
+   - `default.project.json` project/connection name and absence of `servePort`;
    - `VersionConfig.CurrentVersion`;
    - `StorageConfig.DataStoreName`, scope, prefix, limits, and Studio storage;
    - `WalletConfig` currencies and defaults;
@@ -135,14 +123,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-
 rojo build default.project.json --output $env:TEMP\project-validation.rbxlx
 ```
 
-Immediately before starting Rojo, determine the effective port (`servePort`
-when present, otherwise Rojo's default) and recheck that it is not owned by
-another active listener. Then open `place.rbxl`, start
-`rojo serve default.project.json` without a `--port` override, and confirm that
-Rojo reports the effective port and Studio shows the repository directory name
-as the connection. If the project needs concurrent servers and the default is
-occupied, select and document an override before committing. Run a clean Play
-session and inspect both server and client output.
+Run `scripts/ensure-rojo-server.ps1` and confirm through Rojo's `/api/rojo`
+metadata that the repository directory name owns the default endpoint. Run it
+a second time and confirm that it does not restart an already-correct server.
+Then open `place.rbxl`, connect the Studio plugin at its unchanged default
+endpoint, and confirm Studio shows the repository directory name as the
+connection. Run a clean Play session and inspect both server and client output.
 
 Do not automatically commit, push, publish a Roblox experience, enable
 production DataStore access, or overwrite an existing canonical place unless

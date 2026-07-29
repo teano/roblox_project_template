@@ -281,23 +281,26 @@ if ($projectConfiguration.name -cne $expectedRojoConnectionName) {
 }
 
 $servePortProperty = $projectConfiguration.PSObject.Properties["servePort"]
-if (
-	$null -ne $servePortProperty -and
-	$servePortProperty.Value -isnot [int] -and
-	$servePortProperty.Value -isnot [long]
-) {
-	Add-Failure "default.project.json servePort must be an integer."
-} elseif (
-	$null -ne $servePortProperty -and
-	(
-		$servePortProperty.Value -lt 34872 -or
-		$servePortProperty.Value -gt 34999
-	)
-) {
+if ($null -ne $servePortProperty) {
 	Add-Failure (
-		"default.project.json servePort must be in the reserved project range " +
-		"34872 through 34999."
+		"default.project.json must not define servePort; projects share Rojo's " +
+		"default endpoint and switch the active server through the preflight."
 	)
+}
+
+$rojoPreflightPath = Join-Path $repositoryRoot "scripts\ensure-rojo-server.ps1"
+if (-not (Test-Path -LiteralPath $rojoPreflightPath -PathType Leaf)) {
+	Add-Failure "scripts/ensure-rojo-server.ps1 is missing."
+}
+
+$agentsPath = Join-Path $repositoryRoot "AGENTS.md"
+$agentsContent = Get-Content -LiteralPath $agentsPath -Raw
+$rojoPreflightCommand = (
+	"powershell -NoProfile -ExecutionPolicy Bypass -File " +
+	"scripts/ensure-rojo-server.ps1"
+)
+if (-not $agentsContent.Contains($rojoPreflightCommand)) {
+	Add-Failure "AGENTS.md must require the Rojo server preflight command."
 }
 
 $contentPreloaderImplementation = (

@@ -28,6 +28,18 @@ else in the scene is preserved by saving and committing
 
 ## Mandatory rules
 
+- Before the first source-code edit in a task and again before the first
+  Roblox Studio operation, run
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-rojo-server.ps1`.
+  Do not continue unless it confirms that the current repository's
+  `default.project.json` `name` owns Rojo's default endpoint
+  `127.0.0.1:34872`.
+- The preflight MAY replace another Rojo server on the default port after
+  verifying the listener process is Rojo. It MUST refuse to terminate a
+  non-Rojo listener.
+- Before using Studio tools, explicitly select the current canonical
+  `place.rbxl` Studio instance and verify that its Edit DataModel `game.Name`
+  matches `default.project.json` `name`.
 - Preserve the existing top-level mappings unless an architectural change requires otherwise.
 - New shared/client/server files MUST be placed under the correct mapped container.
 - System startup code MUST remain limited to the two bootstraps plus the dedicated ReplicatedFirst loading LocalScript.
@@ -57,6 +69,9 @@ else in the scene is preserved by saving and committing
 - MUST NOT create fake folders/remotes only to silence an obsolete place-local Script.
 - MUST NOT map broad Workspace replacement behavior that could delete user-authored world Instances without explicit approval.
 - MUST NOT depend on unknown Instances that exist only in the currently open Studio place.
+- MUST NOT define `servePort`, pass `--port`, or edit the endpoint field in the
+  Studio Rojo plugin. Projects share the default endpoint and switch the
+  active server through `scripts/ensure-rojo-server.ps1`.
 
 ## Positive example
 
@@ -79,6 +94,9 @@ model exists only on one developer's machine.
 ## Verification
 
 - Rojo build to a temporary output path.
+- Run `scripts/ensure-rojo-server.ps1` twice. The first run MAY switch the
+  server; the second MUST report that the current project is already serving
+  without restarting it.
 - Confirm `place.rbxl` is tracked and not ignored.
 - Confirm generated validation builds and `place.rbxl.lock` remain
   ignored.

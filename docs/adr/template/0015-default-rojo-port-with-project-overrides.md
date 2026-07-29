@@ -1,10 +1,10 @@
 # ADR-0015: Use Rojo's default port with optional project overrides
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-29
 - Deciders: Project maintainers
 - Supersedes: ADR-0012
-- Superseded by: None
+- Superseded by: ADR-0016
 
 ## Context
 

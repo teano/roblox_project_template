@@ -115,9 +115,8 @@ https://github.com/OWNER/PROJECT.git
 4. добавить переданный URL как `origin`;
 5. создать собственные project ADR index и ADR-0001;
 6. назначить Rojo connection имя каталога проекта;
-7. оставить стандартный порт Rojo, а при явной необходимости параллельных
-   серверов закрепить отдельный `servePort` и записать его merge policy в
-   ADR-0001;
+7. оставить `servePort` отсутствующим и проверить активный проект командой
+   `scripts/ensure-rojo-server.ps1`;
 8. проверить Version, DataStore, Wallet, README и `place.rbxl`;
 9. выполнить проверки, создать initialization commit и отправить его в
    `origin/main`.
@@ -203,7 +202,15 @@ Project ADR находятся только в `docs/adr/project/`, поэтом
 
 1. Если используете Codex, выполните настройку CodeGraph из раздела выше.
 2. Откройте отслеживаемый файл `place.rbxl` в Roblox Studio.
-3. Запустите `rojo serve default.project.json` и подключите плагин Studio.
+3. Выполните Rojo-preflight и подключите плагин Studio, не меняя его порт:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-rojo-server.ps1
+   ```
+
+   Команда проверяет `/api/rojo`. Если стандартный порт обслуживает другой
+   Rojo-проект, она останавливает только этот Rojo-процесс и запускает
+   `rojo serve default.project.json` из текущего репозитория.
 4. Убедитесь, что поле `name` в `default.project.json` совпадает с именем
    корневого каталога репозитория. Это уникальное имя Rojo-подключения,
    отображаемое в Studio.

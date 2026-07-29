@@ -107,21 +107,20 @@ action.
   desired, replay them manually in Roblox Studio as a separate authorized
   project change.
 
-### Rojo project identity and optional server-port override
+### Rojo project identity and shared default endpoint
 
-- Treat the initialized project's `default.project.json` `name` and any
-  intentional `servePort` override as project-owned values documented by
-  project ADR-0001.
+- Treat the initialized project's `default.project.json` `name` and required
+  absence of `servePort` as project-owned values documented by project
+  ADR-0001.
 - When upstream also changes `default.project.json`, reconcile the JSON
-  structure and apply compatible incoming mappings or settings. Always
-  preserve the project's current `name`; preserve `servePort` when project
-  ADR-0001 documents an intentional override.
-- When project ADR-0001 records use of Rojo's default port, keep `servePort`
-  absent unless the project deliberately adopts an override through a new
-  project decision.
+  structure and apply compatible incoming mappings or settings. Preserve the
+  project's current `name` and keep `servePort` absent.
+- If an existing project ADR still requires a custom `servePort`, report
+  architectural drift and create a superseding project decision before
+  removing it; do not silently rewrite Accepted project history.
 - If the active owning project ADR does not name `default.project.json`, does
-  not state the name and port-policy invariant, or disagrees with the current
-  values, stop and ask the user instead of guessing which identity or port
+  not state the name and shared-endpoint invariant, or disagrees with the
+  current values, stop and ask the user instead of guessing which identity
   policy should win.
 
 ### Text source, scripts, services, rules, and documentation

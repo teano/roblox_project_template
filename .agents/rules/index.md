@@ -41,6 +41,7 @@ affects save-provider and communication contracts.
 | `ReplicatedFirst/Loading.client.luau` | `architecture.md`, `initialization.md`, `testing.md` |
 | `default.project.json`, Rojo mappings, `.model.json`, executable script placement | `rojo-project.md`, `architecture.md`, `testing.md` |
 | `place.rbxl`, Studio-authored scene data, or hybrid source ownership | `rojo-project.md`, `architecture.md`, `testing.md` |
+| Rojo server process, port ownership, project connection, or Studio preflight | `rojo-project.md`, `architecture.md`, `testing.md` |
 | Any test runner or test contract | `testing.md` plus the tested subsystem rule |
 | Documentation that describes runtime behavior | The corresponding subsystem rules |
 | New or changed architecture decision record | `architecture-decisions.md`, `architecture.md` plus every affected subsystem rule |

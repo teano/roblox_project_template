@@ -17,6 +17,27 @@ Before editing, adding, moving, or deleting source code:
    `.agents/rules/architecture-decisions.md`, `docs/adr/README.md`, then every
    relevant Accepted ADR from both indexes routed there before proposing or
    editing the design.
+8. Immediately before the first source-code edit in a task, run:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-rojo-server.ps1
+   ```
+
+   Do not edit source code unless the command succeeds.
+
+Before the first Roblox Studio tool or UI operation in a task, run the same
+Rojo preflight again, then explicitly select the Studio instance for the
+current canonical `place.rbxl`. Verify that the Edit DataModel `game.Name`
+matches `default.project.json` `name`; do not inspect or mutate another open
+project. Rerun the preflight after changing repositories, restarting Studio,
+or any event that may have replaced the Rojo process.
+
+The preflight owns the single default Rojo endpoint. It may stop a process only
+after confirming that the process owning port `34872` is Rojo, and it starts
+`rojo serve default.project.json` from the current repository. Never change the
+port field in the Studio plugin and never add a custom `servePort`.
+If listener/process inspection is denied by the sandbox, rerun the preflight
+with the platform-required approval; do not bypass or approximate the check.
 
 Do not begin source edits after reading only this file. Agent rule files are mandatory constraints, not optional documentation.
 
@@ -32,13 +53,11 @@ uninitialized when it has an `upstream` template remote but does not yet have
 Before the first derived-project source change, read and follow
 `.agents/rules/project-initialization.md`. Initialization creates the
 project-owned ADR namespace and initial ADR, assigns the Rojo connection name
-from the repository root directory, keeps Rojo's default port unless the
-derived project intentionally needs an override, and reviews every
-project-specific configuration surface. Project ADR-0001 must record the
-connection name, the default-or-override port policy, and the merge policy
-that preserves the name plus any intentional `servePort` override during
-template updates. This is mandatory setup work and does not require the user
-to repeat these instructions.
+from the repository root directory, enforces the shared default Rojo endpoint,
+and reviews every project-specific configuration surface. Project ADR-0001
+must record the connection name, absence of `servePort`, and merge policy that
+preserves both during template updates. This is mandatory setup work and does
+not require the user to repeat these instructions.
 
 When the user asks to create or initialize a project and supplies only the
 target repository URL, treat that URL as the project `origin`, derive the local
