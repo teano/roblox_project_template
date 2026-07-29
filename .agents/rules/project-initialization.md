@@ -85,6 +85,10 @@ Use this procedure:
      Also list `place.rbxl` as an ownership/merge-policy entry even when its
      binary content was not changed, and record that the initialized project's
      complete place is preserved on future upstream updates.
+   Project ADR-0001 remains the owning record for these initialization
+   divergences. Future template merges reuse it while those invariants and
+   merge policies remain unchanged; they do not create migration or duplicate
+   ADRs for the same paths.
 7. Review every project-specific configuration surface:
    - `default.project.json` project/connection name;
    - `VersionConfig.CurrentVersion`;

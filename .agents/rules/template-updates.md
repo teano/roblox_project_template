@@ -18,6 +18,8 @@ that documents a touched template path, and every affected subsystem rule.
   `upstream/main`, excluding `docs/adr/project/`.
 - A **project divergence** is an intentional local modification, deletion, or
   rename of a template-owned path.
+- An **active owning ADR** has status `Accepted`, names the exact path in its
+  `Template divergence` `Paths` list, and has not been superseded.
 - An **empty project import** has no initialized project ADR namespace and no
   existing canonical `place.rbxl` before the first template merge.
 - An **initialized project** has `docs/adr/project/README.md` and owns its
@@ -29,14 +31,23 @@ Before or in the same change that modifies a template-owned path:
 
 1. Identify the exact upstream baseline commit.
 2. Read the affected template ADRs, subsystem rules, and current project ADRs.
-3. Create a project ADR with the structured `Template divergence` section
-   required by `architecture-decisions.md`.
-4. List every changed template-owned path exactly.
-5. State the project invariant and a future merge policy for each path.
-6. Add or update tests that enforce the behavior.
+3. Search active owning project ADRs for the exact path.
+4. When an active ADR already owns the path and its invariant and upstream
+   merge policy still describe the intended change, reuse that ADR. Do not
+   create another ADR and do not rewrite the Accepted record.
+5. When no active ADR owns a newly diverged path, create one project ADR with
+   the structured `Template divergence` section required by
+   `architecture-decisions.md`.
+6. When the invariant or upstream merge policy changes, create a new project
+   ADR that supersedes the previous owning ADR.
+7. In a new ADR, list every newly owned template path exactly and state the
+   project invariant and future merge policy for each path.
+8. Add or update tests that enforce the behavior.
 
 An undocumented template divergence is a blocking defect. Do not guess its
-historical intent during an upstream merge.
+historical intent during an upstream merge. Multiple active ADRs owning the
+same exact template path are also a blocking defect; resolve the decision
+lifecycle instead of choosing one arbitrarily.
 
 ## Pre-merge inspection
 
@@ -120,13 +131,16 @@ Every user-facing completion message for a template merge MUST include:
 - previous and new template commit IDs;
 - incoming files or systems applied as-is;
 - whether `place.rbxl` was imported or the project version was preserved;
-- every locally changed template path, the project ADR consulted, and the
-  chosen resolution;
+- every locally changed template path touched by the incoming update, the
+  existing project ADR consulted, and the chosen resolution;
 - conflicts, stopped decisions, or manual follow-up;
 - tests, Rojo build, Studio Play checks, and anything not run.
 
 Do not report only “merged successfully.” The user must be able to see exactly
-what happened to template and project-owned behavior.
+what happened to template and project-owned behavior. Do not enumerate an
+untouched divergence merely because it exists; mention it only when incoming
+changes touched its path, its ADR guided a resolution, or verification found a
+problem there.
 
 ## Verification
 

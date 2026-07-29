@@ -1,10 +1,16 @@
 [CmdletBinding()]
-param()
+param(
+	[string]$TargetRepositoryRoot
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+$repositoryRoot = if ([string]::IsNullOrWhiteSpace($TargetRepositoryRoot)) {
+	(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+} else {
+	(Resolve-Path -LiteralPath $TargetRepositoryRoot).Path
+}
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Add-Failure {
@@ -121,20 +127,70 @@ function Test-TemplateDivergenceDocumentation {
 	)
 	$projectAdrDocuments = @(
 		foreach ($adrFile in $projectAdrFiles) {
+			$content = Get-Content -LiteralPath $adrFile.FullName -Raw
 			[PSCustomObject]@{
 				Path = $adrFile.FullName
-				Content = Get-Content -LiteralPath $adrFile.FullName -Raw
+				Name = $adrFile.Name
+				Content = $content
+				IsActiveAccepted = [regex]::IsMatch(
+					$content,
+					'(?m)^- Status:\s*Accepted\s*$'
+				) -and [regex]::IsMatch(
+					$content,
+					'(?m)^- Superseded by:\s*None\s*$'
+				)
 			}
 		}
 	)
-	$placeOwnershipAdr = $projectAdrDocuments | Where-Object {
-		$_.Content.Contains("## Template divergence") -and
-		$_.Content.Contains('`place.rbxl`')
+
+	$activePathOwners = @{}
+	foreach ($document in $projectAdrDocuments | Where-Object {
+		$_.IsActiveAccepted
+	}) {
+		$divergenceSection = [regex]::Match(
+			$document.Content,
+			'(?ms)^## Template divergence\s*\r?\n(?<Body>.*?)(?=^## |\z)'
+		)
+		if (-not $divergenceSection.Success) {
+			continue
+		}
+
+		$pathsBlock = [regex]::Match(
+			$divergenceSection.Groups["Body"].Value,
+			'(?m)^- Paths:[ \t]*\r?\n' +
+				'(?<Paths>(?:[ \t]+- `[^`\r\n]+`[ \t]*\r?\n?)+)'
+		)
+		if (-not $pathsBlock.Success) {
+			continue
+		}
+
+		foreach ($pathMatch in [regex]::Matches(
+			$pathsBlock.Groups["Paths"].Value,
+			'`([^`]+)`'
+		)) {
+			$ownedPath = $pathMatch.Groups[1].Value
+			if (-not $activePathOwners.ContainsKey($ownedPath)) {
+				$activePathOwners[$ownedPath] = [System.Collections.Generic.List[string]]::new()
+			}
+			$activePathOwners[$ownedPath].Add($document.Name)
+		}
 	}
+
+	foreach ($ownedPath in $activePathOwners.Keys) {
+		$owners = $activePathOwners[$ownedPath]
+		if ($owners.Count -gt 1) {
+			Add-Failure (
+				"Template divergence path has multiple active Accepted project " +
+				"ADR owners: $ownedPath ($($owners -join ', '))"
+			)
+		}
+	}
+
+	$placeOwnershipAdr = @($activePathOwners["place.rbxl"])
 	if (@($placeOwnershipAdr).Count -eq 0) {
 		Add-Failure (
-			"Project ADRs must document place.rbxl ownership and upstream " +
-			"merge policy in a Template divergence section."
+			"An active Accepted project ADR must document place.rbxl ownership " +
+			"and upstream merge policy in a Template divergence section."
 		)
 	}
 
@@ -149,15 +205,10 @@ function Test-TemplateDivergenceDocumentation {
 			continue
 		}
 
-		$documentedPath = '`' + $path + '`'
-		$owningAdr = $projectAdrDocuments | Where-Object {
-			$_.Content.Contains("## Template divergence") -and
-			$_.Content.Contains($documentedPath)
-		}
-		if (@($owningAdr).Count -eq 0) {
+		if (-not $activePathOwners.ContainsKey($path)) {
 			Add-Failure (
 				"Locally changed template path is not documented in a project " +
-				"ADR Template divergence section: $path"
+				"ADR active Accepted Template divergence Paths list: $path"
 			)
 		}
 	}
@@ -231,7 +282,7 @@ if ($projectConfiguration.name -cne $expectedRojoConnectionName) {
 
 if ($failures.Count -gt 0) {
 	foreach ($failure in $failures) {
-		Write-Error $failure
+		Write-Error -Message $failure -ErrorAction Continue
 	}
 	exit 1
 }

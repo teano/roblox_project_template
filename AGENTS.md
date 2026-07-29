@@ -50,6 +50,12 @@ Before changing a template-owned file in a derived repository or merging
 `upstream`, read `.agents/rules/template-updates.md`. Every intentional local
 change to a path supplied by the template must be explained by a project ADR
 with its exact paths, baseline, invariant, and future merge policy.
+Before creating a new ADR, search the active Accepted project ADRs. Reuse the
+existing owning ADR when it already names the exact path and its invariant and
+merge policy remain valid. A template update by itself is not a reason to
+duplicate that decision. Create a new ADR only for a newly diverged path or a
+changed durable decision; supersede the previous ADR when its invariant or
+merge policy changes.
 
 Before creating a branch or starting the merge, fetch `upstream` and determine
 whether `upstream/main` is already contained in the current `HEAD`. If it is,

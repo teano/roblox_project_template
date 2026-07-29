@@ -68,8 +68,16 @@ project index and initial `0001` decision as one atomic setup change.
 
 An intentional project modification to a path that exists in template
 `upstream` is an architectural merge constraint even when the code change is
-small. Record it in a new project ADR before or in the same change. Do not
-rewrite an already Accepted ADR to append a later divergence.
+small. Before creating an ADR, search active Accepted project ADRs for the
+exact path. If one already owns the path and its invariant and upstream merge
+policy remain valid, reuse it without creating or rewriting an ADR. A later
+template update is not a new architectural decision.
+
+Create a project ADR before or in the same change only when a template path
+becomes a new project divergence. When a later decision changes the invariant
+or merge policy for an owned path, create a new project ADR that supersedes the
+previous owner. Do not rewrite an already Accepted ADR to append a new path or
+change its decision.
 
 Every ADR that owns a template divergence MUST include:
 
@@ -85,8 +93,8 @@ Every ADR that owns a template divergence MUST include:
 ```
 
 List every affected path exactly as Git reports it, using forward slashes and
-backticks. When a later decision changes the invariant or merge policy, create
-a new project ADR that supersedes the previous project ADR.
+backticks. Two active Accepted project ADRs MUST NOT own the same exact
+template path.
 
 ## Verification
 
@@ -95,3 +103,5 @@ a new project ADR that supersedes the previous project ADR.
 - Confirm the top-level router contains no numbered decision index.
 - In a derived repository, confirm every locally changed template-owned path is
   named by an exact backticked path in a project ADR.
+- Confirm no exact template path is owned by more than one active Accepted
+  project ADR.

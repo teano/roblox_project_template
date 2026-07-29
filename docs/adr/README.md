@@ -56,3 +56,8 @@ is easier to implement.
 - Every intentional modification to a template-owned path must be recorded in
   a project ADR with the exact path, upstream baseline, project invariant, and
   future merge policy.
+- Reuse the active Accepted project ADR that already owns an exact template
+  path while its invariant and merge policy remain unchanged. A routine
+  template update does not create another ADR. Create a new record only for a
+  newly diverged path or a changed durable decision, superseding the previous
+  owner when its decision changes.
