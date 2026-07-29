@@ -27,6 +27,8 @@ affects save-provider and communication contracts.
 |---|---|
 | Request to create or initialize a project from a target repository URL | `project-initialization.md`, then every rule required by its initialization checklist |
 | First source change in a derived repository without `docs/adr/project/README.md` | `project-initialization.md`, `architecture-decisions.md`, `rojo-project.md`, `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
+| Fetching, merging, reviewing, or resolving changes from template `upstream` | `template-updates.md`, `architecture-decisions.md`, `rojo-project.md`, `testing.md`, plus every affected subsystem rule |
+| Modifying or deleting a path that also exists in template `upstream` | `template-updates.md`, `architecture-decisions.md`, plus every affected subsystem rule |
 | New module, subsystem, service, public API, or ownership boundary | `architecture.md`, `initialization.md`, `testing.md` |
 | Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
@@ -48,6 +50,8 @@ affects save-provider and communication contracts.
   numbering, supersession, and reading/writing workflow.
 - `project-initialization.md`: mandatory one-time setup for a repository
   derived from this template.
+- `template-updates.md`: upstream inspection, project divergence ADRs, place
+  preservation, conflict stopping rules, and merge reporting.
 - `initialization.md`: runner, manifests, commands, bootstraps, loading completion.
 - `save-system.md`: controllers, providers, lifecycle, rollback, storage, shutdown.
 - `communication.md`: batching, validation, priorities, sequencing, epochs, resync.

@@ -77,7 +77,14 @@ Use this procedure:
    - Rojo connection name;
    - canonical `place.rbxl` ownership;
    - initial version, DataStore, and Wallet decisions;
-   - any explicitly unresolved project choices.
+   - any explicitly unresolved project choices;
+   - a `Template divergence` section following
+     `architecture-decisions.md`, listing every template-owned path changed by
+     initialization, including at minimum the project README and
+     `default.project.json`, plus each configuration file actually changed.
+     Also list `place.rbxl` as an ownership/merge-policy entry even when its
+     binary content was not changed, and record that the initialized project's
+     complete place is preserved on future upstream updates.
 7. Review every project-specific configuration surface:
    - `default.project.json` project/connection name;
    - `VersionConfig.CurrentVersion`;
@@ -91,6 +98,8 @@ Use this procedure:
    ask one focused user question before production-dependent work.
 9. Initialize local CodeGraph according to `docs/CodeGraphSetup.md` when the
    tool is available. Generated index files remain untracked.
+10. Read `template-updates.md` so future upstream merges preserve documented
+    project decisions.
 
 ## Required verification
 

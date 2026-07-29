@@ -17,6 +17,7 @@ Repositories derived from the template receive these records from their
 | [ADR-0007](0007-side-owned-generation-safe-object-pools.md) | Use side-owned generation-safe object pools | Accepted |
 | [ADR-0008](0008-canonical-place-filename.md) | Use one project-neutral canonical place filename | Accepted |
 | [ADR-0009](0009-separate-template-and-project-adrs.md) | Separate template and project ADR namespaces | Accepted |
+| [ADR-0010](0010-adr-grounded-upstream-merges.md) | Use ADR-grounded upstream merges and preserve the project place | Accepted |
 
 ## Ownership and numbering
 

@@ -65,6 +65,104 @@ function Test-AdrIndex {
 	}
 }
 
+function Test-TemplateDivergenceDocumentation {
+	param(
+		[string]$RepositoryRoot,
+		[string]$ProjectAdrDirectory
+	)
+
+	$upstreamRefs = @(
+		& git -C $RepositoryRoot for-each-ref `
+			--format="%(refname)" refs/remotes/upstream/main
+	)
+	if ($upstreamRefs.Count -eq 0) {
+		Add-Failure (
+			"Derived repository has no upstream/main ref. Fetch upstream before " +
+			"validating template divergence."
+		)
+		return
+	}
+
+	$mergeBaseOutput = @(
+		& git -C $RepositoryRoot merge-base HEAD refs/remotes/upstream/main
+	)
+	if ($LASTEXITCODE -ne 0 -or $mergeBaseOutput.Count -eq 0) {
+		$gitDirectory = (
+			& git -C $RepositoryRoot rev-parse --absolute-git-dir
+		).Trim()
+		$mergeHeadPath = Join-Path $gitDirectory "MERGE_HEAD"
+		if (Test-Path -LiteralPath $mergeHeadPath -PathType Leaf) {
+			$mergeBase = "refs/remotes/upstream/main"
+		} else {
+			Add-Failure (
+				"Derived repository does not share history with upstream/main. " +
+				"Start the reviewed initial merge before validating."
+			)
+			return
+		}
+	} else {
+		$mergeBase = $mergeBaseOutput[0].Trim()
+	}
+
+	$templatePaths = @{}
+	$baselinePaths = @(
+		& git -C $RepositoryRoot ls-tree -r --name-only $mergeBase
+	)
+	$upstreamPaths = @(
+		& git -C $RepositoryRoot ls-tree -r --name-only refs/remotes/upstream/main
+	)
+	foreach ($path in @($baselinePaths) + @($upstreamPaths)) {
+		$templatePaths[$path] = $true
+	}
+
+	$projectAdrFiles = @(
+		Get-ChildItem -LiteralPath $ProjectAdrDirectory -File |
+			Where-Object { $_.Name -match '^\d{4}-.+\.md$' }
+	)
+	$projectAdrDocuments = @(
+		foreach ($adrFile in $projectAdrFiles) {
+			[PSCustomObject]@{
+				Path = $adrFile.FullName
+				Content = Get-Content -LiteralPath $adrFile.FullName -Raw
+			}
+		}
+	)
+	$placeOwnershipAdr = $projectAdrDocuments | Where-Object {
+		$_.Content.Contains("## Template divergence") -and
+		$_.Content.Contains('`place.rbxl`')
+	}
+	if (@($placeOwnershipAdr).Count -eq 0) {
+		Add-Failure (
+			"Project ADRs must document place.rbxl ownership and upstream " +
+			"merge policy in a Template divergence section."
+		)
+	}
+
+	$localChangedPaths = @(
+		& git -C $RepositoryRoot diff --name-only $mergeBase --
+	)
+	foreach ($path in $localChangedPaths | Sort-Object -Unique) {
+		if ($path.StartsWith("docs/adr/project/")) {
+			continue
+		}
+		if (-not $templatePaths.ContainsKey($path)) {
+			continue
+		}
+
+		$documentedPath = '`' + $path + '`'
+		$owningAdr = $projectAdrDocuments | Where-Object {
+			$_.Content.Contains("## Template divergence") -and
+			$_.Content.Contains($documentedPath)
+		}
+		if (@($owningAdr).Count -eq 0) {
+			Add-Failure (
+				"Locally changed template path is not documented in a project " +
+				"ADR Template divergence section: $path"
+			)
+		}
+	}
+}
+
 $canonicalPlace = Join-Path $repositoryRoot "place.rbxl"
 $legacyPlace = Join-Path $repositoryRoot "template_place.rbxl"
 if (-not (Test-Path -LiteralPath $canonicalPlace -PathType Leaf)) {
@@ -111,6 +209,11 @@ if ($isDerivedRepository) {
 		-Directory $projectDirectory `
 		-IndexPath (Join-Path $projectDirectory "README.md") `
 		-IndexRequired $true
+	if (Test-Path -LiteralPath $projectDirectory -PathType Container) {
+		Test-TemplateDivergenceDocumentation `
+			-RepositoryRoot $repositoryRoot `
+			-ProjectAdrDirectory $projectDirectory
+	}
 } elseif (Test-Path -LiteralPath $projectDirectory) {
 	Add-Failure "The template repository must not contain docs/adr/project."
 }

@@ -30,8 +30,8 @@ Validate repository-owned file and ADR boundaries:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-layout.ps1
 ```
 
-Run this check after canonical place, ADR, agent-rule, or repository-layout
-changes.
+Run this check after canonical place, ADR, agent-rule, repository-layout,
+project-initialization, template-divergence, or upstream-merge changes.
 
 ## Studio suites
 

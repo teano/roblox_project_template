@@ -53,3 +53,6 @@ is easier to implement.
 - A project may locally supersede a template decision without editing template
   history. Its project ADR must identify the template ADR and update applicable
   higher-precedence project rules, current documentation, and tests.
+- Every intentional modification to a template-owned path must be recorded in
+  a project ADR with the exact path, upstream baseline, project invariant, and
+  future merge policy.

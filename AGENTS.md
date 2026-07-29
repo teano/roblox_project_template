@@ -44,6 +44,26 @@ initialization, verification, initialization commit, and push without asking
 the user to restate each step. Never overwrite a non-empty unrelated repository
 or force-push it under this implicit workflow.
 
+## Template updates and project divergence
+
+Before changing a template-owned file in a derived repository or merging
+`upstream`, read `.agents/rules/template-updates.md`. Every intentional local
+change to a path supplied by the template must be explained by a project ADR
+with its exact paths, baseline, invariant, and future merge policy.
+
+During the first import into an empty project, accept `place.rbxl` from the
+template unchanged. After project initialization, the existing project
+`place.rbxl` always wins over an incoming template version; preserve that whole
+binary file and never auto-merge it. Clean upstream changes to text source,
+scripts, services, rules, and documentation apply as delivered. When an
+incoming change overlaps a locally modified template path, consult the project
+ADR before resolving it. If the ADR and code do not make a safe durable merge
+clear, stop and ask the user.
+
+Every completed template merge must explicitly report the upstream range,
+applied template changes, preserved project files, ADR-guided resolutions,
+conflicts, and verification results.
+
 ## Code intelligence
 
 CodeGraph is the preferred source-code exploration tool when its MCP tools are
@@ -97,6 +117,8 @@ available and the project has been initialized:
   Repositories derived from this template record their own decisions only
   under a project-created `docs/adr/project/` namespace and maintain a separate
   project index. The template repository must not contain that namespace.
+- In a derived repository, document every intentional modification to a
+  template-owned path in a project ADR before or with the code change.
 - Preserve unrelated user changes.
 
 If an explicit request intentionally changes an invariant, do not silently work around this file. Explain the conflict, update the relevant agent rules and documentation as part of the authorized architectural change, and add or update enforcement tests.
