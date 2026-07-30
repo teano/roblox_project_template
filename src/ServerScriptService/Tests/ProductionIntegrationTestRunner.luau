@@ -38,6 +38,31 @@ local function assertTrue(value: any, message: string)
 	end
 end
 
+local function makeLogger()
+	local entries = {}
+	local function record(level: string, message: string, fields: any?)
+		table.insert(entries, {
+			Level = level,
+			Message = message,
+			Fields = fields,
+		})
+	end
+	return {
+		Debug = function(_self, message, fields)
+			record("debug", message, fields)
+		end,
+		Info = function(_self, message, fields)
+			record("info", message, fields)
+		end,
+		Warn = function(_self, message, fields)
+			record("warn", message, fields)
+		end,
+		Error = function(_self, message, fields)
+			record("error", message, fields)
+		end,
+	}, entries
+end
+
 local function makeServerProvider(id: string, failValue: number?)
 	local values = {}
 	return {
@@ -381,6 +406,195 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(instanceValid, false)
 	end)
 
+	test("communication serializer rejects non-finite compounds and unsafe table shapes", function()
+		local vectorValid, vectorIssues = CommunicationSerialize.validate({
+			Impulse = Vector3.new(0 / 0, 2, 3),
+		})
+		assertEqual(vectorValid, false)
+		assertEqual(vectorIssues[1].Reason, "non_finite_component:1")
+
+		local mixedValid, mixedIssues = CommunicationSerialize.validate({
+			[1] = "array",
+			Named = "dictionary",
+		})
+		assertEqual(mixedValid, false)
+		assertEqual(mixedIssues[1].Reason, "mixed_table_keys")
+
+		local sparseValid, sparseIssues = CommunicationSerialize.validate({
+			[1] = "first",
+			[3] = "third",
+		})
+		assertEqual(sparseValid, false)
+		assertEqual(sparseIssues[1].Reason, "sparse_array")
+
+		local metatableValid, metatableIssues = CommunicationSerialize.validate(setmetatable({}, {}))
+		assertEqual(metatableValid, false)
+		assertEqual(metatableIssues[1].Reason, "table_metatable")
+	end)
+
+	test("communication serializer stops at configured work and byte limits", function()
+		local nodeValid, nodeIssues = CommunicationSerialize.validate({
+			A = {
+				B = {
+					C = true,
+				},
+			},
+		}, {
+			MaxNodes = 3,
+		})
+		assertEqual(nodeValid, false)
+		assertEqual(nodeIssues[1].Reason, "maximum_nodes_exceeded")
+
+		local byteValid, byteIssues = CommunicationSerialize.validate(string.rep("x", 100), {
+			MaxBytes = 16,
+		})
+		assertEqual(byteValid, false)
+		assertEqual(byteIssues[1].Reason, "maximum_estimated_bytes_exceeded")
+
+		local invalidKeys = {}
+		for index = 1, 100 do
+			invalidKeys[-index] = true
+		end
+		local invalidKeyValid, invalidKeyIssues = CommunicationSerialize.validate(invalidKeys, {
+			MaxNodes = 4,
+			MaxIssues = 4,
+		})
+		assertEqual(invalidKeyValid, false)
+		local reachedNodeLimit = false
+		for _, issue in invalidKeyIssues do
+			if issue.Reason == "maximum_nodes_exceeded" then
+				reachedNodeLimit = true
+				break
+			end
+		end
+		assertTrue(reachedNodeLimit, "invalid keys must still consume the inspection work budget")
+	end)
+
+	test("server rejects dictionary batches without advancing sequence", function()
+		local logger = makeLogger()
+		local server = CommunicationServer.new({
+			PlayersModule = {
+				PlayerRemoving = Signal.new(),
+			},
+			Logger = logger,
+		})
+		local player = { UserId = 397 } :: any
+		local handled = 0
+		server:RegisterHandler("Integration.Dense", function(payload)
+			return typeof(payload) == "table", payload, nil
+		end, function()
+			handled += 1
+		end)
+
+		server:_handleBatch(player, {
+			Sequence = 1,
+			Messages = {
+				First = {
+					Type = "Integration.Dense",
+					Payload = {},
+				},
+			},
+		})
+		assertEqual(handled, 0)
+
+		server:_handleBatch(player, {
+			Sequence = 1,
+			Messages = {
+				{
+					Type = "Integration.Dense",
+					Payload = {},
+				},
+			},
+		})
+		assertEqual(handled, 1)
+	end)
+
+	test("malformed communication calls consume invocation budgets and deduplicate logs", function()
+		local now = 0
+		local logger, entries = makeLogger()
+		local server = CommunicationServer.new({
+			PlayersModule = {
+				PlayerRemoving = Signal.new(),
+			},
+			Logger = logger,
+			Clock = function()
+				return now
+			end,
+		})
+		local player = { UserId = 398 } :: any
+
+		for _ = 1, CommunicationConfig.MaxBatchInvocationsPerSecond + 5 do
+			server:_handleBatch(player, "invalid")
+		end
+		assertEqual(#entries, 2, "invalid batch and rate-limit logs must each be emitted once per window")
+
+		local lastResponse
+		for _ = 1, CommunicationConfig.MaxRequestsPerSecond + 1 do
+			lastResponse = server:_handleRequest(player, "invalid")
+		end
+		assertEqual(lastResponse.Code, "RateLimited")
+
+		now = 1
+		local resetResponse = server:_handleRequest(player, "invalid")
+		assertEqual(resetResponse.Code, "Unavailable")
+	end)
+
+	test("message validator failures are contained and force resync", function()
+		local logger = makeLogger()
+		local server = CommunicationServer.new({
+			PlayersModule = {
+				PlayerRemoving = Signal.new(),
+			},
+			Logger = logger,
+		})
+		local player = { UserId = 3981 } :: any
+		server:RegisterHandler("Integration.ThrowingValidator", function()
+			error("validator failed")
+		end, function() end)
+
+		local callOk = pcall(function()
+			server:_handleBatch(player, {
+				Sequence = 1,
+				Messages = {
+					{
+						Type = "Integration.ThrowingValidator",
+						Payload = {},
+					},
+				},
+			})
+		end)
+		assertTrue(callOk, "validator failure must not escape the communication boundary")
+		assertEqual(server:GetQueueStats(player).ResyncRequired, true)
+	end)
+
+	test("snapshot guard limits concurrency and request frequency", function()
+		local now = 10
+		local server = CommunicationServer.new({
+			PlayersModule = {
+				PlayerRemoving = Signal.new(),
+			},
+			Clock = function()
+				return now
+			end,
+		})
+		local player = { UserId = 3982 } :: any
+
+		local firstAllowed = server:TryBeginSnapshotRequest(player)
+		assertEqual(firstAllowed, true)
+		local concurrentAllowed, concurrentCode = server:TryBeginSnapshotRequest(player)
+		assertEqual(concurrentAllowed, false)
+		assertEqual(concurrentCode, "Busy")
+
+		server:EndSnapshotRequest(player)
+		local immediateAllowed, immediateCode = server:TryBeginSnapshotRequest(player)
+		assertEqual(immediateAllowed, false)
+		assertEqual(immediateCode, "RateLimited")
+
+		now += CommunicationConfig.SnapshotRequestCooldownSeconds
+		assertEqual(server:TryBeginSnapshotRequest(player), true)
+		server:EndSnapshotRequest(player)
+	end)
+
 	test("bounded communication request validates type and response", function()
 		local server = CommunicationServer.new({
 			PlayersModule = {
@@ -421,6 +635,18 @@ function ProductionIntegrationTestRunner.runAll()
 		})
 		assertEqual(unknown.Ok, false)
 		assertEqual(unknown.Code, "Unavailable")
+
+		server:RegisterRequestHandler("Integration.Failure", function(payload)
+			return true, payload, nil
+		end, function()
+			return false, nil, string.rep("x", CommunicationConfig.MaxSingleMessageEstimatedBytes)
+		end)
+		local oversizedFailure = server:_handleRequest(player, {
+			Type = "Integration.Failure",
+			Payload = {},
+		})
+		assertEqual(oversizedFailure.Ok, false)
+		assertEqual(oversizedFailure.Code, "InternalError")
 	end)
 
 	test("server batch flush preserves Vector3 payloads", function()
@@ -439,8 +665,9 @@ function ProductionIntegrationTestRunner.runAll()
 			end,
 		}
 
-		server:BeginSnapshot(player)
-		server:SetClientReady(player)
+		local epoch = server:BeginSnapshot(player)
+		assertEqual(server:SetClientReady(player, epoch + 1), false)
+		assertEqual(server:SetClientReady(player, epoch), true)
 		local queued = server:Queue(player, "Integration.Vector3", {
 			Impulse = Vector3.new(1, 2, 3),
 			Direction = Vector3.yAxis,
@@ -500,6 +727,94 @@ function ProductionIntegrationTestRunner.runAll()
 			},
 		})
 		assertEqual(handled, 1, "stale pre-resync packet must be ignored")
+	end)
+
+	test("late resync handler starts recovery for an already paused client", function()
+		local logger = makeLogger()
+		local client = CommunicationClient.new(logger)
+		local resyncs = 0
+
+		client:ResumeAfterSnapshot(1)
+		client:_handleBatch({
+			Epoch = 1,
+			Sequence = 2,
+			Messages = {},
+		})
+		assertEqual(client:GetQueueStats().PausedForResync, true)
+
+		client:SetResyncHandler(function()
+			resyncs += 1
+		end)
+		task.wait()
+		assertEqual(resyncs, 1)
+	end)
+
+	test("successful snapshot clears a lost client-authority patch", function()
+		local queued = 0
+		local communication = {
+			RegisterHandler = function() end,
+			Queue = function()
+				queued += 1
+				return true
+			end,
+		}
+		local changed = Signal.new()
+		local value = 1
+		local provider = {
+			Id = "ClientOwned",
+			Version = 1,
+			Authority = "Client",
+			MementoChanged = changed,
+			ValidateMemento = function(_self, candidate)
+				return typeof(candidate) == "table" and typeof(candidate.Value) == "number", candidate, nil
+			end,
+			SetMemento = function(_self, candidate)
+				value = candidate.Value
+			end,
+			GetMemento = function()
+				return { Value = value }
+			end,
+			Run = function() end,
+			Stop = function() end,
+			SetLocalValue = function(_self, nextValue)
+				value = nextValue
+				changed:Fire()
+			end,
+		}
+		local controller = ClientSaveController.new({
+			Id = "client_authority",
+			Providers = { provider },
+			Communication = communication,
+		})
+		local function snapshot(revision: number, snapshotValue: number)
+			return {
+				ControllerId = "client_authority",
+				Revision = revision,
+				Providers = {
+					ClientOwned = {
+						Version = 1,
+						Data = { Value = snapshotValue },
+					},
+				},
+			}
+		end
+
+		controller:ApplySnapshot(snapshot(1, 1))
+		provider:SetLocalValue(2)
+		task.wait()
+		controller:_flushClientDirty()
+		assertEqual(queued, 1)
+
+		controller:ApplySnapshot(snapshot(2, 3))
+		controller:_flushClientDirty()
+		assertEqual(queued, 1, "snapshot must retire the lost pending patch and its dirty generation")
+
+		provider:SetLocalValue(4)
+		task.wait()
+		controller:_flushClientDirty()
+		assertEqual(queued, 2, "changes after resync must be sendable")
+		controller:Destroy()
+		changed:Destroy()
 	end)
 
 	test("server backpressure drops presentation before state", function()

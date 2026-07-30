@@ -143,15 +143,36 @@ register client handlers
 
 `CommunicationModule` handles ordinary runtime messages through RemoteEvents. It batches messages once per Heartbeat, caps batch and queue sizes by both count and estimated bytes, validates envelopes, applies message/byte rate limits, and sequences each direction.
 
+The shared `Signal` module never crosses the client/server boundary. It is used
+only for side-local notifications before a message is queued or after a Roblox
+remote has delivered it. See [Communication.md](Communication.md) for the full
+transport contract.
+
 Outgoing messages declare `Critical`, `State`, or `Presentation` priority. On pressure, the server evicts the oldest presentation messages first. If state still cannot fit, the queue collapses to one `ResyncRequired` message and refuses further state until a snapshot starts. Every server snapshot increments a communication epoch; late packets from an older epoch are ignored instead of causing a resync loop. A current-epoch sequence gap or handler failure requests a full snapshot.
 
-Communication serialization is separate from DataStore serialization. It allows safe Roblox value types such as `Vector3` and `CFrame`, while rejecting `Instance`, cyclic tables, non-finite numbers, oversized messages, and overlong request IDs.
+Communication serialization is separate from DataStore serialization. It
+allows safe Roblox value types such as `Vector3` and `CFrame` only when every
+numeric component is finite. Tables must be either dense arrays or
+string-keyed dictionaries; mixed and sparse tables are rejected together with
+`Instance`, cycles, unsupported types, oversized messages, and overlong
+identifiers. Inspection work and issue collection are explicitly bounded.
+
+Server inbound invocation limits are charged before deep validation, so
+malformed envelopes cannot bypass rate limiting. Validators and handlers run
+behind protected boundaries; a failure is contained and moves the client to
+snapshot recovery.
 
 The communication module also owns one bounded synchronous request
 RemoteFunction for server-read startup boundaries such as the client config
 bundle. Registered request handlers validate input and enforce request,
 response, rate, and byte limits. It is not used for ordinary gameplay
 mutations or notifications.
+
+Snapshot requests allow only one in-flight operation per player, enforce a
+cooldown, and bound the complete response envelope. `ClientReady` carries the
+exact snapshot communication epoch; a stale acknowledgement cannot release a
+newer buffered queue. Applying a replacement snapshot also retires pending
+client-authority patch correlation from the previous baseline.
 
 Normal gameplay does not replace whole provider tables. Server-authoritative
 modules emit small operation/change messages, preserving client runtime object

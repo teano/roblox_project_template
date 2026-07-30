@@ -337,6 +337,8 @@ Version → Wallet → project providers
 [docs/ResourceManagement.md](docs/ResourceManagement.md).
 Контракт локальных сигналов, подключений и рассылки:
 [docs/Signal.md](docs/Signal.md).
+Контракт клиент-серверного транспорта, лимитов и восстановления:
+[docs/Communication.md](docs/Communication.md).
 Контракт уровней, безопасного формата и output sink:
 [docs/Logger.md](docs/Logger.md).
 
@@ -359,6 +361,7 @@ docs/
 │   └── template/                    решения, принадлежащие шаблону
 ├── CodeGraphSetup.md                 настройка CodeGraph на чистом компьютере
 ├── AssetRegistry.md                  папки, пути, ключи и запросы ассетов
+├── Communication.md                  транспорт, лимиты и восстановление
 ├── ContentPreloading.md              единая точка предзагрузки контента
 ├── ExperienceConfiguration.md        Experience Configs и client bundles
 ├── InitializationAndSaveSystem.md

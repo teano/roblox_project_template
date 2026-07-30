@@ -2,12 +2,23 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.CommunicationConfig)
 local CommunicationProtocol = require(ReplicatedStorage.Shared.Communication.CommunicationProtocol)
+local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
 local SaveProtocol = require(ReplicatedStorage.Shared.Save.SaveProtocol)
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 
 local Command = {}
 Command.__index = Command
+
+local function isPositiveInteger(value: any): boolean
+	return typeof(value) == "number"
+		and value == value
+		and value ~= math.huge
+		and value ~= -math.huge
+		and value >= 1
+		and value == math.floor(value)
+end
 
 local function ensureFolder(parent: Instance, name: string): Folder
 	local existing = parent:FindFirstChild(name)
@@ -95,14 +106,16 @@ function Command:Initialize(context: any)
 	deps.Communication:RegisterHandler(
 		CommunicationProtocol.SystemMessages.ClientReady,
 		function(payload)
-			if typeof(payload) ~= "table" or typeof(payload.Revision) ~= "number" then
-				return false, nil, "Revision required"
+			if typeof(payload) ~= "table" or not isPositiveInteger(payload.Epoch) then
+				return false, nil, "Epoch required"
 			end
-			return true, payload, nil
+			return true, {
+				Epoch = payload.Epoch,
+			}, nil
 		end,
-		function(player)
+		function(player, payload)
 			if controller:IsLoaded(player) then
-				deps.Communication:SetClientReady(player)
+				deps.Communication:SetClientReady(player, payload.Epoch)
 			end
 		end
 	)
@@ -134,25 +147,66 @@ function Command:Initialize(context: any)
 
 	local snapshotRemote = ensureSnapshotRemote()
 	snapshotRemote.OnServerInvoke = function(player: Player)
-		if not self:_waitUntilLoaded(controller, player, globalSaveConfig.SnapshotLoadTimeoutSeconds) then
+		local allowed, denialCode = deps.Communication:TryBeginSnapshotRequest(player)
+		if not allowed then
 			return {
 				Ok = false,
-				Code = "NotLoaded",
+				Code = denialCode or "RateLimited",
 			}
 		end
-		local communicationEpoch = deps.Communication:BeginSnapshot(player)
-		local snapshot = controller:BuildSnapshot(player)
-		if snapshot == nil then
+
+		local callOk, response = xpcall(function()
+			if not self:_waitUntilLoaded(controller, player, globalSaveConfig.SnapshotLoadTimeoutSeconds) then
+				return {
+					Ok = false,
+					Code = "NotLoaded",
+				}
+			end
+			local communicationEpoch = deps.Communication:BeginSnapshot(player)
+			local snapshot = controller:BuildSnapshot(player)
+			if snapshot == nil then
+				return {
+					Ok = false,
+					Code = "SnapshotFailed",
+				}
+			end
+
+			local successResponse = {
+				Ok = true,
+				Snapshot = snapshot,
+				CommunicationEpoch = communicationEpoch,
+			}
+			local responseValid, issues, estimatedBytes = CommunicationSerialize.inspect(successResponse, {
+				MaxBytes = deps.StorageConfig.SoftSerializedBytesLimit
+					+ CommunicationConfig.MaxSnapshotEnvelopeEstimatedBytes,
+				MaxNodes = CommunicationConfig.MaxSnapshotInspectionNodes,
+			})
+			if not responseValid then
+				self._logger:Error("snapshot_response_invalid", {
+					UserId = player.UserId,
+					Error = if issues[1] then issues[1].Reason else "snapshot_too_large",
+					EstimatedBytes = estimatedBytes,
+				})
+				return {
+					Ok = false,
+					Code = "SnapshotFailed",
+				}
+			end
+			return successResponse
+		end, debug.traceback)
+		deps.Communication:EndSnapshotRequest(player)
+
+		if not callOk then
+			self._logger:Error("snapshot_request_failed", {
+				UserId = player.UserId,
+				Error = tostring(response),
+			})
 			return {
 				Ok = false,
-				Code = "SnapshotFailed",
+				Code = "InternalError",
 			}
 		end
-		return {
-			Ok = true,
-			Snapshot = snapshot,
-			CommunicationEpoch = communicationEpoch,
-		}
+		return response
 	end
 
 	deps.PlayersModule:ObservePlayers(function(player)

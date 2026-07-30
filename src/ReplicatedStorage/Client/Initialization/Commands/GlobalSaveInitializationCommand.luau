@@ -55,7 +55,7 @@ function Command:_requestSnapshot()
 	self._controller:ApplySnapshot(response.Snapshot)
 	self._deps.Communication:ResumeAfterSnapshot(response.CommunicationEpoch)
 	self._deps.Communication:Queue(CommunicationProtocol.SystemMessages.ClientReady, {
-		Revision = self._controller:GetRevision(),
+		Epoch = response.CommunicationEpoch,
 	}, nil, {
 		Priority = CommunicationProtocol.Priorities.Critical,
 	})

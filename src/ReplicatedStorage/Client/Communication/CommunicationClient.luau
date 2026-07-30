@@ -36,6 +36,7 @@ function CommunicationClient.new(logger: any?)
 		_incomingEpoch = 0,
 		_pausedForResync = false,
 		_resyncHandler = nil,
+		_resyncInFlight = false,
 		_connections = {},
 		_initialized = false,
 		_clientToServer = nil :: RemoteEvent?,
@@ -45,12 +46,21 @@ function CommunicationClient.new(logger: any?)
 end
 
 function CommunicationClient:RegisterHandler(messageType: string, handler: (any, string?) -> ())
+	assert(
+		typeof(messageType) == "string"
+			and messageType ~= ""
+			and #messageType <= CommunicationConfig.MaxMessageTypeLength,
+		"messageType invalid"
+	)
 	assert(self._handlers[messageType] == nil, `Duplicate communication handler '{messageType}'`)
 	self._handlers[messageType] = handler
 end
 
 function CommunicationClient:SetResyncHandler(handler: () -> ())
 	self._resyncHandler = handler
+	if self._pausedForResync then
+		self:_startResync()
+	end
 end
 
 function CommunicationClient:Request(requestType: string, payload: any): (boolean, any?, string?)
@@ -68,8 +78,10 @@ function CommunicationClient:Request(requestType: string, payload: any): (boolea
 		Type = requestType,
 		Payload = payload,
 	}
-	local valid, _, estimatedBytes = CommunicationSerialize.inspect(request)
-	if not valid or estimatedBytes > CommunicationConfig.MaxSingleMessageEstimatedBytes then
+	local valid, _, estimatedBytes = CommunicationSerialize.inspect(request, {
+		MaxBytes = CommunicationConfig.MaxSingleMessageEstimatedBytes,
+	})
+	if not valid then
 		return false, nil, "InvalidRequest"
 	end
 
@@ -83,9 +95,10 @@ function CommunicationClient:Request(requestType: string, payload: any): (boolea
 		})
 		return false, nil, "TransportError"
 	end
-	local responseValid, _, responseBytes = CommunicationSerialize.inspect(response)
+	local responseValid, _, responseBytes = CommunicationSerialize.inspect(response, {
+		MaxBytes = CommunicationConfig.MaxSingleMessageEstimatedBytes,
+	})
 	if not responseValid
-		or responseBytes > CommunicationConfig.MaxSingleMessageEstimatedBytes
 		or typeof(response) ~= "table"
 		or typeof(response.Ok) ~= "boolean"
 	then
@@ -103,6 +116,13 @@ function CommunicationClient:Queue(
 	requestId: string?,
 	options: { Priority: string? }?
 ): boolean
+	if typeof(messageType) ~= "string"
+		or messageType == ""
+		or #messageType > CommunicationConfig.MaxMessageTypeLength
+	then
+		self._logger:Warn("outgoing_message_type_invalid")
+		return false
+	end
 	if requestId ~= nil
 		and (typeof(requestId) ~= "string" or #requestId > CommunicationConfig.MaxRequestIdLength)
 	then
@@ -123,8 +143,10 @@ function CommunicationClient:Queue(
 		Payload = payload,
 		RequestId = requestId,
 	}
-	local valid, issues, estimatedBytes = CommunicationSerialize.inspect(message)
-	if not valid or estimatedBytes > CommunicationConfig.MaxSingleMessageEstimatedBytes then
+	local valid, issues, estimatedBytes = CommunicationSerialize.inspect(message, {
+		MaxBytes = CommunicationConfig.MaxSingleMessageEstimatedBytes,
+	})
+	if not valid then
 		self._logger:Error("outgoing_message_invalid", {
 			MessageType = messageType,
 			Error = if issues[1] then issues[1].Reason else "message_too_large",
@@ -148,6 +170,23 @@ function CommunicationClient:Queue(
 	return true
 end
 
+function CommunicationClient:_startResync()
+	local handler = self._resyncHandler
+	if not self._pausedForResync or self._resyncInFlight or handler == nil then
+		return
+	end
+	self._resyncInFlight = true
+	task.spawn(function()
+		local ok, err = xpcall(handler, debug.traceback)
+		self._resyncInFlight = false
+		if not ok then
+			self._logger:Error("resync_handler_failed", {
+				Error = tostring(err),
+			})
+		end
+	end)
+end
+
 function CommunicationClient:_requestResync(reason: string)
 	if self._pausedForResync then
 		return
@@ -156,9 +195,7 @@ function CommunicationClient:_requestResync(reason: string)
 	table.clear(self._outgoing)
 	self._outgoingBytes = 0
 	self._logger:Warn("resync_required", { Reason = reason })
-	if self._resyncHandler then
-		task.spawn(self._resyncHandler)
-	end
+	self:_startResync()
 end
 
 function CommunicationClient:ResumeAfterSnapshot(epoch: number)
@@ -189,10 +226,17 @@ function CommunicationClient:_handleBatch(batch: any)
 		self:_requestResync("EpochMismatch")
 		return
 	end
-	local valid, _, estimatedBytes = CommunicationSerialize.inspect(batch)
+	local denseMessages, messageCount =
+		CommunicationSerialize.inspectDenseArray(batch.Messages, CommunicationConfig.MaxMessagesPerBatch)
+	if not denseMessages then
+		self:_requestResync("InvalidBatchMessages")
+		return
+	end
+	local valid, _, estimatedBytes = CommunicationSerialize.inspect(batch, {
+		MaxBytes = CommunicationConfig.MaxEstimatedPayloadBytes,
+	})
 	if not valid
-		or #batch.Messages > CommunicationConfig.MaxMessagesPerBatch
-		or estimatedBytes > CommunicationConfig.MaxEstimatedPayloadBytes
+		or messageCount > CommunicationConfig.MaxMessagesPerBatch
 	then
 		self:_requestResync("InvalidBatchPayload")
 		return
@@ -204,9 +248,13 @@ function CommunicationClient:_handleBatch(batch: any)
 	self._expectedIncomingSequence += 1
 
 	for _, message in batch.Messages do
-		if typeof(message) ~= "table" or typeof(message.Type) ~= "string" then
-			self._logger:Warn("invalid_message")
-			continue
+		if typeof(message) ~= "table"
+			or typeof(message.Type) ~= "string"
+			or message.Type == ""
+			or #message.Type > CommunicationConfig.MaxMessageTypeLength
+		then
+			self:_requestResync("InvalidMessage")
+			return
 		end
 		if message.RequestId ~= nil
 			and (typeof(message.RequestId) ~= "string"
@@ -257,8 +305,10 @@ function CommunicationClient:_flush()
 			batchBytes += entry.EstimatedBytes
 		end
 
-		local valid, issues, estimatedBytes = CommunicationSerialize.inspect(messages)
-		if not valid or estimatedBytes > CommunicationConfig.MaxEstimatedPayloadBytes then
+		local valid, issues, estimatedBytes = CommunicationSerialize.inspect(messages, {
+			MaxBytes = CommunicationConfig.MaxEstimatedPayloadBytes,
+		})
+		if not valid then
 			self._logger:Error("outgoing_batch_invalid", {
 				Error = if issues[1] then issues[1].Reason else "payload_too_large",
 			})
@@ -307,6 +357,13 @@ function CommunicationClient:Stop()
 	self._clientToServer = nil
 	self._serverToClient = nil
 	self._request = nil
+	table.clear(self._outgoing)
+	self._outgoingBytes = 0
+	self._outgoingSequence = 0
+	self._expectedIncomingSequence = 1
+	self._incomingEpoch = 0
+	self._pausedForResync = false
+	self._resyncInFlight = false
 	self._initialized = false
 end
 

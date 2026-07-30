@@ -136,6 +136,11 @@ function ClientSaveController:ApplySnapshot(snapshot: any)
 	end
 
 	self._revision = snapshot.Revision
+	self._pendingRequestId = nil
+	self._pendingSent = nil
+	for providerId, generation in self._dirtyGeneration do
+		self._sentGeneration[providerId] = generation
+	end
 	self._running = true
 	self.Ready:Fire(self._revision)
 end

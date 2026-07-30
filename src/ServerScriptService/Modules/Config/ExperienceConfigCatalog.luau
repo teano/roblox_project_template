@@ -174,8 +174,10 @@ function ExperienceConfigCatalog:_buildCandidate(sourceSnapshot: any, generation
 			Generation = generation,
 			Configs = projectedConfigs,
 		})
-		local serializable, issues, estimatedBytes = CommunicationSerialize.inspect(bundle)
-		if not serializable or estimatedBytes > ConfigProtocol.MaxClientBundleEstimatedBytes then
+		local serializable, issues, estimatedBytes = CommunicationSerialize.inspect(bundle, {
+			MaxBytes = ConfigProtocol.MaxClientBundleEstimatedBytes,
+		})
+		if not serializable then
 			return false, nil, nil, `Client bundle '{bundleId}' is invalid: {
 				if issues[1] then issues[1].Reason else "bundle_too_large"
 			}`
