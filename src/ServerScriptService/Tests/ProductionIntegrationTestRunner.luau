@@ -28,6 +28,7 @@ local SessionLockingStorage = require(ServerScriptService.Modules.Storage.Sessio
 local ServerSaveController = require(ServerScriptService.Modules.Save.ServerSaveController)
 local ShutdownSaveCoordinator = require(ServerScriptService.Modules.Save.ShutdownSaveCoordinator)
 local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
+local TestHarness = require(script.Parent.TestHarness)
 
 local ProductionIntegrationTestRunner = {}
 
@@ -1027,15 +1028,51 @@ function ProductionIntegrationTestRunner.runAll()
 		})
 		local firstPlayer = { UserId = 3961 } :: any
 		local secondPlayer = { UserId = 3962 } :: any
+		local handled = {} :: { [any]: number }
+		server:RegisterHandler("Integration.Rate", function(payload)
+			return true, payload, nil
+		end, function(player)
+			handled[player] = (handled[player] or 0) + 1
+		end)
 
-		for _ = 1, CommunicationConfig.BatchInvocationBurst do
-			assertEqual(server:_reserveBatchInvocation(firstPlayer), true)
+		for sequence = 1, CommunicationConfig.BatchInvocationBurst do
+			server:ReceiveBatch(firstPlayer, {
+				Sequence = sequence,
+				Messages = {
+					{
+						Type = "Integration.Rate",
+						Payload = {},
+					},
+				},
+			})
 		end
-		assertEqual(server:_reserveBatchInvocation(firstPlayer), false)
-		assertEqual(server:_reserveBatchInvocation(secondPlayer), true)
+		server:ReceiveBatch(firstPlayer, {
+			Sequence = CommunicationConfig.BatchInvocationBurst + 1,
+			Messages = {},
+		})
+		server:ReceiveBatch(secondPlayer, {
+			Sequence = 1,
+			Messages = {
+				{
+					Type = "Integration.Rate",
+					Payload = {},
+				},
+			},
+		})
+		assertEqual(handled[firstPlayer], CommunicationConfig.BatchInvocationBurst)
+		assertEqual(handled[secondPlayer], 1)
 
 		now = 1 / CommunicationConfig.MaxBatchInvocationsPerSecond
-		assertEqual(server:_reserveBatchInvocation(firstPlayer), true, "player bucket did not refill")
+		server:ReceiveBatch(firstPlayer, {
+			Sequence = CommunicationConfig.BatchInvocationBurst + 1,
+			Messages = {
+				{
+					Type = "Integration.Rate",
+					Payload = {},
+				},
+			},
+		})
+		assertEqual(handled[firstPlayer], CommunicationConfig.BatchInvocationBurst + 1, "player bucket did not refill")
 	end)
 
 	test("server rejects dictionary batches without advancing sequence", function()
@@ -1054,7 +1091,7 @@ function ProductionIntegrationTestRunner.runAll()
 			handled += 1
 		end)
 
-		server:_handleBatch(player, {
+		server:ReceiveBatch(player, {
 			Sequence = 1,
 			Messages = {
 				First = {
@@ -1065,7 +1102,7 @@ function ProductionIntegrationTestRunner.runAll()
 		})
 		assertEqual(handled, 0)
 
-		server:_handleBatch(player, {
+		server:ReceiveBatch(player, {
 			Sequence = 1,
 			Messages = {
 				{
@@ -1092,48 +1129,51 @@ function ProductionIntegrationTestRunner.runAll()
 		local player = { UserId = 398 } :: any
 
 		for _ = 1, CommunicationConfig.BatchInvocationBurst + 5 do
-			server:_handleBatch(player, "invalid")
+			server:ReceiveBatch(player, "invalid")
 		end
 		assertEqual(#entries, 2, "invalid batch and rate-limit logs must each be cooldown-bounded")
 
 		local lastResponse
 		for _ = 1, CommunicationConfig.RequestInvocationBurst + 1 do
-			lastResponse = server:_handleRequest(player, "invalid")
+			lastResponse = server:HandleRequest(player, "invalid")
 		end
 		assertEqual(lastResponse.Code, "RateLimited")
 
 		now = 1
-		local resetResponse = server:_handleRequest(player, "invalid")
+		local resetResponse = server:HandleRequest(player, "invalid")
 		assertEqual(resetResponse.Code, "Unavailable")
 	end)
 
 	test("client pacing retains unsent batches and advances sequence only after send", function()
 		local now = 0
+		local batches = {}
 		local client = CommunicationClient.new(nil, function()
 			return now
-		end)
-		local batches = {}
-		client._clientToServer = {
-			FireServer = function(_self, batch)
-				table.insert(batches, batch)
-			end,
-		}
+		end, nil, {
+			ClientToServer = {
+				FireServer = function(_self, batch)
+					table.insert(batches, batch)
+				end,
+			},
+		})
 
-		for _ = 1, CommunicationConfig.BatchInvocationBurst do
-			assertEqual(client._outboundRate.Batches:TryConsume(1), true)
+		for index = 1, CommunicationConfig.BatchInvocationBurst do
+			assertEqual(client:Queue("Integration.Paced", { Value = index }), true)
+			client:Flush()
 		end
+		assertEqual(#batches, CommunicationConfig.BatchInvocationBurst)
 		assertEqual(client:Queue("Integration.Paced", { Value = 1 }), true)
-		client:_flush()
-		assertEqual(#batches, 0)
+		client:Flush()
+		assertEqual(#batches, CommunicationConfig.BatchInvocationBurst)
 		assertEqual(client:GetQueueStats().Messages, 1)
-		assertEqual(client._outgoingSequence, 0)
+		assertEqual(client:GetQueueStats().OutgoingSequence, CommunicationConfig.BatchInvocationBurst)
 
 		now = 1 / CommunicationConfig.MaxBatchInvocationsPerSecond
-		client:_flush()
-		assertEqual(#batches, 1)
+		client:Flush()
+		assertEqual(#batches, CommunicationConfig.BatchInvocationBurst + 1)
 		assertEqual(client:GetQueueStats().Messages, 0)
-		assertEqual(client._outgoingSequence, 1)
-		assertEqual(batches[1].Sequence, 1)
+		assertEqual(client:GetQueueStats().OutgoingSequence, CommunicationConfig.BatchInvocationBurst + 1)
+		assertEqual(batches[#batches].Sequence, CommunicationConfig.BatchInvocationBurst + 1)
 	end)
 
 	test("message validator failures are contained and force resync", function()
@@ -1150,7 +1190,7 @@ function ProductionIntegrationTestRunner.runAll()
 		end, function() end)
 
 		local callOk = pcall(function()
-			server:_handleBatch(player, {
+			server:ReceiveBatch(player, {
 				Sequence = 1,
 				Messages = {
 					{
@@ -1238,11 +1278,11 @@ function ProductionIntegrationTestRunner.runAll()
 		}
 		local command = GlobalSaveInitializationCommand.new({
 			Communication = communication,
+			Logger = logger,
 		} :: any)
-		command._logger = logger
 		local player = { UserId = 3983 } :: any
 
-		local oversized = command:_handleSnapshotRequest(controller, player, 1)
+		local oversized = command:HandleSnapshotRequest(controller, player, 1)
 		assertEqual(oversized.Ok, false)
 		assertEqual(oversized.Code, "SnapshotTooLarge")
 		assertEqual(beginCalls, 0, "oversized snapshot must not begin a new epoch")
@@ -1253,14 +1293,14 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(entries[1].Message, "snapshot_response_rejected")
 
 		snapshotValue = "Normal"
-		local normal = command:_handleSnapshotRequest(controller, player, 1)
+		local normal = command:HandleSnapshotRequest(controller, player, 1)
 		assertEqual(normal.Ok, true)
 		assertEqual(normal.CommunicationEpoch, 8)
 		assertEqual(beginCalls, 1)
 		assertEqual(inFlight, false)
 
 		snapshotValue = "Throw"
-		local failed = command:_handleSnapshotRequest(controller, player, 1)
+		local failed = command:HandleSnapshotRequest(controller, player, 1)
 		assertEqual(failed.Ok, false)
 		assertEqual(failed.Code, "InternalError")
 		assertEqual(inFlight, false, "snapshot guard remained in flight after error")
@@ -1286,7 +1326,7 @@ function ProductionIntegrationTestRunner.runAll()
 		end)
 		local player = { UserId = 399 } :: any
 
-		local response = server:_handleRequest(player, {
+		local response = server:HandleRequest(player, {
 			Type = "Integration.Read",
 			Payload = { Id = "Allowed" },
 		})
@@ -1294,14 +1334,14 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(response.Payload.Id, "Allowed")
 		assertEqual(response.Payload.Value, 42)
 
-		local invalid = server:_handleRequest(player, {
+		local invalid = server:HandleRequest(player, {
 			Type = "Integration.Read",
 			Payload = { Id = 5 },
 		})
 		assertEqual(invalid.Ok, false)
 		assertEqual(invalid.Code, "Unavailable")
 
-		local unknown = server:_handleRequest(player, {
+		local unknown = server:HandleRequest(player, {
 			Type = "Integration.Unknown",
 			Payload = {},
 		})
@@ -1313,7 +1353,7 @@ function ProductionIntegrationTestRunner.runAll()
 		end, function()
 			return false, nil, string.rep("x", CommunicationConfig.MaxSingleMessageEstimatedBytes)
 		end)
-		local oversizedFailure = server:_handleRequest(player, {
+		local oversizedFailure = server:HandleRequest(player, {
 			Type = "Integration.Failure",
 			Payload = {},
 		})
@@ -1322,20 +1362,24 @@ function ProductionIntegrationTestRunner.runAll()
 	end)
 
 	test("server batch flush preserves Vector3 payloads", function()
+		local capturedPlayer = nil
+		local capturedBatch = nil
 		local server = CommunicationServer.new({
 			PlayersModule = {
 				PlayerRemoving = Signal.new(),
 			},
+			Transport = {
+				ClientToServer = {},
+				ServerToClient = {
+					FireClient = function(_self, targetPlayer, batch)
+						capturedPlayer = targetPlayer
+						capturedBatch = batch
+					end,
+				},
+				Request = {},
+			},
 		})
 		local player = { UserId = 400 } :: any
-		local capturedPlayer = nil
-		local capturedBatch = nil
-		server._serverToClient = {
-			FireClient = function(_self, targetPlayer, batch)
-				capturedPlayer = targetPlayer
-				capturedBatch = batch
-			end,
-		}
 
 		local epoch = server:BeginSnapshot(player)
 		assertEqual(server:SetClientReady(player, epoch + 1), false)
@@ -1346,7 +1390,7 @@ function ProductionIntegrationTestRunner.runAll()
 		}, nil, {
 			Priority = CommunicationProtocol.Priorities.Critical,
 		})
-		server:_flush()
+		server:Flush()
 
 		assertEqual(queued, true)
 		assertEqual(capturedPlayer, player)
@@ -1358,6 +1402,7 @@ function ProductionIntegrationTestRunner.runAll()
 
 	test("server outbound byte budget drains a queue across heartbeats", function()
 		local now = 0
+		local batches = {}
 		local server = CommunicationServer.new({
 			PlayersModule = {
 				PlayerRemoving = Signal.new(),
@@ -1365,14 +1410,17 @@ function ProductionIntegrationTestRunner.runAll()
 			Clock = function()
 				return now
 			end,
+			Transport = {
+				ClientToServer = {},
+				ServerToClient = {
+					FireClient = function(_self, _targetPlayer, batch)
+						table.insert(batches, batch)
+					end,
+				},
+				Request = {},
+			},
 		})
 		local player = { UserId = 4001 } :: any
-		local batches = {}
-		server._serverToClient = {
-			FireClient = function(_self, _targetPlayer, batch)
-				table.insert(batches, batch)
-			end,
-		}
 
 		local epoch = server:BeginSnapshot(player)
 		assertEqual(server:SetClientReady(player, epoch), true)
@@ -1383,67 +1431,118 @@ function ProductionIntegrationTestRunner.runAll()
 			}), true)
 		end
 
-		server:_flush()
+		server:Flush()
 		local firstHeartbeatBatches = #batches
 		assertTrue(firstHeartbeatBatches > 0, "initial outbound burst sent nothing")
 		assertTrue(
 			firstHeartbeatBatches < CommunicationConfig.ServerToClientBatchBurst,
 			"byte budget must constrain independently of batch budget"
 		)
-		assertEqual(server:GetQueueStats(player).Messages, 5 - firstHeartbeatBatches)
-		assertEqual(server._outgoingSequence[player], firstHeartbeatBatches)
+		local firstHeartbeatStats = server:GetQueueStats(player)
+		assertEqual(firstHeartbeatStats.Messages, 5 - firstHeartbeatBatches)
+		assertEqual(firstHeartbeatStats.OutgoingSequence, firstHeartbeatBatches)
 
 		now = 1
-		server:_flush()
+		server:Flush()
 		assertEqual(#batches, 5)
 		assertEqual(server:GetQueueStats(player).Messages, 0)
-		assertEqual(server._outgoingSequence[player], 5)
+		assertEqual(server:GetQueueStats(player).OutgoingSequence, 5)
 	end)
 
 	test("communication limiter state is cleared for a player and on stop", function()
+		local sentToPlayers = 0
 		local server = CommunicationServer.new({
 			PlayersModule = {
 				PlayerRemoving = Signal.new(),
 			},
+			Transport = {
+				ClientToServer = {},
+				ServerToClient = {
+					FireClient = function()
+						sentToPlayers += 1
+					end,
+				},
+				Request = {},
+			},
 		})
 		local firstPlayer = { UserId = 4002 } :: any
 		local secondPlayer = { UserId = 4003 } :: any
-		server:_getMessageRateState(firstPlayer)
-		server:_getRequestRateState(firstPlayer)
-		server:_getOutboundRateState(firstPlayer)
-		server:_clearPlayerState(firstPlayer)
-		assertEqual(server._rate[firstPlayer], nil)
-		assertEqual(server._requestRate[firstPlayer], nil)
-		assertEqual(server._outboundRate[firstPlayer], nil)
+		local handled = 0
+		server:RegisterHandler("Integration.Cleanup", function(payload)
+			return true, payload, nil
+		end, function()
+			handled += 1
+		end)
+		server:ReceiveBatch(firstPlayer, {
+			Sequence = 1,
+			Messages = {
+				{
+					Type = "Integration.Cleanup",
+					Payload = {},
+				},
+			},
+		})
+		server:HandleRequest(firstPlayer, "invalid")
+		local epoch = server:BeginSnapshot(firstPlayer)
+		server:SetClientReady(firstPlayer, epoch)
+		server:Queue(firstPlayer, "Integration.Cleanup.Out", {})
+		server:Flush()
+		assertEqual(sentToPlayers, 1)
+		server:ForgetPlayer(firstPlayer)
+		local forgottenStats = server:GetQueueStats(firstPlayer)
+		assertEqual(forgottenStats.Messages, 0)
+		assertEqual(forgottenStats.OutgoingSequence, 0)
+		assertEqual(forgottenStats.Epoch, 0)
+		server:ReceiveBatch(firstPlayer, {
+			Sequence = 1,
+			Messages = {
+				{
+					Type = "Integration.Cleanup",
+					Payload = {},
+				},
+			},
+		})
+		assertEqual(handled, 2, "forgotten player must restart at incoming sequence one")
 
-		server:_getMessageRateState(secondPlayer)
-		server:_getRequestRateState(secondPlayer)
-		server:_getOutboundRateState(secondPlayer)
-		server._request = {
-			OnServerInvoke = function() end,
-		}
+		local response
+		for _ = 1, CommunicationConfig.RequestInvocationBurst + 1 do
+			response = server:HandleRequest(secondPlayer, "invalid")
+		end
+		assertEqual(response.Code, "RateLimited")
 		server:Stop()
-		assertEqual(next(server._rate), nil)
-		assertEqual(next(server._requestRate), nil)
-		assertEqual(next(server._outboundRate), nil)
+		assertEqual(server:HandleRequest(secondPlayer, "invalid").Code, "Unavailable")
 
 		local now = 0
-		local client = CommunicationClient.new(nil, function()
-			return now
-		end)
-		for _ = 1, CommunicationConfig.BatchInvocationBurst do
-			client._outboundRate.Batches:TryConsume(1)
-		end
-		client:Stop()
 		local sent = 0
-		client._clientToServer = {
+		local clientToServer = {
 			FireServer = function()
 				sent += 1
 			end,
 		}
+		local client = CommunicationClient.new(nil, function()
+			return now
+		end, nil, {
+			ClientToServer = clientToServer,
+			ServerToClient = {
+				OnClientEvent = Signal.new(),
+			},
+			Request = {
+				InvokeServer = function()
+					return { Ok = false, Code = "Unavailable" }
+				end,
+			},
+		})
+		for index = 1, CommunicationConfig.BatchInvocationBurst do
+			client:Queue("Integration.BeforeStop", { Index = index })
+			client:Flush()
+		end
+		assertEqual(sent, CommunicationConfig.BatchInvocationBurst)
+		client:Stop()
+		client:Initialize()
 		assertEqual(client:Queue("Integration.AfterStop", {}), true)
-		client:_flush()
-		assertEqual(sent, 1, "client Stop must reset outbound limiter state")
+		client:Flush()
+		assertEqual(sent, CommunicationConfig.BatchInvocationBurst + 1, "client Stop must reset outbound limiter state")
+		client:Stop()
 	end)
 
 	test("client detects packet loss and accepts sequence one after resync", function()
@@ -1457,7 +1556,7 @@ function ProductionIntegrationTestRunner.runAll()
 			resyncs += 1
 		end)
 		client:ResumeAfterSnapshot(1)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 1,
 			Sequence = 2,
 			Messages = {},
@@ -1467,7 +1566,7 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(client:GetQueueStats().PausedForResync, true)
 
 		client:ResumeAfterSnapshot(2)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 2,
 			Sequence = 1,
 			Messages = {
@@ -1478,7 +1577,7 @@ function ProductionIntegrationTestRunner.runAll()
 			},
 		})
 		assertEqual(handled, 1)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 1,
 			Sequence = 99,
 			Messages = {
@@ -1497,7 +1596,7 @@ function ProductionIntegrationTestRunner.runAll()
 		local resyncs = 0
 
 		client:ResumeAfterSnapshot(1)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 1,
 			Sequence = 2,
 			Messages = {},
@@ -1518,7 +1617,7 @@ function ProductionIntegrationTestRunner.runAll()
 			error("keep recovery paused")
 		end)
 		client:ResumeAfterSnapshot(1)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 1,
 			Sequence = 2,
 			Messages = {},
@@ -1549,7 +1648,7 @@ function ProductionIntegrationTestRunner.runAll()
 			client:ResumeAfterSnapshot(2)
 		end)
 		client:ResumeAfterSnapshot(1)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 1,
 			Sequence = 2,
 			Messages = {},
@@ -1582,7 +1681,7 @@ function ProductionIntegrationTestRunner.runAll()
 		end)
 
 		client:ResumeAfterSnapshot(1)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 1,
 			Sequence = 2,
 			Messages = {},
@@ -1592,7 +1691,7 @@ function ProductionIntegrationTestRunner.runAll()
 		assertTrue(scheduledCallbacks[1] ~= nil, "first recovery did not schedule a retry")
 
 		client:ResumeAfterSnapshot(2)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 2,
 			Sequence = 2,
 			Messages = {},
@@ -1626,7 +1725,7 @@ function ProductionIntegrationTestRunner.runAll()
 		end)
 
 		client:ResumeAfterSnapshot(1)
-		client:_handleBatch({
+		client:ReceiveBatch({
 			Epoch = 1,
 			Sequence = 2,
 			Messages = {},
@@ -1696,16 +1795,16 @@ function ProductionIntegrationTestRunner.runAll()
 		controller:ApplySnapshot(snapshot(1, 1))
 		provider:SetLocalValue(2)
 		task.wait()
-		controller:_flushClientDirty()
+		controller:FlushClientChanges()
 		assertEqual(queued, 1)
 
 		controller:ApplySnapshot(snapshot(2, 3))
-		controller:_flushClientDirty()
+		controller:FlushClientChanges()
 		assertEqual(queued, 1, "snapshot must retire the lost pending patch and its dirty generation")
 
 		provider:SetLocalValue(4)
 		task.wait()
-		controller:_flushClientDirty()
+		controller:FlushClientChanges()
 		assertEqual(queued, 2, "changes after resync must be sendable")
 		controller:Destroy()
 		changed:Destroy()
@@ -1749,24 +1848,7 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(server:GetQueueStats(player).ResyncRequired, false)
 	end)
 
-	local passed = 0
-	local failures = {}
-	for _, entry in tests do
-		local ok, testError = xpcall(entry.Callback, debug.traceback)
-		if ok then
-			passed += 1
-		else
-			table.insert(failures, `{entry.Name}: {tostring(testError)}`)
-			warn(`[ProductionIntegrationTestRunner] FAIL {entry.Name}: {tostring(testError)}`)
-		end
-	end
-
-	print(`[ProductionIntegrationTestRunner] passed={passed} failed={#failures} total={#tests}`)
-	return {
-		passed = passed,
-		failed = #failures,
-		failures = failures,
-	}
+	return TestHarness.runAll("ProductionIntegrationTestRunner", tests, 10)
 end
 
 return ProductionIntegrationTestRunner

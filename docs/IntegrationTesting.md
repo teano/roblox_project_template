@@ -83,11 +83,22 @@ and never run real DataStore smoke tests in production.
 After the three setup steps:
 
 1. Enable Studio access to API Services for the dedicated test Experience.
-2. Start a clean Studio Play session.
-3. Verify server and client bootstrap complete and the config catalogs report
+2. Reuse an already-open integration Studio session when its stable `PlaceId`
+   and `GameId` match the recorded test Experience. Run the Rojo preflight,
+   list Studio instances through MCP, and explicitly select that matching
+   instance. Ignore sessions belonging to other projects.
+3. Start a clean Play DataModel inside that same selected Studio instance.
+4. Verify server and client bootstrap complete and the config catalogs report
    the expected config counts.
-4. Run the deterministic suites required by `.agents/rules/testing.md`.
-5. Run `RealDataStoreSmokeTest` from the server DataModel.
+5. Run the deterministic suites required by `.agents/rules/testing.md`.
+6. Run `RealDataStoreSmokeTest` from the server DataModel.
+
+Open a new integration Studio session only when reliable enumeration proves no
+matching session exists. If MCP cannot see or retain a potentially matching
+existing instance, stop and restore the connector in that session. Do not
+treat an empty or disconnected MCP result as permission to reopen the
+integration place, create another place tab, republish or reattach the place,
+or use UI automation as a substitute for explicit MCP selection.
 
 The real DataStore test is successful only when:
 
@@ -108,5 +119,7 @@ Do not start integration testing until all statements are true:
 - every required Experience Config is published with native type `JSON`;
 - the integration place is attached to the test Experience;
 - the selected Studio DataModel has the recorded `PlaceId` and `GameId`;
+- MCP has explicitly selected that already-open Studio instance, without a
+  replacement process, window, or place tab;
 - Rojo is serving the integration project;
 - Studio API access is enabled for the test Experience.

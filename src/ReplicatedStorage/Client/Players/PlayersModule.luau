@@ -8,8 +8,9 @@ local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 local PlayersModule = {}
 PlayersModule.__index = PlayersModule
 
-function PlayersModule.new()
+function PlayersModule.new(playersService: any?)
 	return setmetatable({
+		_players = playersService or Players,
 		_initialized = false,
 		_connections = {},
 		LocalPlayer = nil :: Player?,
@@ -24,7 +25,7 @@ function PlayersModule:Initialize()
 	end
 	self._initialized = true
 
-	local player = Players.LocalPlayer
+	local player = self._players.LocalPlayer
 	assert(player ~= nil, "LocalPlayer is not available")
 	self.LocalPlayer = player
 	table.insert(self._connections, player.CharacterAdded:Connect(function(character)

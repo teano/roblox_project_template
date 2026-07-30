@@ -75,6 +75,8 @@ The public lifecycle and dispatch contracts are covered by
 - idempotent disconnect and destroy;
 - one-shot behavior during nested dispatch;
 - isolation from yielding listeners;
+- isolation from throwing listeners and preservation of nil arguments in
+  `Wait`;
 - destruction during dispatch.
 
 Run in a fresh Studio Play session:

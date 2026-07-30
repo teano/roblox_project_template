@@ -25,9 +25,27 @@ Before editing, adding, moving, or deleting source code:
 
    Do not edit source code unless the command succeeds.
 
-Before the first Roblox Studio tool or UI operation in a task, run the same
-Rojo preflight again, then explicitly select the Studio instance for the
-current canonical `place.rbxl`; do not inspect or mutate another open project.
+Before the first Roblox Studio tool or UI operation against a running
+DataModel in a task, run the same Rojo preflight again, then explicitly select
+the Studio instance for the current canonical `place.rbxl`; do not inspect or
+mutate another open project. If reliable enumeration proves that no matching
+project session exists and opening one is authorized, run the preflight before
+launch and explicitly select the new canonical instance before any subsequent
+Studio operation.
+Studio and test workflows MUST reuse an already-open Studio session when that
+session owns the canonical place of the project being tested. Never open a
+duplicate session for the same project, replace the matching session, or
+attach its place to another Experience. Sessions for other projects are out of
+scope and must not be inspected or changed. A new canonical session may be
+opened only after reliable instance enumeration proves that no matching
+project session exists; an empty or disconnected MCP result while Studio is
+running is not proof. In that ambiguous case, stop before any Studio or
+fallback UI operation and ask the user to restore the connector in the
+existing session. Never use `Start-Process`, shell association, Computer Use,
+or another UI fallback to open a replacement merely because MCP is
+unavailable. Starting a "fresh Play session" means stopping and starting Play
+inside the matching selected Studio instance; it does not mean reopening
+Studio or the place.
 Treat `default.project.json` `name` only as the Rojo project/server identity,
 not as the Roblox place identity, and never require it to match
 `game.Name`. For a published project, use stable `game.PlaceId`/`game.GameId`

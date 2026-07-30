@@ -5,11 +5,18 @@ local Logger = require(game:GetService("ReplicatedStorage").Shared.Util.Logger)
 local SessionLockModule = {}
 SessionLockModule.__index = SessionLockModule
 
-function SessionLockModule.new(refreshIntervalSeconds: number, logger: any?)
+function SessionLockModule.new(refreshIntervalSeconds: number, logger: any?, runtime: {
+	Clock: (() -> number)?,
+	Spawn: ((() -> ()) -> ())?,
+	Wait: ((number?) -> number?)?,
+}?)
 	return setmetatable({
 		_entries = {},
 		_interval = refreshIntervalSeconds,
 		_logger = logger or Logger.new("SessionLock", "info"),
+		_clock = if runtime and runtime.Clock then runtime.Clock else os.clock,
+		_spawn = if runtime and runtime.Spawn then runtime.Spawn else task.spawn,
+		_wait = if runtime and runtime.Wait then runtime.Wait else task.wait,
 		_running = false,
 	}, SessionLockModule)
 end
@@ -23,13 +30,13 @@ function SessionLockModule:Initialize(playersModule: any)
 		return
 	end
 	self._running = true
-	task.spawn(function()
+	self._spawn(function()
 		while self._running do
 			for _, controller in self._entries do
 				for _, player in playersModule:GetPlayers() do
 					if controller:IsLoaded(player) then
 						local lastRefresh = controller:GetLastLockRefreshAt(player) or 0
-						if os.clock() - lastRefresh >= self._interval then
+						if self._clock() - lastRefresh >= self._interval then
 							local result = controller:RefreshLock(player)
 							if not result.Ok then
 								self._logger:Warn("lock_refresh_failed", {
@@ -42,7 +49,7 @@ function SessionLockModule:Initialize(playersModule: any)
 					end
 				end
 			end
-			task.wait(math.min(30, self._interval / 2))
+			self._wait(math.min(30, self._interval / 2))
 		end
 	end)
 end

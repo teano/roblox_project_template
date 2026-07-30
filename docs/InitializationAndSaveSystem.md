@@ -254,8 +254,7 @@ transport to an explicitly added consumer. See [Logger.md](Logger.md).
 In Studio Play mode:
 
 ```lua
-require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
-require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
+require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 ```
 
 The production integration suite injects failures and verifies complete
@@ -269,4 +268,7 @@ requires a published place with Studio API access. It creates a fresh
 reloads and verifies the data, then removes the key. A run passes only when
 both `Ok` and `CleanupOk` are true. See
 [IntegrationTesting.md](IntegrationTesting.md) for the required environment
-setup order.
+setup order. Autosave and session-lock workers expose injected clock, wait,
+spawn, and random dependencies so their due/not-due, failure, and stop
+contracts are deterministic. The complete persistence contract matrix is in
+[TestCoverage.md](TestCoverage.md).

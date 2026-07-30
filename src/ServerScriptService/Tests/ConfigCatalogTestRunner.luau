@@ -12,9 +12,12 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 local ClientConfigCatalog = require(ReplicatedStorage.Client.Config.ClientConfigCatalog)
 local ClientConfigManifest = require(ReplicatedStorage.Client.Config.ClientConfigManifest)
+local ClientGlobalSaveConfigCodec = require(ReplicatedStorage.Client.Config.Codecs.GlobalSaveConfigCodec)
 local ExperienceConfigCatalog = require(ServerScriptService.Modules.Config.ExperienceConfigCatalog)
 local ServerConfigManifest = require(ServerScriptService.Modules.Config.ServerConfigManifest)
+local ServerGlobalSaveConfigCodec = require(ServerScriptService.Modules.Config.Codecs.GlobalSaveConfigCodec)
 local WalletConfigCodec = require(ServerScriptService.Modules.Config.Codecs.WalletConfigCodec)
+local TestHarness = require(script.Parent.TestHarness)
 
 local ConfigCatalogTestRunner = {}
 
@@ -308,6 +311,112 @@ function ConfigCatalogTestRunner.runAll()
 		)
 	end)
 
+	test("GlobalSave codecs enforce every numeric boundary and reject unknown fields", function()
+		local validMinimum = {
+			autoSaveIntervalSeconds = 5,
+			snapshotLoadTimeoutSeconds = 1,
+			snapshotRequestAttempts = 1,
+			snapshotRetryDelaySeconds = 0.05,
+		}
+		local validMaximum = {
+			autoSaveIntervalSeconds = 3_600,
+			snapshotLoadTimeoutSeconds = 120,
+			snapshotRequestAttempts = 100,
+			snapshotRetryDelaySeconds = 10,
+		}
+		assertTrue(ServerGlobalSaveConfigCodec.decode(validMinimum), "minimum server boundaries were rejected")
+		assertTrue(ServerGlobalSaveConfigCodec.decode(validMaximum), "maximum server boundaries were rejected")
+
+		local invalidValues = {
+			"not-a-table",
+			{},
+			{
+				autoSaveIntervalSeconds = 4.99,
+				snapshotLoadTimeoutSeconds = 1,
+				snapshotRequestAttempts = 1,
+				snapshotRetryDelaySeconds = 0.05,
+			},
+			{
+				autoSaveIntervalSeconds = 5,
+				snapshotLoadTimeoutSeconds = math.huge,
+				snapshotRequestAttempts = 1,
+				snapshotRetryDelaySeconds = 0.05,
+			},
+			{
+				autoSaveIntervalSeconds = 5,
+				snapshotLoadTimeoutSeconds = 1,
+				snapshotRequestAttempts = 1.5,
+				snapshotRetryDelaySeconds = 0.05,
+			},
+			{
+				autoSaveIntervalSeconds = 5,
+				snapshotLoadTimeoutSeconds = 1,
+				snapshotRequestAttempts = 1,
+				snapshotRetryDelaySeconds = 0 / 0,
+			},
+			{
+				autoSaveIntervalSeconds = 5,
+				snapshotLoadTimeoutSeconds = 1,
+				snapshotRequestAttempts = 1,
+				snapshotRetryDelaySeconds = 0.05,
+				unknown = true,
+			},
+		}
+		for _, value in invalidValues do
+			assertEqual(ServerGlobalSaveConfigCodec.decode(value), false)
+		end
+
+		assertTrue(ClientGlobalSaveConfigCodec.decode({
+			SnapshotRequestAttempts = 1,
+			SnapshotRetryDelaySeconds = 0.05,
+		}), "minimum client boundaries were rejected")
+		assertTrue(ClientGlobalSaveConfigCodec.decode({
+			SnapshotRequestAttempts = 100,
+			SnapshotRetryDelaySeconds = 10,
+		}), "maximum client boundaries were rejected")
+		assertEqual(ClientGlobalSaveConfigCodec.decode({
+			SnapshotRequestAttempts = 0,
+			SnapshotRetryDelaySeconds = 0.05,
+		}), false)
+		assertEqual(ClientGlobalSaveConfigCodec.decode({
+			SnapshotRequestAttempts = 1,
+			SnapshotRetryDelaySeconds = 0.05,
+			ServerOnly = true,
+		}), false)
+	end)
+
+	test("oversized client projection fails before publishing a config generation", function()
+		local snapshot = makeSnapshot({
+			equip_config = {
+				schemaVersion = 1,
+				items = {
+					Huge = {
+						DisplayName = string.rep("x", 60 * 1_024),
+					},
+				},
+				serverSecret = "safe",
+			},
+		})
+		local catalog = ExperienceConfigCatalog.new({
+			ConfigService = {
+				GetConfigAsync = function()
+					return snapshot
+				end,
+			},
+			Communication = makeCommunication(),
+			Definitions = { equipmentDefinition() },
+			ClientBundles = { Bootstrap = { "Equipment" } },
+			Logger = makeLogger(),
+		})
+		assertEqual(pcall(function()
+			catalog:Initialize()
+		end), false)
+		assertEqual(catalog:IsInitialized(), false)
+		assertEqual(catalog:GetGeneration(), 0)
+		catalog:Destroy()
+		snapshot.UpdateAvailable:Destroy()
+	end)
+
 	test("client catalog decodes an allowed bundle and retains old data after invalid refresh", function()
 		local response = {
 			BundleId = "Bootstrap",
@@ -375,24 +484,7 @@ function ConfigCatalogTestRunner.runAll()
 		assertEqual(constructed, false)
 	end)
 
-	local passed = 0
-	local failures = {}
-	for _, entry in tests do
-		local ok, testError = xpcall(entry.Callback, debug.traceback)
-		if ok then
-			passed += 1
-		else
-			table.insert(failures, `{entry.Name}: {tostring(testError)}`)
-			warn(`[ConfigCatalogTestRunner] FAIL {entry.Name}: {tostring(testError)}`)
-		end
-	end
-
-	print(`[ConfigCatalogTestRunner] passed={passed} failed={#failures} total={#tests}`)
-	return {
-		passed = passed,
-		failed = #failures,
-		failures = failures,
-	}
+	return TestHarness.runAll("ConfigCatalogTestRunner", tests)
 end
 
 return ConfigCatalogTestRunner

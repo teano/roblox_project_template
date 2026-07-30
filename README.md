@@ -531,16 +531,14 @@ rojo build default.project.json --output $env:TEMP\roblox-template-validation.rb
 Studio Play:
 
 ```lua
-require(game.ServerScriptService.Tests.LoggerTestRunner).runAll()
-require(game.ServerScriptService.Tests.ResourceManagementTestRunner).runAll()
-require(game.ServerScriptService.Tests.AssetRegistryTestRunner).runAll()
-require(game.ServerScriptService.Tests.ContentPreloaderTestRunner).runAll()
-require(game.ServerScriptService.Tests.ConfigCatalogTestRunner).runAll()
-require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
-require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
+require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 ```
 
-Каждый возвращённый результат должен содержать `failed = 0`.
+Агрегированный результат и каждый входящий в него набор должны содержать
+`failed = 0`. Все изолированные тесты имеют конечный таймаут, выполняют cleanup
+и используют внедрённые часы, планировщики, транспорт и хранилища вместо
+недетерминированных внешних зависимостей. Матрица контрактов и релизный чек-лист
+находятся в [docs/TestCoverage.md](docs/TestCoverage.md).
 
 Отключённый по умолчанию smoke-тест требует отдельного опубликованного
 тестового place с разрешённым доступом Studio к API:

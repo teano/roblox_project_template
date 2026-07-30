@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Pool = require(ReplicatedStorage.Shared.Pooling.Pool)
 local PoolAdapters = require(ReplicatedStorage.Shared.Pooling.PoolAdapters)
 local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
+local TestHarness = require(script.Parent.TestHarness)
 
 local ResourceManagementTestRunner = {}
 
@@ -253,24 +254,140 @@ function ResourceManagementTestRunner.runAll()
 		module:Destroy()
 	end)
 
-	local passed = 0
-	local failures = {}
-	for _, entry in tests do
-		local ok, testError = xpcall(entry.Callback, debug.traceback)
-		if ok then
-			passed += 1
-		else
-			table.insert(failures, `{entry.Name}: {tostring(testError)}`)
-			warn(`[ResourceManagementTestRunner] FAIL {entry.Name}: {tostring(testError)}`)
-		end
-	end
+	test("primitive objects and Create failures never enter pool ownership", function()
+		local primitivePool = Pool.new({
+			Create = function()
+				return 42
+			end,
+			Acquire = function() end,
+			Release = function() end,
+			Destroy = function() end,
+		}, {
+			MaxRetained = 1,
+			MaxActive = 1,
+		})
+		local primitiveOk, primitiveError = pcall(function()
+			primitivePool:Acquire(nil)
+		end)
+		assertEqual(primitiveOk, false)
+		assertTrue(
+			string.find(tostring(primitiveError), "stable identity", 1, true) ~= nil,
+			"primitive rejection returned an unrelated error"
+		)
+		assertEqual(primitivePool:GetStats().Active, 0)
+		primitivePool:Destroy()
 
-	print(`[ResourceManagementTestRunner] passed={passed} failed={#failures} total={#tests}`)
-	return {
-		passed = passed,
-		failed = #failures,
-		failures = failures,
-	}
+		local createFailurePool = Pool.new({
+			Create = function()
+				error("expected create failure")
+			end,
+			Acquire = function() end,
+			Release = function() end,
+			Destroy = function() end,
+		}, {
+			MaxRetained = 1,
+			MaxActive = 1,
+		})
+		local createOk = pcall(function()
+			createFailurePool:Acquire(nil)
+		end)
+		assertEqual(createOk, false)
+		assertEqual(createFailurePool:GetStats().Active, 0)
+		createFailurePool:Destroy()
+	end)
+
+	test("Release and IsValid failures remove unsafe objects from circulation", function()
+		local destroyed = 0
+		local releasePool = Pool.new({
+			Create = function()
+				return {}
+			end,
+			Acquire = function() end,
+			Release = function()
+				error("expected release failure")
+			end,
+			Destroy = function()
+				destroyed += 1
+			end,
+		}, {
+			MaxRetained = 1,
+			MaxActive = 1,
+		})
+		local lease = releasePool:Acquire(nil)
+		local released, releaseError = releasePool:TryReleaseToPool(lease)
+		assertEqual(released, false)
+		assertTrue(string.find(releaseError or "", "Release failed", 1, true) ~= nil, "missing release failure")
+		assertEqual(releasePool:GetStats().Active, 0)
+		assertEqual(releasePool:GetStats().Available, 0)
+		assertEqual(destroyed, 1)
+		releasePool:Destroy()
+
+		local validations = 0
+		local invalidDestroyed = 0
+		local validationPool = Pool.new({
+			Create = function()
+				return {}
+			end,
+			Acquire = function() end,
+			Release = function() end,
+			Destroy = function()
+				invalidDestroyed += 1
+			end,
+			IsValid = function()
+				validations += 1
+				if validations >= 2 then
+					error("expected IsValid failure")
+				end
+				return true
+			end,
+		}, {
+			MaxRetained = 1,
+			MaxActive = 1,
+		})
+		local validLease = validationPool:Acquire(nil)
+		validationPool:ReleaseToPool(validLease)
+		local validOk = pcall(function()
+			validationPool:Acquire(nil)
+		end)
+		assertEqual(validOk, false)
+		assertEqual(validationPool:GetStats().Active, 0)
+		assertEqual(validationPool:GetStats().Available, 0)
+		assertEqual(invalidDestroyed, 1)
+		validationPool:Destroy()
+	end)
+
+	test("adapter re-entry fails closed and destroys the partially acquired object", function()
+		local destroyed = 0
+		local pool: any = nil
+		pool = Pool.new({
+			Create = function()
+				return {}
+			end,
+			Acquire = function()
+				pool:Acquire(nil)
+			end,
+			Release = function() end,
+			Destroy = function()
+				destroyed += 1
+			end,
+		}, {
+			MaxRetained = 1,
+			MaxActive = 2,
+		})
+		local ok, acquireError = pcall(function()
+			pool:Acquire(nil)
+		end)
+		assertEqual(ok, false)
+		assertTrue(
+			string.find(tostring(acquireError), "re-enter", 1, true) ~= nil,
+			"re-entry rejection returned an unrelated error"
+		)
+		assertEqual(pool:GetStats().Active, 0)
+		assertEqual(destroyed, 1)
+		pool:Destroy()
+	end)
+
+	return TestHarness.runAll("ResourceManagementTestRunner", tests)
 end
 
 return ResourceManagementTestRunner

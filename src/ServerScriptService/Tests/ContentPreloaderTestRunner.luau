@@ -12,6 +12,7 @@ local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
 local ContentPreloader = require(ReplicatedStorage.Shared.ContentPreloading.ContentPreloader)
 local StartupContentPreloadCommand =
 	require(ReplicatedStorage.Client.Initialization.Commands.StartupContentPreloadCommand)
+local TestHarness = require(script.Parent.TestHarness)
 
 local ContentPreloaderTestRunner = {}
 
@@ -31,6 +32,12 @@ local function assertErrorContains(callback: () -> (), expected: string)
 	local ok, testError = pcall(callback)
 	assertEqual(ok, false, `Expected error containing '{expected}'`)
 	assertTrue(string.find(tostring(testError), expected, 1, true) ~= nil, `Error did not contain '{expected}'`)
+end
+
+local function waitUntil(predicate: () -> boolean)
+	while not predicate() do
+		task.wait()
+	end
 end
 
 local function makeLogger()
@@ -242,24 +249,125 @@ function ContentPreloaderTestRunner.runAll()
 		assertEqual(receivedOptions.FailurePolicy, "Warn")
 	end)
 
-	local passed = 0
-	local failures = {}
-	for _, entry in tests do
-		local ok, testError = xpcall(entry.Callback, debug.traceback)
-		if ok then
-			passed += 1
-		else
-			table.insert(failures, `{entry.Name}: {tostring(testError)}`)
-			warn(`[ContentPreloaderTestRunner] FAIL {entry.Name}: {tostring(testError)}`)
-		end
-	end
+	test("concurrent named requests share one in-flight operation and result", function()
+		withRegistry(function(registry, sharedRoot, _clientRoot)
+			local sound = Instance.new("Sound")
+			sound.Name = "Concurrent"
+			sound.Parent = sharedRoot
+			registry:Initialize()
 
-	print(`[ContentPreloaderTestRunner] passed={passed} failed={#failures} total={#tests}`)
-	return {
-		passed = passed,
-		failed = #failures,
-		failures = failures,
-	}
+			local preloadStarted = false
+			local releasePreload = false
+			local calls = 0
+			local preloader = ContentPreloader.new({
+				Assets = registry,
+				ContentProvider = {
+					PreloadAsync = function(_self, _targets, callback)
+						calls += 1
+						preloadStarted = true
+						while not releasePreload do
+							task.wait()
+						end
+						callback("rbxassetid://concurrent", Enum.AssetFetchStatus.Success)
+					end,
+				},
+				Logger = makeLogger(),
+			})
+			local first: any = nil
+			local second: any = nil
+			task.spawn(function()
+				first = preloader:Preload({ sound }, {
+					RequestId = "Concurrent",
+					FailurePolicy = "Warn",
+				})
+			end)
+			waitUntil(function()
+				return preloadStarted
+			end)
+			task.spawn(function()
+				second = preloader:Preload({ sound }, {
+					RequestId = "Concurrent",
+					FailurePolicy = "Warn",
+				})
+			end)
+			task.wait()
+			assertEqual(second, nil, "second request returned before the shared operation completed")
+			releasePreload = true
+			waitUntil(function()
+				return first ~= nil and second ~= nil
+			end)
+			assertEqual(calls, 1)
+			assertEqual(first, second)
+		end)
+	end)
+
+	test("zero targets and duplicate content callbacks produce exact deterministic counts", function()
+		withRegistry(function(registry, _sharedRoot, _clientRoot)
+			registry:Initialize()
+			local calls = 0
+			local preloader = ContentPreloader.new({
+				Assets = registry,
+				ContentProvider = {
+					PreloadAsync = function(_self, _targets, callback)
+						calls += 1
+						callback("rbxassetid://one", Enum.AssetFetchStatus.Success)
+						callback("rbxassetid://one", Enum.AssetFetchStatus.Success)
+						callback("rbxassetid://two", Enum.AssetFetchStatus.Failure)
+					end,
+				},
+				Logger = makeLogger(),
+			})
+			local empty = preloader:Preload({}, {
+				RequestId = "Empty",
+			})
+			assertEqual(calls, 0)
+			assertEqual(empty.RequestedTargets, 0)
+			assertEqual(empty.ResolvedContent, 0)
+			assertEqual(empty.Loaded, 0)
+			assertEqual(empty.Failed, 0)
+
+			local counted = preloader:Preload({ "rbxassetid://container" })
+			assertEqual(calls, 1)
+			assertEqual(counted.RequestedTargets, 1)
+			assertEqual(counted.ResolvedContent, 2)
+			assertEqual(counted.Loaded, 1)
+			assertEqual(counted.Failed, 1)
+		end)
+	end)
+
+	test("invalid targets, request IDs, policies, and keys fail before calling the backend", function()
+		withRegistry(function(registry, _sharedRoot, _clientRoot)
+			registry:Initialize()
+			local calls = 0
+			local preloader = ContentPreloader.new({
+				Assets = registry,
+				ContentProvider = {
+					PreloadAsync = function()
+						calls += 1
+					end,
+				},
+				Logger = makeLogger(),
+			})
+			assertErrorContains(function()
+				preloader:Preload({ "" })
+			end, "non-empty content ID")
+			assertErrorContains(function()
+				preloader:Preload({ 10 :: any })
+			end, "must be an Instance")
+			assertErrorContains(function()
+				preloader:Preload({}, { RequestId = "" })
+			end, "non-empty string")
+			assertErrorContains(function()
+				preloader:Preload({}, { FailurePolicy = "Retry" :: any })
+			end, "must be 'Warn' or 'Fail'")
+			assertErrorContains(function()
+				preloader:PreloadByKeys({ "missing" })
+			end, "Unknown AssetKey")
+			assertEqual(calls, 0)
+		end)
+	end)
+
+	return TestHarness.runAll("ContentPreloaderTestRunner", tests)
 end
 
 return ContentPreloaderTestRunner

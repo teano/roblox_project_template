@@ -43,6 +43,21 @@ else in the scene is preserved by saving and committing
   `game.Name`. For a published project, verify stable `game.PlaceId` and
   `game.GameId` values recorded by the project or rely on a configured
   `servePlaceIds` allowlist when available.
+- Reuse an existing Studio session for tests and Studio work when it owns the
+  canonical place of the current project. Never open a duplicate session for
+  that project, and never inspect or change sessions belonging to other
+  projects. The Rojo preflight confirms endpoint ownership but does not
+  authorize replacing a matching session, republishing the place, or changing
+  its Experience attachment.
+- Open a canonical session only after reliable enumeration proves no matching
+  project session exists. If Studio MCP cannot list or retain the intended
+  existing instance while Studio is running, stop before all Studio and UI
+  operations. Do not open a replacement via `Start-Process`, file association,
+  Computer Use, or another fallback. Ask the user to restore the connector in
+  the already-open canonical session.
+- "Fresh Play" always means a new Play DataModel inside the same selected
+  Studio instance, never a new Studio process, window, place tab, or
+  Experience attachment.
 - Preserve the existing top-level mappings unless an architectural change requires otherwise.
 - New shared/client/server files MUST be placed under the correct mapped container.
 - System startup code MUST remain limited to the two bootstraps plus the dedicated ReplicatedFirst loading LocalScript.
@@ -75,6 +90,8 @@ else in the scene is preserved by saving and committing
 - MUST NOT define `servePort`, pass `--port`, or edit the endpoint field in the
   Studio Rojo plugin. Projects share the default endpoint and switch the
   active server through `scripts/ensure-rojo-server.ps1`.
+- MUST NOT launch or reopen Studio as an implicit fallback for missing or
+  disconnected Studio MCP data when a matching project session may exist.
 
 ## Positive example
 

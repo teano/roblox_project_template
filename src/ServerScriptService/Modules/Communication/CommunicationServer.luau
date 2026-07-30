@@ -99,8 +99,22 @@ function CommunicationServer.new(deps: {
 	PlayersModule: any,
 	Logger: any?,
 	Clock: (() -> number)?,
+	Transport: {
+		ClientToServer: any,
+		ServerToClient: any,
+		Request: any,
+	}?,
 })
-	local clientToServer, serverToClient, request = ensureRemotes()
+	local clientToServer
+	local serverToClient
+	local request
+	if deps.Transport ~= nil then
+		clientToServer = deps.Transport.ClientToServer
+		serverToClient = deps.Transport.ServerToClient
+		request = deps.Transport.Request
+	else
+		clientToServer, serverToClient, request = ensureRemotes()
+	end
 	local self = setmetatable({
 		_players = deps.PlayersModule,
 		_logger = deps.Logger or Logger.new("Communication.Server", "info"),
@@ -373,6 +387,10 @@ function CommunicationServer:_handleRequest(player: Player, request: any)
 		Ok = true,
 		Payload = result,
 	})
+end
+
+function CommunicationServer:HandleRequest(player: Player, request: any)
+	return self:_handleRequest(player, request)
 end
 
 function CommunicationServer:_setResyncRequired(player: Player, reason: string)
@@ -727,6 +745,10 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 	end
 end
 
+function CommunicationServer:ReceiveBatch(player: Player, batch: any)
+	self:_handleBatch(player, batch)
+end
+
 function CommunicationServer:_getOutboundRateState(player: Player): OutboundRateState
 	local state = self._outboundRate[player]
 	if state == nil then
@@ -825,6 +847,10 @@ function CommunicationServer:_flush()
 	end
 end
 
+function CommunicationServer:Flush()
+	self:_flush()
+end
+
 function CommunicationServer:GetQueueStats(player: Player)
 	local queue = self._outgoing[player] or {}
 	return {
@@ -833,6 +859,7 @@ function CommunicationServer:GetQueueStats(player: Player)
 		ResyncRequired = self._resyncQueued[player] == true,
 		DroppedPresentation = self._droppedPresentation[player] or 0,
 		Epoch = self._outgoingEpoch[player] or 0,
+		OutgoingSequence = self._outgoingSequence[player] or 0,
 	}
 end
 
@@ -851,6 +878,10 @@ function CommunicationServer:_clearPlayerState(player: Player)
 	self._droppedPresentation[player] = nil
 end
 
+function CommunicationServer:ForgetPlayer(player: Player)
+	self:_clearPlayerState(player)
+end
+
 function CommunicationServer:Initialize()
 	if self._initialized then
 		return
@@ -858,16 +889,16 @@ function CommunicationServer:Initialize()
 	self._initialized = true
 
 	table.insert(self._connections, self._clientToServer.OnServerEvent:Connect(function(player, batch)
-		self:_handleBatch(player, batch)
+		self:ReceiveBatch(player, batch)
 	end))
 	self._request.OnServerInvoke = function(player, request)
-		return self:_handleRequest(player, request)
+		return self:HandleRequest(player, request)
 	end
 	table.insert(self._connections, RunService.Heartbeat:Connect(function()
-		self:_flush()
+		self:Flush()
 	end))
 	table.insert(self._connections, self._players.PlayerRemoving:Connect(function(player)
-		self:_clearPlayerState(player)
+		self:ForgetPlayer(player)
 	end))
 end
 

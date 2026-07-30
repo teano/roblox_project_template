@@ -61,12 +61,13 @@ function Command.new(deps: {
 	ShutdownSaveCoordinator: any,
 	VersionModule: any,
 	WalletModule: any,
+	Logger: any?,
 })
 	return setmetatable({
 		Id = "GlobalSave",
 		DependsOn = { "DomainData" },
 		_deps = deps,
-		_logger = Logger.new("GlobalSave", "info"),
+		_logger = deps.Logger or Logger.new("GlobalSave", "info"),
 	}, Command)
 end
 
@@ -84,7 +85,7 @@ function Command:_waitUntilLoaded(controller: any, player: Player, timeout: numb
 	return controller:IsLoaded(player)
 end
 
-function Command:_handleSnapshotRequest(controller: any, player: Player, loadTimeoutSeconds: number)
+function Command:HandleSnapshotRequest(controller: any, player: Player, loadTimeoutSeconds: number)
 	local communication = self._deps.Communication
 	local allowed, denialCode = communication:TryBeginSnapshotRequest(player)
 	if not allowed then
@@ -223,7 +224,7 @@ function Command:Initialize(context: any)
 
 	local snapshotRemote = ensureSnapshotRemote()
 	snapshotRemote.OnServerInvoke = function(player: Player)
-		return self:_handleSnapshotRequest(
+		return self:HandleSnapshotRequest(
 			controller,
 			player,
 			globalSaveConfig.SnapshotLoadTimeoutSeconds

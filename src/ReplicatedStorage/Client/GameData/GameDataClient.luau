@@ -10,17 +10,24 @@ GameDataClient.__index = GameDataClient
 
 local singleton: any = nil
 
-function GameDataClient.new(saveController: any, providers: { any })
+function GameDataClient.new(saveController: any, providers: { any }, runtime: {
+	Clock: (() -> number)?,
+	Wait: ((number?) -> number?)?,
+}?)
 	local byId = {}
 	local self = setmetatable({
 		_controller = saveController,
 		_providers = byId,
 		_connections = {},
+		_clock = if runtime and runtime.Clock then runtime.Clock else os.clock,
+		_wait = if runtime and runtime.Wait then runtime.Wait else task.wait,
 		Ready = Signal.new(),
 		ItemChanged = Signal.new(),
 	}, GameDataClient)
 
 	for _, provider in providers do
+		assert(typeof(provider.Id) == "string" and provider.Id ~= "", "GameData provider Id required")
+		assert(byId[provider.Id] == nil, `Duplicate GameData provider '{provider.Id}'`)
 		byId[provider.Id] = provider
 		if provider.Changed then
 			table.insert(self._connections, provider.Changed:Connect(function(change)
@@ -42,12 +49,12 @@ function GameDataClient:IsReady(): boolean
 end
 
 function GameDataClient:WaitUntilReady(timeout: number?): boolean
-	local deadline = os.clock() + (timeout or 15)
-	while os.clock() < deadline do
+	local deadline = self._clock() + (timeout or 15)
+	while self._clock() < deadline do
 		if self:IsReady() then
 			return true
 		end
-		task.wait(0.05)
+		self._wait(0.05)
 	end
 	return self:IsReady()
 end
@@ -67,6 +74,18 @@ end
 
 function GameDataClient.get()
 	return assert(singleton, "GameDataClient is not initialized")
+end
+
+function GameDataClient:Destroy()
+	for _, connection in self._connections do
+		connection:Disconnect()
+	end
+	table.clear(self._connections)
+	self.Ready:Destroy()
+	self.ItemChanged:Destroy()
+	if singleton == self then
+		singleton = nil
+	end
 end
 
 return GameDataClient

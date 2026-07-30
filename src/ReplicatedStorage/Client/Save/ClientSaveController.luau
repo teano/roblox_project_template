@@ -190,6 +190,10 @@ function ClientSaveController:_flushClientDirty()
 	end
 end
 
+function ClientSaveController:FlushClientChanges()
+	self:_flushClientDirty()
+end
+
 function ClientSaveController:_handlePatchResult(payload: any, requestId: string?)
 	if requestId == nil or requestId ~= self._pendingRequestId or typeof(payload) ~= "table" then
 		return

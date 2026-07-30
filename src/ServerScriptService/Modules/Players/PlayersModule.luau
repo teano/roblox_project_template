@@ -25,11 +25,12 @@ export type PlayersModule = {
 local PlayersModule = {}
 PlayersModule.__index = PlayersModule
 
-function PlayersModule.new(): PlayersModule
+function PlayersModule.new(playersService: any?): PlayersModule
 	local self = setmetatable({
+		_players = playersService or Players,
 		_initialized = false,
-		_connections = {} :: { RBXScriptConnection },
-		_characterConnections = {} :: { [Player]: { RBXScriptConnection } },
+		_connections = {} :: { any },
+		_characterConnections = {} :: { [Player]: { any } },
 		PlayerAdded = Signal.new(),
 		PlayerRemoving = Signal.new(),
 		CharacterAdded = Signal.new(),
@@ -78,10 +79,10 @@ function PlayersModule:Initialize()
 	end
 	self._initialized = true
 
-	table.insert(self._connections, Players.PlayerAdded:Connect(function(player)
+	table.insert(self._connections, self._players.PlayerAdded:Connect(function(player)
 		self:_trackPlayer(player)
 	end))
-	table.insert(self._connections, Players.PlayerRemoving:Connect(function(player)
+	table.insert(self._connections, self._players.PlayerRemoving:Connect(function(player)
 		if player.Character then
 			self.CharacterRemoving:Fire(player, player.Character)
 		end
@@ -89,21 +90,21 @@ function PlayersModule:Initialize()
 		self:_disconnectCharacter(player)
 	end))
 
-	for _, player in Players:GetPlayers() do
+	for _, player in self._players:GetPlayers() do
 		self:_trackPlayer(player)
 	end
 end
 
 function PlayersModule:GetPlayers(): { Player }
-	return Players:GetPlayers()
+	return self._players:GetPlayers()
 end
 
 function PlayersModule:GetPlayerByUserId(userId: number): Player?
-	return Players:GetPlayerByUserId(userId)
+	return self._players:GetPlayerByUserId(userId)
 end
 
 function PlayersModule:GetPlayerFromCharacter(character: Model): Player?
-	return Players:GetPlayerFromCharacter(character)
+	return self._players:GetPlayerFromCharacter(character)
 end
 
 function PlayersModule:ObservePlayers(onAdded: (Player) -> (), onRemoving: ((Player) -> ())?): () -> ()

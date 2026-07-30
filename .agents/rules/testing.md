@@ -13,6 +13,16 @@ Apply to every source change and all test code.
 - Test runners remain ModuleScripts invoked manually in Studio Play; do not add auto-running test Scripts.
 - Add a regression test for every fixed production defect when the behavior is testable.
 - Tests must clean up Instances, connections, controllers, locks, and temporary state they create.
+- Every isolated test runs through `TestHarness`, has a finite timeout, and
+  registers failure-safe cleanup with its supplied scope when it owns state
+  that can outlive the callback.
+- Production schedulers, clocks, waits, randomness, and transports must be
+  injected in deterministic tests. Do not make correctness depend on a
+  heartbeat race or wall-clock delay.
+- Expected diagnostic records must be asserted or documented. Unexpected
+  server or client warnings and errors fail the release gate.
+- Keep `docs/TestCoverage.md` current when adding a production subsystem,
+  changing a critical contract, or changing the required release gate.
 
 ## Required static check
 
@@ -38,11 +48,39 @@ project-initialization, template-divergence, or upstream-merge changes.
 Run in Play mode from the server:
 
 ```lua
-require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
-require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
+require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 ```
 
-Expected: every result has `failed = 0`.
+Expected: the aggregate result and every suite result have `failed = 0`.
+`AllTestsRunner` excludes the opt-in real DataStore smoke test.
+
+## Studio session preservation
+
+- Reuse an already-open Studio instance when it owns the canonical
+  `place.rbxl` of the project being tested. Never open a duplicate session for
+  the same project. Studio sessions for other projects are out of scope.
+- Run the Rojo preflight, call the Studio instance-list operation, and
+  explicitly select the matching instance before starting or stopping Play,
+  executing Luau, reading the DataModel, or using any Studio UI.
+- For a published place, verify the selected instance by the recorded stable
+  `game.PlaceId` and `game.GameId` or the configured `servePlaceIds`
+  allowlist. For an unpublished place, use the canonical file identity. Never
+  choose by `default.project.json` `name` or by an MCP heuristic.
+- Open a new canonical Studio session only after reliable instance enumeration
+  proves that no matching project session exists. If no instance is returned
+  while Studio is running, the selected instance disconnects, or multiple
+  candidates cannot be distinguished safely, stop the test run. Ask the user
+  to restore MCP in the existing session. Do not treat missing MCP data as
+  permission to launch Studio, reopen the place, use `Start-Process`, use shell
+  file association, or bypass explicit selection with Computer Use.
+- A fresh Play session is a stop/start cycle within the same selected Studio
+  instance. Do not close/reopen Studio, publish or attach the place, change
+  Experience identity, or restart Rojo as a substitute for a fresh Play
+  DataModel.
+- Record the matching selected Studio instance identity, place identity, and
+  Rojo project identity with the test evidence. If any identity changes during
+  the run, discard the results and stop until the intended existing session is
+  restored.
 
 ## Change-to-suite mapping
 
@@ -52,12 +90,12 @@ Expected: every result has `failed = 0`.
 | Asset registry, roots, paths, keys, tags, metadata, or asset folder mappings | AssetRegistry + System + clean server/client bootstrap |
 | Content preloader, preload selectors, progress, policies, or startup preload command | ContentPreloader + AssetRegistry + System + clean server/client bootstrap |
 | Pool core, adapters, leases, registry, or resource cleanup | ResourceManagement + System; add clean Play when manifests or concrete Roblox resources change |
-| Save, providers, storage, locks, autosave, shutdown | System + Production |
+| Save, providers, storage, locks, autosave, shutdown | System + Production + ProductionReadiness |
 | Communication, DTO, serializer, remotes, resync | Production + clean client/server Play |
 | Experience Config catalog, codecs, bundles, projections, refresh, or config request transport | ConfigCatalog + System; add Production + clean client/server Play when transport or manifests change |
-| Wallet, Version, GameData, or another provider | System + Production |
+| Wallet, Version, GameData, or another provider | System + Production + ProductionReadiness |
 | Project-specific gameplay or presentation | Its focused suite plus Production when communication or persistence is involved |
-| Players lifecycle | System + Production + join/leave/respawn Play checks |
+| Players lifecycle | System + ProductionReadiness + join/leave/respawn Play checks |
 | Rojo mapping or executable placement | Rojo build + clean bootstrap |
 | Rojo server process, endpoint ownership, or Studio preflight | Repository layout validator + two consecutive `ensure-rojo-server.ps1` runs |
 

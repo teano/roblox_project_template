@@ -5,10 +5,19 @@ local Logger = require(game:GetService("ReplicatedStorage").Shared.Util.Logger)
 local AutoSaveModule = {}
 AutoSaveModule.__index = AutoSaveModule
 
-function AutoSaveModule.new(logger: any?)
+function AutoSaveModule.new(logger: any?, runtime: {
+	Clock: (() -> number)?,
+	Random: (() -> number)?,
+	Spawn: ((() -> ()) -> ())?,
+	Wait: ((number?) -> number?)?,
+}?)
 	return setmetatable({
 		_entries = {},
 		_logger = logger or Logger.new("AutoSave", "info"),
+		_clock = if runtime and runtime.Clock then runtime.Clock else os.clock,
+		_random = if runtime and runtime.Random then runtime.Random else math.random,
+		_spawn = if runtime and runtime.Spawn then runtime.Spawn else task.spawn,
+		_wait = if runtime and runtime.Wait then runtime.Wait else task.wait,
 		_running = false,
 	}, AutoSaveModule)
 end
@@ -25,8 +34,8 @@ function AutoSaveModule:Initialize()
 		return
 	end
 	self._running = true
-	task.spawn(function()
-		task.wait(math.random() * 5)
+	self._spawn(function()
+		self._wait(self._random() * 5)
 		while self._running do
 			for _, entry in self._entries do
 				local players = entry.Controller:GetDirtyPlayers()
@@ -36,7 +45,7 @@ function AutoSaveModule:Initialize()
 						break
 					end
 					local lastSavedAt = entry.Controller:GetLastSavedAt(player) or 0
-					if os.clock() - lastSavedAt >= entry.IntervalSeconds then
+					if self._clock() - lastSavedAt >= entry.IntervalSeconds then
 						local result = entry.Controller:ForceSave(player, "Autosave")
 						if not result.Ok then
 							self._logger:Warn("autosave_failed", {
@@ -46,10 +55,10 @@ function AutoSaveModule:Initialize()
 							})
 						end
 					end
-					task.wait(math.max(0.05, slot))
+					self._wait(math.max(0.05, slot))
 				end
 			end
-			task.wait(1)
+			self._wait(1)
 		end
 	end)
 end

@@ -8,6 +8,10 @@ local VersionConfig = require(ReplicatedStorage.Shared.Version.VersionConfig)
 local VersionClient = {}
 VersionClient.__index = VersionClient
 
+local function isVersion(value: any): boolean
+	return typeof(value) == "string" and string.match(value, "^%d+%.%d+%.%d+$") ~= nil
+end
+
 function VersionClient.new()
 	return setmetatable({
 		Id = VersionConfig.ProviderId,
@@ -23,8 +27,11 @@ end
 
 function VersionClient:ValidateMemento(value: any): (boolean, any?, string?)
 	if typeof(value) ~= "table"
-		or typeof(value.InstallationVersion) ~= "string"
-		or typeof(value.PreviousVersion) ~= "string"
+		or not isVersion(value.InstallationVersion)
+		or not isVersion(value.PreviousVersion)
+		or typeof(value.PlaceVersion) ~= "number"
+		or value.PlaceVersion < 0
+		or value.PlaceVersion ~= math.floor(value.PlaceVersion)
 	then
 		return false, nil, "Invalid version memento"
 	end

@@ -20,6 +20,7 @@ local PlayersModule = require(ServerScriptService.Modules.Players.PlayersModule)
 local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
 local WalletConfig = require(ReplicatedStorage.Shared.Wallet.WalletConfig)
 local ServerManifest = require(ServerScriptService.Initialization.ServerManifest)
+local TestHarness = require(script.Parent.TestHarness)
 
 local SystemTestRunner = {}
 
@@ -32,6 +33,12 @@ end
 local function assertTrue(value: any, message: string)
 	if not value then
 		error(message, 2)
+	end
+end
+
+local function waitUntil(predicate: () -> boolean)
+	while not predicate() do
+		task.wait()
 	end
 end
 
@@ -200,6 +207,34 @@ function SystemTestRunner.runAll()
 		assertTrue(not laterConnection.Connected, "destroy must disconnect remaining listeners")
 	end)
 
+	test("signal listener failures remain isolated and Wait preserves arguments", function(scope)
+		local signal = Signal.new()
+		scope:Defer(function()
+			signal:Destroy()
+		end)
+		local laterCalls = 0
+		signal:Connect(function()
+			error("expected listener failure")
+		end)
+		signal:Connect(function()
+			laterCalls += 1
+		end)
+
+		local waited: any = nil
+		task.spawn(function()
+			waited = table.pack(signal:Wait())
+		end)
+		task.wait()
+		signal:Fire("value", nil, 3)
+		waitUntil(function()
+			return laterCalls == 1 and waited ~= nil
+		end)
+		assertEqual(waited.n, 3)
+		assertEqual(waited[1], "value")
+		assertEqual(waited[2], nil)
+		assertEqual(waited[3], 3)
+	end)
+
 	test("player observation emits each player once across subscribe-enumerate races", function()
 		local playersModule = PlayersModule.new()
 		local player = { UserId = 4_201 } :: any
@@ -318,6 +353,87 @@ function SystemTestRunner.runAll()
 		assertEqual(attempts, 1)
 	end)
 
+	test("concurrent initialization callers share one active result", function()
+		local commandStarted = false
+		local releaseCommand = false
+		local attempts = 0
+		local runner = InitializationRunner.new({
+			makeCommand("Blocking", {}, function()
+				attempts += 1
+				commandStarted = true
+				while not releaseCommand do
+					task.wait()
+				end
+			end),
+		})
+		local first: any = nil
+		local second: any = nil
+		task.spawn(function()
+			first = runner:Initialize({})
+		end)
+		waitUntil(function()
+			return commandStarted
+		end)
+		task.spawn(function()
+			second = runner:Initialize({})
+		end)
+		task.wait()
+		assertEqual(second, nil, "second caller returned before active initialization completed")
+		releaseCommand = true
+		waitUntil(function()
+			return first ~= nil and second ~= nil
+		end)
+		assertEqual(first, second, "concurrent callers did not receive the same cached result")
+		assertEqual(attempts, 1)
+	end)
+
+	test("initialization watchdog reports without cancelling the command", function()
+		local watchdogEvents = 0
+		local runner = InitializationRunner.new({
+			makeCommand("Slow", {}, function()
+				task.wait()
+			end),
+		}, {
+			WatchdogSeconds = 0,
+			Logger = {
+				Info = function() end,
+				Error = function(_self, event)
+					if event == "command_watchdog_timeout" then
+						watchdogEvents += 1
+					end
+				end,
+			},
+		})
+		local result = runner:Initialize({})
+		assertTrue(result.Ok, "watchdog cancelled initialization")
+		assertEqual(watchdogEvents, 1)
+	end)
+
+	test("initialization rejects duplicate, malformed, and out-of-order commands", function()
+		assertEqual(pcall(function()
+			InitializationRunner.new({
+				makeCommand("Duplicate", {}, function() end),
+				makeCommand("Duplicate", {}, function() end),
+			})
+		end), false)
+		assertEqual(pcall(function()
+			InitializationRunner.new({
+				makeCommand("After", { "Before" }, function() end),
+				makeCommand("Before", {}, function() end),
+			})
+		end), false)
+		assertEqual(pcall(function()
+			InitializationRunner.new({
+				{ Id = "", DependsOn = {}, Initialize = function() end },
+			})
+		end), false)
+		assertEqual(pcall(function()
+			InitializationRunner.new({
+				{ Id = "MissingInitialize", DependsOn = {} },
+			})
+		end), false)
+	end)
+
 	test("server manifest asset command initializes the side-owned catalog", function()
 		local assets = ServerManifest.Services.Assets
 		assertTrue(assets ~= nil, "server manifest must expose Services.Assets")
@@ -415,6 +531,22 @@ function SystemTestRunner.runAll()
 		assertEqual(wallet:GetBalance(player, "Coins"), 125)
 		assertEqual(dirty, 2)
 		assertEqual(#messages, 1)
+		assertTrue(wallet:Add(player, "Coins", 0, "NoOp").Ok, "zero add must be a safe no-op")
+		task.wait()
+		assertEqual(dirty, 2, "no-op wallet mutation marked data dirty")
+		assertEqual(#messages, 1, "no-op wallet mutation emitted a network message")
+		assertEqual(pcall(function()
+			wallet:Add(player, "Unknown", 1, "Invalid")
+		end), false)
+		assertEqual(pcall(function()
+			wallet:Add(player, "Coins", -1, "Invalid")
+		end), false)
+		assertEqual(pcall(function()
+			wallet:TrySpend(player, "Coins", 0 / 0, "Invalid")
+		end), false)
+		assertEqual(pcall(function()
+			wallet:TrySpend(player, "Coins", 0.5, "Invalid")
+		end), false)
 		assertEqual(wallet:TrySpend(player, "Coins", 126, "Test").Code, "InsufficientFunds")
 		assertTrue(
 			wallet:Add(player, "Coins", WalletConfig.MaxBalance - 125, "Boundary").Ok,
@@ -451,24 +583,7 @@ function SystemTestRunner.runAll()
 		assertTrue(migrated ~= document, "migration result must be an isolated copy")
 	end)
 
-	local passed = 0
-	local failures = {}
-	for _, entry in tests do
-		local ok, testError = xpcall(entry.Callback, debug.traceback)
-		if ok then
-			passed += 1
-		else
-			table.insert(failures, `{entry.Name}: {tostring(testError)}`)
-			warn(`[SystemTestRunner] FAIL {entry.Name}: {tostring(testError)}`)
-		end
-	end
-
-	print(`[SystemTestRunner] passed={passed} failed={#failures} total={#tests}`)
-	return {
-		passed = passed,
-		failed = #failures,
-		failures = failures,
-	}
+	return TestHarness.runAll("SystemTestRunner", tests)
 end
 
 return SystemTestRunner

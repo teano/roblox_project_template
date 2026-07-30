@@ -162,8 +162,7 @@ instead of leaving the client stuck.
 Run a clean Studio Play session and execute:
 
 ```lua
-require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
-require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
+require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 ```
 
 The production integration suite covers supported Roblox values, malformed and
@@ -172,4 +171,7 @@ burst/refill and player isolation, malformed-call invocation charging,
 client/server pacing, independent byte budgets, queue retention and sequence
 preservation, validator and handler failures, priority pressure, stale epochs,
 snapshot network caps and guard release, late resync registration, and
-client-authority patch recovery.
+client-authority patch recovery. Transport-facing tests use the public
+`ReceiveBatch`, `HandleRequest`, `Flush`, `ForgetPlayer`, and queue-stat
+contracts with injected transport adapters; they do not inspect limiter maps
+or sequence fields.

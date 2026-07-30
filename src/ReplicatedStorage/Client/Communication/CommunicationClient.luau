@@ -49,7 +49,12 @@ end
 function CommunicationClient.new(
 	logger: any?,
 	clock: (() -> number)?,
-	delayScheduler: ((number, () -> ()) -> ())?
+	delayScheduler: ((number, () -> ()) -> ())?,
+	transport: {
+		ClientToServer: any,
+		ServerToClient: any?,
+		Request: any?,
+	}?
 )
 	local resolvedClock = clock or os.clock
 	local resolvedDelayScheduler = delayScheduler or function(delaySeconds: number, callback: () -> ())
@@ -75,9 +80,10 @@ function CommunicationClient.new(
 		_resyncThread = nil :: thread?,
 		_connections = {},
 		_initialized = false,
-		_clientToServer = nil :: RemoteEvent?,
-		_serverToClient = nil :: RemoteEvent?,
-		_request = nil :: RemoteFunction?,
+		_transport = transport,
+		_clientToServer = if transport then transport.ClientToServer else nil,
+		_serverToClient = if transport then transport.ServerToClient else nil,
+		_request = if transport then transport.Request else nil,
 	}, CommunicationClient)
 end
 
@@ -378,6 +384,10 @@ function CommunicationClient:_handleBatch(batch: any)
 	end
 end
 
+function CommunicationClient:ReceiveBatch(batch: any)
+	self:_handleBatch(batch)
+end
+
 function CommunicationClient:_flush()
 	if self._pausedForResync or #self._outgoing == 0 or self._clientToServer == nil then
 		return
@@ -451,12 +461,17 @@ function CommunicationClient:_flush()
 	end
 end
 
+function CommunicationClient:Flush()
+	self:_flush()
+end
+
 function CommunicationClient:GetQueueStats()
 	return {
 		Messages = #self._outgoing,
 		EstimatedBytes = self._outgoingBytes,
 		PausedForResync = self._pausedForResync,
 		Epoch = self._incomingEpoch,
+		OutgoingSequence = self._outgoingSequence,
 	}
 end
 
@@ -465,15 +480,26 @@ function CommunicationClient:Initialize()
 		return
 	end
 	self._initialized = true
-	local clientToServer, serverToClient, request = waitForRemotes()
+	local clientToServer
+	local serverToClient
+	local request
+	if self._transport ~= nil then
+		clientToServer = self._transport.ClientToServer
+		serverToClient = self._transport.ServerToClient
+		request = self._transport.Request
+		assert(serverToClient ~= nil, "Injected ServerToClient transport required")
+		assert(request ~= nil, "Injected Request transport required")
+	else
+		clientToServer, serverToClient, request = waitForRemotes()
+	end
 	self._clientToServer = clientToServer
 	self._serverToClient = serverToClient
 	self._request = request
 	table.insert(self._connections, serverToClient.OnClientEvent:Connect(function(batch)
-		self:_handleBatch(batch)
+		self:ReceiveBatch(batch)
 	end))
 	table.insert(self._connections, RunService.Heartbeat:Connect(function()
-		self:_flush()
+		self:Flush()
 	end))
 end
 

@@ -9,6 +9,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
+local TestHarness = require(script.Parent.TestHarness)
 
 local LoggerTestRunner = {}
 
@@ -162,24 +163,7 @@ function LoggerTestRunner.runAll()
 		end), "incomplete sink must fail at construction")
 	end)
 
-	local passed = 0
-	local failures = {}
-	for _, entry in tests do
-		local ok, testError = xpcall(entry.Callback, debug.traceback)
-		if ok then
-			passed += 1
-		else
-			table.insert(failures, `{entry.Name}: {tostring(testError)}`)
-			warn(`[LoggerTestRunner] FAIL {entry.Name}: {tostring(testError)}`)
-		end
-	end
-
-	print(`[LoggerTestRunner] passed={passed} failed={#failures} total={#tests}`)
-	return {
-		passed = passed,
-		failed = #failures,
-		failures = failures,
-	}
+	return TestHarness.runAll("LoggerTestRunner", tests)
 end
 
 return LoggerTestRunner

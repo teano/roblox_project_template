@@ -9,6 +9,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
+local TestHarness = require(script.Parent.TestHarness)
 
 local AssetRegistryTestRunner = {}
 
@@ -198,24 +199,77 @@ function AssetRegistryTestRunner.runAll()
 		end)
 	end)
 
-	local passed = 0
-	local failures = {}
-	for _, entry in tests do
-		local ok, testError = xpcall(entry.Callback, debug.traceback)
-		if ok then
-			passed += 1
-		else
-			table.insert(failures, `{entry.Name}: {tostring(testError)}`)
-			warn(`[AssetRegistryTestRunner] FAIL {entry.Name}: {tostring(testError)}`)
+	test("rejects every malformed path segment and key boundary", function()
+		local invalidNames = {
+			"",
+			".",
+			"..",
+			"bad/name",
+			"bad\nname",
+		}
+		for _, invalidName in invalidNames do
+			withRoots(function(sharedRoot, _clientRoot)
+				local asset = Instance.new("Folder")
+				asset.Name = invalidName
+				asset.Parent = sharedRoot
+				local registry = AssetRegistry.new({
+					{ Namespace = "Shared", Root = sharedRoot },
+				})
+				assertErrorContains(function()
+					registry:Initialize()
+				end, "Asset")
+				assertEqual(registry:GetState(), "Failed")
+				assertErrorContains(function()
+					registry:Initialize()
+				end, "previously failed")
+			end)
 		end
-	end
 
-	print(`[AssetRegistryTestRunner] passed={passed} failed={#failures} total={#tests}`)
-	return {
-		passed = passed,
-		failed = #failures,
-		failures = failures,
-	}
+		for _, invalidKey in { "", string.rep("a", 129), ".leading" } do
+			withRoots(function(sharedRoot, _clientRoot)
+				local asset = Instance.new("Folder")
+				asset.Name = "Asset"
+				asset:SetAttribute("AssetKey", invalidKey)
+				asset.Parent = sharedRoot
+				local registry = AssetRegistry.new({
+					{ Namespace = "Shared", Root = sharedRoot },
+				})
+				assertErrorContains(function()
+					registry:Initialize()
+				end, "AssetKey")
+			end)
+		end
+	end)
+
+	test("typed Require and query shape fail loudly without mutating the catalog", function()
+		withRoots(function(sharedRoot, _clientRoot)
+			local asset = Instance.new("Sound")
+			asset.Name = "Sound"
+			asset:SetAttribute("AssetKey", "sound.valid")
+			asset.Parent = sharedRoot
+			local registry = AssetRegistry.new({
+				{ Namespace = "Shared", Root = sharedRoot },
+			})
+			registry:Initialize()
+			assertErrorContains(function()
+				registry:Require("Shared/Missing")
+			end, "Unknown asset path")
+			assertErrorContains(function()
+				registry:Require("Shared/Sound", "Folder")
+			end, "must be a Folder")
+			assertErrorContains(function()
+				registry:RequireByKey("sound.valid", "Folder")
+			end, "must reference a Folder")
+			assertErrorContains(function()
+				registry:FindAll({
+					Recursive = false,
+				})
+			end, "Recursive requires Under")
+			assertEqual(registry:Get("Shared/Sound"), asset)
+		end)
+	end)
+
+	return TestHarness.runAll("AssetRegistryTestRunner", tests)
 end
 
 return AssetRegistryTestRunner
