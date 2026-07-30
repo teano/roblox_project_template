@@ -19,7 +19,7 @@ A command taking longer than 30 seconds emits a watchdog error but is not cancel
 Server order:
 
 ```text
-Assets → Pooling → Players → Communication → Save → DomainData
+Assets → Pooling → Players → Communication → Config → Save → DomainData
        → GlobalSave → PersistenceSchedule
 ```
 
@@ -27,8 +27,14 @@ Client order:
 
 ```text
 Assets → StartupContentPreload → Pooling → Players → Communication
-       → Save → DomainData → GlobalSave
+       → Config → Save → DomainData → GlobalSave
 ```
+
+`Config` loads one server-owned Experience Config snapshot, decodes every
+explicit definition into an atomic immutable generation, and serves only
+code-approved client projections through named bundles. The client decodes its
+bootstrap bundle into a separate immutable generation before domain
+initialization. See [ExperienceConfiguration.md](ExperienceConfiguration.md).
 
 `Assets` builds an immutable side-owned catalog from explicit roots before
 game systems consume static templates. The server indexes `Shared` and
@@ -67,6 +73,16 @@ The current `global_save` controller is created by
 1. Version
 2. Wallet
 
+`wallet_config` supplies the one-time starting balances for a newly created
+Wallet provider. Wallet memento version 2 persists `IsInitialized`; version 1
+wallets reconcile as already initialized so existing balances never receive
+the startup grant again.
+
+`global_save_config` supplies the autosave interval, server snapshot-load
+timeout, and bounded client snapshot retry policy. The client receives only
+the two retry fields through the approved config bundle. Both configs are
+validated and frozen before `DomainData` or `GlobalSave` starts.
+
 This ordered provider collection is the player profile. The template does not
 add a monolithic `ProfileModule`: projects extend the profile by registering
 their own domain providers in both server and client commands.
@@ -102,7 +118,8 @@ Production storage uses:
 - bounded exponential retry with jitter;
 - session lock heartbeat every 5 minutes;
 - stale-lock takeover after 30 minutes;
-- dirty-only autosave, staggered at a 60-second target interval;
+- dirty-only autosave, staggered at the validated
+  `global_save_config.autoSaveIntervalSeconds`;
 - save on player exit and server shutdown.
 
 Shutdown uses a shared 20-second deadline and at most four concurrent close workers. The deadline is propagated into save, lock release, and DataStore retry waits. No new retry begins after expiration. An already executing Roblox `UpdateAsync` cannot be force-cancelled, so the coordinator returns at the global deadline and reports unfinished players instead of serially consuming the entire shutdown window.
@@ -124,11 +141,17 @@ register client handlers
   → server flushes buffered messages in order
 ```
 
-`CommunicationModule` handles RemoteEvents only. It batches messages once per Heartbeat, caps batch and queue sizes by both count and estimated bytes, validates envelopes, applies message/byte rate limits, and sequences each direction.
+`CommunicationModule` handles ordinary runtime messages through RemoteEvents. It batches messages once per Heartbeat, caps batch and queue sizes by both count and estimated bytes, validates envelopes, applies message/byte rate limits, and sequences each direction.
 
 Outgoing messages declare `Critical`, `State`, or `Presentation` priority. On pressure, the server evicts the oldest presentation messages first. If state still cannot fit, the queue collapses to one `ResyncRequired` message and refuses further state until a snapshot starts. Every server snapshot increments a communication epoch; late packets from an older epoch are ignored instead of causing a resync loop. A current-epoch sequence gap or handler failure requests a full snapshot.
 
 Communication serialization is separate from DataStore serialization. It allows safe Roblox value types such as `Vector3` and `CFrame`, while rejecting `Instance`, cyclic tables, non-finite numbers, oversized messages, and overlong request IDs.
+
+The communication module also owns one bounded synchronous request
+RemoteFunction for server-read startup boundaries such as the client config
+bundle. Registered request handlers validate input and enforce request,
+response, rate, and byte limits. It is not used for ordinary gameplay
+mutations or notifications.
 
 Normal gameplay does not replace whole provider tables. Server-authoritative
 modules emit small operation/change messages, preserving client runtime object
@@ -152,4 +175,4 @@ require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 ```
 
-The production integration suite injects failures and verifies complete server/client rollback, lock contention and stale takeover, bounded retry, expired deadlines, shutdown concurrency, packet loss, stale epochs, serialization and queue overflow. `RealDataStoreSmokeTest` is intentionally opt-in because Roblox requires a published place with Studio API access; it writes only to `PlayerData_IntegrationTests_v1` and cleans up its GUID key.
+The production integration suite injects failures and verifies complete server/client rollback, lock contention and stale takeover, bounded retry, expired deadlines, shutdown concurrency, packet loss, stale epochs, serialization and queue overflow. `RealDataStoreSmokeTest` is intentionally opt-in because Roblox requires a published place with Studio API access. It creates a fresh 42-character `Smoke_<GUID>` key only in `PlayerData_IntegrationTests_v1`, writes data, releases the session lock, reloads and verifies the data, then removes the key. A run passes only when both `Ok` and `CleanupOk` are true. See [IntegrationTesting.md](IntegrationTesting.md) for the required environment setup order.

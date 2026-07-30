@@ -13,6 +13,11 @@ type MessageHandler = {
 	Handle: (player: Player, payload: any, requestId: string?) -> (),
 }
 
+type RequestHandler = {
+	Validate: ((payload: any) -> (boolean, any?, string?))?,
+	Handle: (player: Player, payload: any) -> (boolean, any?, string?),
+}
+
 type QueueEntry = {
 	Message: any,
 	Priority: string,
@@ -48,26 +53,42 @@ local function ensureRemoteEvent(parent: Instance, name: string): RemoteEvent
 	return remote
 end
 
-local function ensureRemotes(): (RemoteEvent, RemoteEvent)
+local function ensureRemoteFunction(parent: Instance, name: string): RemoteFunction
+	local existing = parent:FindFirstChild(name)
+	if existing ~= nil then
+		assert(existing:IsA("RemoteFunction"), `{parent:GetFullName()}.{name} must be a RemoteFunction`)
+		return existing
+	end
+
+	local remote = Instance.new("RemoteFunction")
+	remote.Name = name
+	remote.Parent = parent
+	return remote
+end
+
+local function ensureRemotes(): (RemoteEvent, RemoteEvent, RemoteFunction)
 	local root = ensureFolder(ReplicatedStorage, "Remotes")
 	local folder = ensureFolder(root, CommunicationProtocol.RemoteFolderName)
 	local clientToServer = ensureRemoteEvent(folder, CommunicationProtocol.ClientToServerEventName)
 	local serverToClient = ensureRemoteEvent(folder, CommunicationProtocol.ServerToClientEventName)
+	local request = ensureRemoteFunction(folder, CommunicationProtocol.RequestFunctionName)
 
-	return clientToServer, serverToClient
+	return clientToServer, serverToClient, request
 end
 
 function CommunicationServer.new(deps: {
 	PlayersModule: any,
 	Logger: any?,
 })
-	local clientToServer, serverToClient = ensureRemotes()
+	local clientToServer, serverToClient, request = ensureRemotes()
 	local self = setmetatable({
 		_players = deps.PlayersModule,
 		_logger = deps.Logger or Logger.new("Communication.Server", "info"),
 		_clientToServer = clientToServer,
 		_serverToClient = serverToClient,
+		_request = request,
 		_handlers = {} :: { [string]: MessageHandler },
+		_requestHandlers = {} :: { [string]: RequestHandler },
 		_outgoing = {} :: { [Player]: { QueueEntry } },
 		_outgoingBytes = {} :: { [Player]: number },
 		_outgoingSequence = {} :: { [Player]: number },
@@ -75,6 +96,7 @@ function CommunicationServer.new(deps: {
 		_expectedIncomingSequence = {} :: { [Player]: number },
 		_ready = {} :: { [Player]: boolean },
 		_rate = {} :: { [Player]: { WindowStartedAt: number, Count: number, Bytes: number } },
+		_requestRate = {} :: { [Player]: { WindowStartedAt: number, Count: number, Bytes: number } },
 		_resyncQueued = {} :: { [Player]: boolean },
 		_droppedPresentation = {} :: { [Player]: number },
 		_connections = {} :: { any },
@@ -93,6 +115,152 @@ function CommunicationServer:RegisterHandler(
 		Validate = validator,
 		Handle = handler,
 	}
+end
+
+function CommunicationServer:RegisterRequestHandler(
+	requestType: string,
+	validator: ((payload: any) -> (boolean, any?, string?))?,
+	handler: (player: Player, payload: any) -> (boolean, any?, string?)
+)
+	assert(typeof(requestType) == "string" and requestType ~= "", "requestType required")
+	assert(#requestType <= CommunicationConfig.MaxRequestTypeLength, "requestType too long")
+	assert(self._requestHandlers[requestType] == nil, `Duplicate request handler '{requestType}'`)
+	self._requestHandlers[requestType] = {
+		Validate = validator,
+		Handle = handler,
+	}
+end
+
+function CommunicationServer:_reserveRequestBudget(player: Player, estimatedBytes: number): boolean
+	local now = os.clock()
+	local state = self._requestRate[player]
+	if state == nil or now - state.WindowStartedAt >= 1 then
+		state = {
+			WindowStartedAt = now,
+			Count = 0,
+			Bytes = 0,
+		}
+		self._requestRate[player] = state
+	end
+	state.Count += 1
+	state.Bytes += estimatedBytes
+	return state.Count <= CommunicationConfig.MaxRequestsPerSecond
+		and state.Bytes <= CommunicationConfig.MaxRequestResponseBytesPerSecond
+end
+
+function CommunicationServer:_reserveRequestResponseBytes(player: Player, estimatedBytes: number): boolean
+	local state = self._requestRate[player]
+	if state == nil then
+		return false
+	end
+	state.Bytes += estimatedBytes
+	return state.Bytes <= CommunicationConfig.MaxRequestResponseBytesPerSecond
+end
+
+function CommunicationServer:_handleRequest(player: Player, request: any)
+	local valid, _, estimatedBytes = CommunicationSerialize.inspect(request)
+	if not valid
+		or estimatedBytes > CommunicationConfig.MaxSingleMessageEstimatedBytes
+		or typeof(request) ~= "table"
+		or typeof(request.Type) ~= "string"
+		or request.Type == ""
+		or #request.Type > CommunicationConfig.MaxRequestTypeLength
+	then
+		self._logger:Warn("invalid_request", { UserId = player.UserId })
+		return {
+			Ok = false,
+			Code = "Unavailable",
+		}
+	end
+	if not self:_reserveRequestBudget(player, estimatedBytes) then
+		self._logger:Warn("request_rate_limited", {
+			UserId = player.UserId,
+			RequestType = request.Type,
+		})
+		return {
+			Ok = false,
+			Code = "RateLimited",
+		}
+	end
+
+	local handler = self._requestHandlers[request.Type]
+	if handler == nil then
+		return {
+			Ok = false,
+			Code = "Unavailable",
+		}
+	end
+
+	local payload = request.Payload
+	if handler.Validate then
+		local validatorOk, payloadValid, sanitized, _validationError = pcall(handler.Validate, payload)
+		if not validatorOk then
+			self._logger:Error("request_validator_failed", {
+				UserId = player.UserId,
+				RequestType = request.Type,
+				Error = tostring(payloadValid),
+			})
+			return {
+				Ok = false,
+				Code = "InternalError",
+			}
+		end
+		if not payloadValid then
+			return {
+				Ok = false,
+				Code = "Unavailable",
+			}
+		end
+		payload = sanitized
+	end
+
+	local callOk, handled, result, failureCode = pcall(handler.Handle, player, payload)
+	if not callOk then
+		self._logger:Error("request_handler_failed", {
+			UserId = player.UserId,
+			RequestType = request.Type,
+			Error = tostring(handled),
+		})
+		return {
+			Ok = false,
+			Code = "InternalError",
+		}
+	end
+	if not handled then
+		return {
+			Ok = false,
+			Code = if typeof(failureCode) == "string" then failureCode else "Unavailable",
+		}
+	end
+
+	local response = {
+		Ok = true,
+		Payload = result,
+	}
+	local responseValid, _, responseBytes = CommunicationSerialize.inspect(response)
+	if not responseValid or responseBytes > CommunicationConfig.MaxSingleMessageEstimatedBytes then
+		self._logger:Warn("request_response_rejected", {
+			UserId = player.UserId,
+			RequestType = request.Type,
+			EstimatedBytes = responseBytes,
+		})
+		return {
+			Ok = false,
+			Code = "InternalError",
+		}
+	end
+	if not self:_reserveRequestResponseBytes(player, responseBytes) then
+		self._logger:Warn("request_response_rate_limited", {
+			UserId = player.UserId,
+			RequestType = request.Type,
+			EstimatedBytes = responseBytes,
+		})
+		return {
+			Ok = false,
+			Code = "RateLimited",
+		}
+	end
+	return response
 end
 
 function CommunicationServer:_setResyncRequired(player: Player, reason: string)
@@ -413,6 +581,9 @@ function CommunicationServer:Initialize()
 	table.insert(self._connections, self._clientToServer.OnServerEvent:Connect(function(player, batch)
 		self:_handleBatch(player, batch)
 	end))
+	self._request.OnServerInvoke = function(player, request)
+		return self:_handleRequest(player, request)
+	end
 	table.insert(self._connections, RunService.Heartbeat:Connect(function()
 		self:_flush()
 	end))
@@ -424,12 +595,14 @@ function CommunicationServer:Initialize()
 		self._expectedIncomingSequence[player] = nil
 		self._ready[player] = nil
 		self._rate[player] = nil
+		self._requestRate[player] = nil
 		self._resyncQueued[player] = nil
 		self._droppedPresentation[player] = nil
 	end))
 end
 
 function CommunicationServer:Stop()
+	self._request.OnServerInvoke = nil
 	for _, connection in self._connections do
 		connection:Disconnect()
 	end

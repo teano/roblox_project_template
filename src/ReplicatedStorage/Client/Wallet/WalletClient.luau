@@ -40,7 +40,7 @@ function WalletClient:ValidateMemento(value: any): (boolean, any?, string?)
 	if typeof(value) ~= "table" then
 		return false, nil, "Wallet must be a table"
 	end
-	local result = TableUtil.deepCopy(WalletConfig.Defaults)
+	local result = {}
 	for currencyId in WalletConfig.CurrencyIds do
 		local amount = value[currencyId]
 		if not isFiniteInteger(amount) or amount < 0 then

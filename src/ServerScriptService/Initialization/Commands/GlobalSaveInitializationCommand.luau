@@ -41,6 +41,7 @@ function Command.new(deps: {
 	SaveModule: any,
 	Storage: any,
 	StorageConfig: any,
+	Config: any,
 	PlayersModule: any,
 	Communication: any,
 	MigrationModule: any,
@@ -74,6 +75,7 @@ end
 
 function Command:Initialize(context: any)
 	local deps = self._deps
+	local globalSaveConfig = deps.Config:GetRequired("GlobalSave")
 	local controller = deps.SaveModule:BuildSaveController(SaveProtocol.GlobalControllerId)
 		:WithStorage(deps.Storage)
 		:WithKeyResolver(function(player)
@@ -86,7 +88,7 @@ function Command:Initialize(context: any)
 
 	context.Services.GlobalSaveController = controller
 	deps.AutoSaveModule:RegisterController(controller, {
-		IntervalSeconds = 60,
+		IntervalSeconds = globalSaveConfig.AutoSaveIntervalSeconds,
 	})
 	deps.SessionLockModule:RegisterController(controller)
 
@@ -132,7 +134,7 @@ function Command:Initialize(context: any)
 
 	local snapshotRemote = ensureSnapshotRemote()
 	snapshotRemote.OnServerInvoke = function(player: Player)
-		if not self:_waitUntilLoaded(controller, player, 15) then
+		if not self:_waitUntilLoaded(controller, player, globalSaveConfig.SnapshotLoadTimeoutSeconds) then
 			return {
 				Ok = false,
 				Code = "NotLoaded",

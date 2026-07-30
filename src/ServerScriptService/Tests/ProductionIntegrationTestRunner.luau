@@ -22,6 +22,7 @@ local MemoryStorage = require(ServerScriptService.Modules.Storage.MemoryStorage)
 local SessionLockingStorage = require(ServerScriptService.Modules.Storage.SessionLockingStorage)
 local ServerSaveController = require(ServerScriptService.Modules.Save.ServerSaveController)
 local ShutdownSaveCoordinator = require(ServerScriptService.Modules.Save.ShutdownSaveCoordinator)
+local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
 
 local ProductionIntegrationTestRunner = {}
 
@@ -184,6 +185,65 @@ function ProductionIntegrationTestRunner.runAll()
 		controller:Destroy()
 	end)
 
+	test("new wallet startup balance persists once across reload", function()
+		local memory = MemoryStorage.new()
+		local player = { UserId = 303 } :: any
+
+		local function makeWallet(startingCoins: number)
+			local wallet = WalletModule.new({
+				Queue = function()
+					return true
+				end,
+			}, {
+				GetRequired = function(_self, configId)
+					assertEqual(configId, "Wallet")
+					return {
+						StartingBalances = {
+							Coins = startingCoins,
+							Gems = 2,
+						},
+					}
+				end,
+			})
+			wallet:Initialize()
+			return wallet
+		end
+
+		local firstWallet = makeWallet(25)
+		local first = ServerSaveController.new({
+			Id = "wallet_startup",
+			Providers = { firstWallet },
+			Storage = SessionLockingStorage.new(memory, { StaleLockSeconds = 1_800 }),
+			KeyResolver = function()
+				return "WalletStartup_303"
+			end,
+		})
+		assertTrue(first:Load(player).Ok, "new wallet load failed")
+		assertEqual(firstWallet:GetBalance(player, "Coins"), 25)
+		assertEqual(firstWallet:GetMemento(player).IsInitialized, true)
+		assertTrue(first:Close(player, true).Ok, "new wallet close failed")
+		first:Destroy(false)
+
+		local persisted = memory:Read("WalletStartup_303")
+		assertEqual(persisted.Providers.Wallet.Version, 2)
+		assertEqual(persisted.Providers.Wallet.Data.IsInitialized, true)
+		assertEqual(persisted.Providers.Wallet.Data.Coins, 25)
+
+		local secondWallet = makeWallet(999)
+		local second = ServerSaveController.new({
+			Id = "wallet_reload",
+			Providers = { secondWallet },
+			Storage = SessionLockingStorage.new(memory, { StaleLockSeconds = 1_800 }),
+			KeyResolver = function()
+				return "WalletStartup_303"
+			end,
+		})
+		assertTrue(second:Load(player).Ok, "persisted wallet reload failed")
+		assertEqual(secondWallet:GetBalance(player, "Coins"), 25, "startup grant repeated on reload")
+		assertTrue(second:Close(player, true).Ok, "persisted wallet close failed")
+		second:Destroy(false)
+	end)
+
 	test("two storage owners enforce lock loss and stale takeover", function()
 		local memory = MemoryStorage.new()
 		local config = { StaleLockSeconds = 60 }
@@ -319,6 +379,48 @@ function ProductionIntegrationTestRunner.runAll()
 		})
 		part:Destroy()
 		assertEqual(instanceValid, false)
+	end)
+
+	test("bounded communication request validates type and response", function()
+		local server = CommunicationServer.new({
+			PlayersModule = {
+				PlayerRemoving = Signal.new(),
+			},
+		})
+		server:RegisterRequestHandler("Integration.Read", function(payload)
+			if typeof(payload) ~= "table" or typeof(payload.Id) ~= "string" then
+				return false, nil, "invalid"
+			end
+			return true, { Id = payload.Id }, nil
+		end, function(_player, payload)
+			return true, {
+				Id = payload.Id,
+				Value = 42,
+			}, nil
+		end)
+		local player = { UserId = 399 } :: any
+
+		local response = server:_handleRequest(player, {
+			Type = "Integration.Read",
+			Payload = { Id = "Allowed" },
+		})
+		assertEqual(response.Ok, true)
+		assertEqual(response.Payload.Id, "Allowed")
+		assertEqual(response.Payload.Value, 42)
+
+		local invalid = server:_handleRequest(player, {
+			Type = "Integration.Read",
+			Payload = { Id = 5 },
+		})
+		assertEqual(invalid.Ok, false)
+		assertEqual(invalid.Code, "Unavailable")
+
+		local unknown = server:_handleRequest(player, {
+			Type = "Integration.Unknown",
+			Payload = {},
+		})
+		assertEqual(unknown.Ok, false)
+		assertEqual(unknown.Code, "Unavailable")
 	end)
 
 	test("server batch flush preserves Vector3 payloads", function()

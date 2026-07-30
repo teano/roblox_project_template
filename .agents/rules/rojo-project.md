@@ -38,8 +38,11 @@ else in the scene is preserved by saving and committing
   verifying the listener process is Rojo. It MUST refuse to terminate a
   non-Rojo listener.
 - Before using Studio tools, explicitly select the current canonical
-  `place.rbxl` Studio instance and verify that its Edit DataModel `game.Name`
-  matches `default.project.json` `name`.
+  `place.rbxl` Studio instance. Treat `default.project.json` `name` only as
+  the Rojo project/server identity and never require it to match
+  `game.Name`. For a published project, verify stable `game.PlaceId` and
+  `game.GameId` values recorded by the project or rely on a configured
+  `servePlaceIds` allowlist when available.
 - Preserve the existing top-level mappings unless an architectural change requires otherwise.
 - New shared/client/server files MUST be placed under the correct mapped container.
 - System startup code MUST remain limited to the two bootstraps plus the dedicated ReplicatedFirst loading LocalScript.

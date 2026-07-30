@@ -9,4 +9,7 @@ return table.freeze({
 	MaxQueuedMessagesPerPeer = 256,
 	MaxQueuedPayloadBytesPerPeer = 256 * 1024,
 	MaxRequestIdLength = 128,
+	MaxRequestTypeLength = 128,
+	MaxRequestsPerSecond = 16,
+	MaxRequestResponseBytesPerSecond = 256 * 1024,
 })

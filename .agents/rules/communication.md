@@ -18,6 +18,11 @@ Required context: `docs/InitializationAndSaveSystem.md`.
 - Request IDs MUST be bounded and treated as untrusted.
 - Communication serialization MUST be separate from DataStore serialization.
 - Safe value types such as `Vector3` and `CFrame` MAY cross the network; `Instance`, cycles, unsupported types, and non-finite numbers MUST be rejected.
+- Synchronous server-read startup requests MUST use the bounded request API
+  owned by `CommunicationServer`/`CommunicationClient`, with a registered
+  validator and response-size enforcement.
+- The synchronous request API MUST NOT replace batched messages for ordinary
+  gameplay mutations or notifications.
 
 ## Runtime synchronization
 
@@ -51,6 +56,8 @@ Required context: `docs/InitializationAndSaveSystem.md`.
 - MUST NOT send ModuleScripts, functions, metatables, Instances, or cyclic tables.
 - MUST NOT send an entire provider table for a small runtime change.
 - MUST NOT use batched RemoteEvents where a synchronous RemoteFunction result is required.
+- MUST NOT create a domain-owned RemoteFunction when the bounded communication
+  request API can represent the synchronous read.
 - MUST NOT reuse `SaveSerialize` for runtime communication.
 - MUST NOT drop state silently when resync can restore consistency.
 

@@ -23,7 +23,9 @@ Repositories derived from the template receive these records from their
 | [ADR-0013](0013-side-owned-static-asset-catalogs.md) | Use side-owned immutable static asset catalogs | Accepted |
 | [ADR-0014](0014-catalog-integrated-content-preloading.md) | Route content preloading through a catalog-integrated module | Accepted |
 | [ADR-0015](0015-default-rojo-port-with-project-overrides.md) | Use Rojo's default port with optional project overrides | Superseded by ADR-0016 |
-| [ADR-0016](0016-switch-single-rojo-server-by-project.md) | Switch one default-port Rojo server to the active project | Accepted |
+| [ADR-0016](0016-switch-single-rojo-server-by-project.md) | Switch one default-port Rojo server to the active project | Superseded by ADR-0018 |
+| [ADR-0017](0017-server-owned-experience-config-catalog.md) | Use a server-owned Experience Config catalog with explicit client projections | Accepted |
+| [ADR-0018](0018-identify-studio-target-by-stable-place-identity.md) | Identify Studio targets without comparing mutable names | Accepted |
 
 ## Ownership and numbering
 

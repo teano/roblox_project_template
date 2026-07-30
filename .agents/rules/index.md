@@ -36,6 +36,7 @@ affects save-provider and communication contracts.
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
 | `src/**/Save/**`, storage, autosave, session locks, migration, version persistence | `architecture.md`, `save-system.md`, `testing.md` |
 | Communication, RemoteEvent, RemoteFunction, DTO, protocol, serialization, rate limit, resync | `architecture.md`, `communication.md`, `testing.md` |
+| `ConfigService`, Experience Configs, config codecs/catalogs, client config bundles or projections | `configuration.md`, `architecture.md`, `initialization.md`, `communication.md`, `testing.md` |
 | Server or client Players modules, player/character lifecycle | `architecture.md`, `players.md`, `testing.md` |
 | Wallet, Version, GameData, a save provider, or an authority change | `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
 | `ReplicatedFirst/Loading.client.luau` | `architecture.md`, `initialization.md`, `testing.md` |
@@ -58,6 +59,8 @@ affects save-provider and communication contracts.
 - `initialization.md`: runner, manifests, commands, bootstraps, loading completion.
 - `save-system.md`: controllers, providers, lifecycle, rollback, storage, shutdown.
 - `communication.md`: batching, validation, priorities, sequencing, epochs, resync.
+- `configuration.md`: Experience Config authority, codecs, atomic generations,
+  client projections, bundles, and refresh policy.
 - `players.md`: centralized player and character lifecycle.
 - `domain-data.md`: Wallet, Version, GameData, provider extension and authority.
 - `testing.md`: required verification and test authoring rules.

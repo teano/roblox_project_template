@@ -9,6 +9,8 @@ local ContentPreloader = require(ReplicatedStorage.Shared.ContentPreloading.Cont
 local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 local PlayersModule = require(ReplicatedStorage.Client.Players.PlayersModule)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
+local ClientConfigCatalog = require(ReplicatedStorage.Client.Config.ClientConfigCatalog)
+local ClientConfigManifest = require(ReplicatedStorage.Client.Config.ClientConfigManifest)
 local SaveModule = require(ReplicatedStorage.Client.Save.SaveModule)
 local VersionClient = require(ReplicatedStorage.Client.Version.VersionClient)
 local WalletClient = require(ReplicatedStorage.Client.Wallet.WalletClient)
@@ -19,6 +21,7 @@ local StartupContentPreloadCommand = require(Commands.StartupContentPreloadComma
 local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
+local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand)
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
 local DomainDataInitializationCommand = require(Commands.DomainDataInitializationCommand)
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
@@ -48,6 +51,11 @@ local contentPreloader = ContentPreloader.new({
 local poolModule = PoolModule.new()
 local playersModule = PlayersModule.new()
 local communication = CommunicationClient.new()
+local configCatalog = ClientConfigCatalog.new({
+	Communication = communication,
+	BundleId = ClientConfigManifest.BundleId,
+	Definitions = ClientConfigManifest.Definitions,
+})
 local saveModule = SaveModule.new(communication)
 local versionClient = VersionClient.new()
 local walletClient = WalletClient.new(communication)
@@ -58,6 +66,7 @@ local services = {
 	Pooling = poolModule,
 	Players = playersModule,
 	Communication = communication,
+	Config = configCatalog,
 	Save = saveModule,
 	Version = versionClient,
 	Wallet = walletClient,
@@ -72,6 +81,7 @@ return {
 		PoolingInitializationCommand.new(poolModule),
 		PlayersInitializationCommand.new(playersModule),
 		CommunicationInitializationCommand.new(communication),
+		ConfigInitializationCommand.new(configCatalog),
 		SaveInitializationCommand.new(saveModule),
 		DomainDataInitializationCommand.new({
 			versionClient,
@@ -80,6 +90,7 @@ return {
 		GlobalSaveInitializationCommand.new({
 			SaveModule = saveModule,
 			Communication = communication,
+			Config = configCatalog,
 			Version = versionClient,
 			Wallet = walletClient,
 		}),

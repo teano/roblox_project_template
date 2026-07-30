@@ -31,6 +31,13 @@ runtime models, and domain change messages.
 - Purchase flows send intent to a dedicated server transaction module.
 - Spending and granting occur atomically on the server through Wallet APIs.
 - Insufficient funds return an explicit failure without mutation or dirty signaling.
+- A newly created Wallet memento MUST apply the validated Experience Config
+  starting balances exactly once and persist `IsInitialized=true`.
+- Existing Wallet mementos that predate `IsInitialized` MUST reconcile as
+  already initialized; an upgrade MUST NOT grant existing players a new
+  starting balance.
+- `IsInitialized` is server persistence state and MUST NOT be included in the
+  client Wallet memento.
 
 ## Adding a provider
 

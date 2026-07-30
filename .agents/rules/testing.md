@@ -54,6 +54,7 @@ Expected: every result has `failed = 0`.
 | Pool core, adapters, leases, registry, or resource cleanup | ResourceManagement + System; add clean Play when manifests or concrete Roblox resources change |
 | Save, providers, storage, locks, autosave, shutdown | System + Production |
 | Communication, DTO, serializer, remotes, resync | Production + clean client/server Play |
+| Experience Config catalog, codecs, bundles, projections, refresh, or config request transport | ConfigCatalog + System; add Production + clean client/server Play when transport or manifests change |
 | Wallet, Version, GameData, or another provider | System + Production |
 | Project-specific gameplay or presentation | Its focused suite plus Production when communication or persistence is involved |
 | Players lifecycle | System + Production + join/leave/respawn Play checks |
@@ -67,11 +68,41 @@ Expected: every result has `failed = 0`.
 - use a published dedicated test place;
 - enable Studio API access;
 - use `PlayerData_IntegrationTests_v1`, never the production store;
-- use a GUID key;
+- use a fresh `Smoke_<GUID>` key, which is 42 characters and remains below the
+  Roblox DataStore 50-character key limit;
 - remove the test key afterward;
 - report cleanup failure explicitly.
 
 Do not run this test merely because DataStore code changed when the environment is not explicitly safe.
+
+## Dedicated integration environment
+
+Create or rebuild a real integration-test environment in this mandatory order:
+
+1. Create or update a sibling project named
+   `{project_folder}_IntegrationTest` from the exact source state being
+   tested, and create or confirm its dedicated Roblox test Experience.
+2. Copy every required Experience Config into the test Experience before
+   attaching the place. Structured configs MUST use the native Experience
+   Config type `JSON`, never `String` containing JSON. Copy the current
+   published values, publish the test configs, and verify every key, type, and
+   value in the Published view; staged-only configs are not ready for testing.
+3. Only after the configs are published, attach or publish the integration
+   project's canonical `place.rbxl` to the dedicated test Experience. Record
+   and verify the resulting stable `game.PlaceId` and `game.GameId`, or protect
+   the Rojo connection with `servePlaceIds`.
+
+After setup, enable Studio API access only for the dedicated test Experience,
+run a clean server/client bootstrap, then run the deterministic suites and the
+opt-in smoke test. A real DataStore run passes only when its result has both
+`Ok = true` and `CleanupOk = true`.
+
+Do not attach the production place, use a production Experience, continue with
+missing or staged-only configs, or represent a required JSON config as a
+string.
+
+The complete operator checklist is documented in
+`docs/IntegrationTesting.md`.
 
 ## Output inspection
 

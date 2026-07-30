@@ -1,10 +1,10 @@
 # ADR-0016: Switch one default-port Rojo server to the active project
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-30
 - Deciders: Project maintainers
 - Supersedes: ADR-0015
-- Superseded by: None
+- Superseded by: ADR-0018
 
 ## Context
 

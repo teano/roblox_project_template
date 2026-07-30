@@ -33,6 +33,19 @@ local function assertTrue(value: any, message: string)
 	end
 end
 
+local function getManifestCommand(commandId: string)
+	for _, command in ServerManifest.Commands do
+		if command.Id == commandId then
+			return command
+		end
+	end
+	error(`server manifest command not found: {commandId}`, 2)
+end
+
+local function initializeManifestCommand(commandId: string)
+	getManifestCommand(commandId):Initialize({})
+end
+
 local function makeCommand(id: string, dependencies: { string }, callback: (any) -> ())
 	return {
 		Id = id,
@@ -127,13 +140,21 @@ function SystemTestRunner.runAll()
 		assertEqual(attempts, 1)
 	end)
 
-	test("server manifest exposes the initialized side-owned asset catalog", function()
+	test("server manifest asset command initializes the side-owned catalog", function()
 		local assets = ServerManifest.Services.Assets
 		assertTrue(assets ~= nil, "server manifest must expose Services.Assets")
-		assertTrue(assets:IsInitialized(), "server asset catalog must initialize during bootstrap")
+		initializeManifestCommand("Assets")
+		assertTrue(assets:IsInitialized(), "server asset command must initialize its catalog")
 		assertEqual(assets:Get("Shared"), ReplicatedStorage.Assets.Shared)
 		assertEqual(assets:Get("Server"), ServerStorage.Assets)
 		assertEqual(assets:Get("Client"), nil, "server catalog must not expose the client namespace")
+	end)
+
+	test("server manifest exposes the Experience Config catalog after Communication", function()
+		local config = ServerManifest.Services.Config
+		assertTrue(config ~= nil, "server manifest must expose Services.Config")
+		local command = getManifestCommand("Config")
+		assertEqual(command.DependsOn[1], "Communication")
 	end)
 
 	test("session lock blocks a second live owner", function()
@@ -181,13 +202,24 @@ function SystemTestRunner.runAll()
 		controller:Destroy(false)
 	end)
 
-	test("wallet validates authority data and marks one change", function()
+	test("wallet initializes new players once and preserves legacy balances", function()
 		local messages = {}
 		local wallet = WalletModule.new({
 			Queue = function(_self, _player, messageType, payload)
 				table.insert(messages, { Type = messageType, Payload = payload })
 			end,
+		}, {
+			GetRequired = function(_self, configId)
+				assertEqual(configId, "Wallet")
+				return {
+					StartingBalances = {
+						Coins = 25,
+						Gems = 3,
+					},
+				}
+			end,
 		})
+		wallet:Initialize()
 		local player = { UserId = 7 } :: any
 		local dirty = 0
 		wallet.MementoChanged:Connect(function()
@@ -195,11 +227,24 @@ function SystemTestRunner.runAll()
 		end)
 		wallet:SetMemento(player, wallet:CreateDefault(player))
 		wallet:Run(player)
+		assertEqual(wallet:GetBalance(player, "Coins"), 25)
+		assertEqual(wallet:GetBalance(player, "Gems"), 3)
+		assertEqual(wallet:GetMemento(player).IsInitialized, true)
+		assertEqual(wallet:ToClientMemento(player, wallet:GetMemento(player)).IsInitialized, nil)
+		wallet:Run(player)
+		assertEqual(wallet:GetBalance(player, "Coins"), 25, "startup balance must only apply once")
 		assertTrue(wallet:Add(player, "Coins", 100, "Test").Ok, "add failed")
-		assertEqual(wallet:GetBalance(player, "Coins"), 100)
-		assertEqual(dirty, 1)
+		assertEqual(wallet:GetBalance(player, "Coins"), 125)
+		assertEqual(dirty, 2)
 		assertEqual(#messages, 1)
-		assertEqual(wallet:TrySpend(player, "Coins", 101, "Test").Code, "InsufficientFunds")
+		assertEqual(wallet:TrySpend(player, "Coins", 126, "Test").Code, "InsufficientFunds")
+
+		local legacy = wallet:ReconcileMemento(player, {
+			Coins = 9,
+			Gems = 4,
+		}, 1)
+		assertEqual(legacy.IsInitialized, true, "legacy wallet must not receive startup balance")
+		assertEqual(legacy.Coins, 9)
 		wallet:Stop(player)
 	end)
 

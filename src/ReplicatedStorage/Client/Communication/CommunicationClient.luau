@@ -11,16 +11,18 @@ local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 local CommunicationClient = {}
 CommunicationClient.__index = CommunicationClient
 
-local function waitForRemotes(): (RemoteEvent, RemoteEvent)
+local function waitForRemotes(): (RemoteEvent, RemoteEvent, RemoteFunction)
 	local root = ReplicatedStorage:WaitForChild("Remotes")
 	assert(root:IsA("Folder"), "ReplicatedStorage.Remotes must be a Folder")
 	local folder = root:WaitForChild(CommunicationProtocol.RemoteFolderName)
 	assert(folder:IsA("Folder"), "Communication remote container must be a Folder")
 	local clientToServer = folder:WaitForChild(CommunicationProtocol.ClientToServerEventName)
 	local serverToClient = folder:WaitForChild(CommunicationProtocol.ServerToClientEventName)
+	local request = folder:WaitForChild(CommunicationProtocol.RequestFunctionName)
 	assert(clientToServer:IsA("RemoteEvent"), "ClientToServer must be a RemoteEvent")
 	assert(serverToClient:IsA("RemoteEvent"), "ServerToClient must be a RemoteEvent")
-	return clientToServer, serverToClient
+	assert(request:IsA("RemoteFunction"), "Request must be a RemoteFunction")
+	return clientToServer, serverToClient, request
 end
 
 function CommunicationClient.new(logger: any?)
@@ -38,6 +40,7 @@ function CommunicationClient.new(logger: any?)
 		_initialized = false,
 		_clientToServer = nil :: RemoteEvent?,
 		_serverToClient = nil :: RemoteEvent?,
+		_request = nil :: RemoteFunction?,
 	}, CommunicationClient)
 end
 
@@ -48,6 +51,50 @@ end
 
 function CommunicationClient:SetResyncHandler(handler: () -> ())
 	self._resyncHandler = handler
+end
+
+function CommunicationClient:Request(requestType: string, payload: any): (boolean, any?, string?)
+	if self._request == nil then
+		return false, nil, "NotInitialized"
+	end
+	if typeof(requestType) ~= "string"
+		or requestType == ""
+		or #requestType > CommunicationConfig.MaxRequestTypeLength
+	then
+		return false, nil, "InvalidRequest"
+	end
+
+	local request = {
+		Type = requestType,
+		Payload = payload,
+	}
+	local valid, _, estimatedBytes = CommunicationSerialize.inspect(request)
+	if not valid or estimatedBytes > CommunicationConfig.MaxSingleMessageEstimatedBytes then
+		return false, nil, "InvalidRequest"
+	end
+
+	local invoked, response = pcall(function()
+		return (self._request :: RemoteFunction):InvokeServer(request)
+	end)
+	if not invoked then
+		self._logger:Warn("request_transport_failed", {
+			RequestType = requestType,
+			Error = tostring(response),
+		})
+		return false, nil, "TransportError"
+	end
+	local responseValid, _, responseBytes = CommunicationSerialize.inspect(response)
+	if not responseValid
+		or responseBytes > CommunicationConfig.MaxSingleMessageEstimatedBytes
+		or typeof(response) ~= "table"
+		or typeof(response.Ok) ~= "boolean"
+	then
+		return false, nil, "InvalidResponse"
+	end
+	if not response.Ok then
+		return false, nil, if typeof(response.Code) == "string" then response.Code else "Unavailable"
+	end
+	return true, response.Payload, nil
 end
 
 function CommunicationClient:Queue(
@@ -240,9 +287,10 @@ function CommunicationClient:Initialize()
 		return
 	end
 	self._initialized = true
-	local clientToServer, serverToClient = waitForRemotes()
+	local clientToServer, serverToClient, request = waitForRemotes()
 	self._clientToServer = clientToServer
 	self._serverToClient = serverToClient
+	self._request = request
 	table.insert(self._connections, serverToClient.OnClientEvent:Connect(function(batch)
 		self:_handleBatch(batch)
 	end))
@@ -256,6 +304,9 @@ function CommunicationClient:Stop()
 		connection:Disconnect()
 	end
 	table.clear(self._connections)
+	self._clientToServer = nil
+	self._serverToClient = nil
+	self._request = nil
 	self._initialized = false
 end
 

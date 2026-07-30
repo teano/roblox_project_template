@@ -2,6 +2,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
+local ConfigService = game:GetService("ConfigService")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
@@ -10,6 +11,8 @@ local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 local Modules = script.Parent.Parent.Modules
 local PlayersModule = require(Modules.Players.PlayersModule)
 local CommunicationServer = require(Modules.Communication.CommunicationServer)
+local ExperienceConfigCatalog = require(Modules.Config.ExperienceConfigCatalog)
+local ServerConfigManifest = require(Modules.Config.ServerConfigManifest)
 local SaveModule = require(Modules.Save.SaveModule)
 local ShutdownSaveCoordinator = require(Modules.Save.ShutdownSaveCoordinator)
 local StorageConfig = require(Modules.Storage.StorageConfig)
@@ -27,6 +30,7 @@ local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitial
 local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
+local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand)
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
 local DomainDataInitializationCommand = require(Commands.DomainDataInitializationCommand)
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
@@ -54,6 +58,12 @@ local playersModule = PlayersModule.new()
 local communication = CommunicationServer.new({
 	PlayersModule = playersModule,
 })
+local configCatalog = ExperienceConfigCatalog.new({
+	ConfigService = ConfigService,
+	Communication = communication,
+	Definitions = ServerConfigManifest.Definitions,
+	ClientBundles = ServerConfigManifest.ClientBundles,
+})
 local saveModule = SaveModule.new()
 local baseStorage = if StorageConfig.UseMemoryStorage
 	then MemoryStorage.new()
@@ -67,13 +77,14 @@ local shutdownSaveCoordinator = ShutdownSaveCoordinator.new({
 })
 local versionModule = VersionModule.new()
 local migrationModule = MigrationModule.new()
-local walletModule = WalletModule.new(communication)
+local walletModule = WalletModule.new(communication, configCatalog)
 
 local services = {
 	Assets = assetRegistry,
 	Pooling = poolModule,
 	Players = playersModule,
 	Communication = communication,
+	Config = configCatalog,
 	Save = saveModule,
 	Storage = storage,
 	AutoSave = autoSaveModule,
@@ -89,12 +100,14 @@ local commands = {
 	PoolingInitializationCommand.new(poolModule),
 	PlayersInitializationCommand.new(playersModule),
 	CommunicationInitializationCommand.new(communication),
+	ConfigInitializationCommand.new(configCatalog),
 	SaveInitializationCommand.new(saveModule),
 	DomainDataInitializationCommand.new(versionModule, migrationModule, walletModule),
 	GlobalSaveInitializationCommand.new({
 		SaveModule = saveModule,
 		Storage = storage,
 		StorageConfig = StorageConfig,
+		Config = configCatalog,
 		PlayersModule = playersModule,
 		Communication = communication,
 		MigrationModule = migrationModule,

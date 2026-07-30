@@ -162,12 +162,19 @@ function Get-ActiveRojoProjectName {
 }
 
 function Get-PortListeners {
-	return @(
-		Get-NetTCPConnection `
-			-State Listen `
-			-LocalPort $rojoPort `
-			-ErrorAction Stop
-	)
+	try {
+		return @(
+			Get-NetTCPConnection `
+				-State Listen `
+				-LocalPort $rojoPort `
+				-ErrorAction Stop
+		)
+	} catch {
+		if ($_.FullyQualifiedErrorId -like "CmdletizationQuery_NotFound*") {
+			return @()
+		}
+		throw
+	}
 }
 
 $activeProjectName = Get-ActiveRojoProjectName

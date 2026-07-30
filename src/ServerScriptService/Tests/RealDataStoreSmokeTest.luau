@@ -19,7 +19,7 @@ local STORE_NAME = "PlayerData_IntegrationTests_v1"
 local RealDataStoreSmokeTest = {}
 
 function RealDataStoreSmokeTest.run()
-	local key = `Smoke_{game.PlaceId}_{HttpService:GenerateGUID(false)}`
+	local key = `Smoke_{HttpService:GenerateGUID(false)}`
 	local config = {
 		DataStoreName = STORE_NAME,
 		Retry = {

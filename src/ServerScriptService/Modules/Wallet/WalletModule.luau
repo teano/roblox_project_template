@@ -19,13 +19,25 @@ local function isFiniteInteger(value: any): boolean
 		and value == math.floor(value)
 end
 
-function WalletModule.new(communication: any)
+local function createEmptyMemento(isInitialized: boolean)
+	local result: { [string]: any } = {
+		IsInitialized = isInitialized,
+	}
+	for currencyId in WalletConfig.CurrencyIds do
+		result[currencyId] = 0
+	end
+	return result
+end
+
+function WalletModule.new(communication: any, configCatalog: any)
 	return setmetatable({
 		Id = WalletConfig.ProviderId,
 		Version = WalletConfig.ProviderVersion,
 		Authority = "Server",
 		_communication = communication,
-		_data = {} :: { [Player]: { [string]: number } },
+		_configCatalog = configCatalog,
+		_config = nil,
+		_data = {} :: { [Player]: { [string]: any } },
 		_running = {} :: { [Player]: boolean },
 		MementoChanged = Signal.new(),
 		Changed = Signal.new(),
@@ -33,34 +45,52 @@ function WalletModule.new(communication: any)
 end
 
 function WalletModule:Initialize()
+	self._config = self._configCatalog:GetRequired("Wallet")
 end
 
 function WalletModule:CreateDefault(_player: Player)
-	return TableUtil.deepCopy(WalletConfig.Defaults)
+	assert(self._config ~= nil, "WalletModule is not initialized")
+	return createEmptyMemento(false)
 end
 
-function WalletModule:ReconcileMemento(player: Player, value: any, _fromVersion: number)
-	local result = self:CreateDefault(player)
-	if typeof(value) == "table" then
-		for currencyId in WalletConfig.CurrencyIds do
-			local amount = value[currencyId]
-			if isFiniteInteger(amount) then
-				result[currencyId] = math.max(0, amount)
-			end
+function WalletModule:ReconcileMemento(_player: Player, value: any, fromVersion: number)
+	if fromVersion >= WalletConfig.ProviderVersion then
+		return TableUtil.deepCopy(value)
+	end
+
+	-- Version 1 stored only flat currency balances. Treat every such wallet as
+	-- already initialized so an existing player never receives the startup
+	-- grant again after upgrading to the version 2 memento.
+	local result = createEmptyMemento(true)
+	if typeof(value) ~= "table" then
+		return result
+	end
+	for currencyId in WalletConfig.CurrencyIds do
+		local amount = value[currencyId]
+		if isFiniteInteger(amount) then
+			result[currencyId] = math.max(0, amount)
 		end
 	end
 	return result
 end
 
-function WalletModule:ValidateMemento(player: Player, value: any): (boolean, any?, string?)
-	local data = self:ReconcileMemento(player, value, self.Version)
-	for key, amount in data do
-		if WalletConfig.CurrencyIds[key] ~= true then
-			return false, nil, `Unknown currency '{tostring(key)}'`
+function WalletModule:ValidateMemento(_player: Player, value: any): (boolean, any?, string?)
+	if typeof(value) ~= "table" or typeof(value.IsInitialized) ~= "boolean" then
+		return false, nil, "Wallet IsInitialized must be a boolean"
+	end
+	for key in value do
+		if key ~= "IsInitialized" and WalletConfig.CurrencyIds[key] ~= true then
+			return false, nil, `Unknown Wallet field '{tostring(key)}'`
 		end
+	end
+
+	local data = createEmptyMemento(value.IsInitialized)
+	for currencyId in WalletConfig.CurrencyIds do
+		local amount = value[currencyId]
 		if not isFiniteInteger(amount) or amount < 0 then
-			return false, nil, `Invalid amount for '{key}'`
+			return false, nil, `Invalid amount for '{currencyId}'`
 		end
+		data[currencyId] = amount
 	end
 	return true, data, nil
 end
@@ -77,7 +107,15 @@ function WalletModule:BeforeMementoGet(_player: Player)
 end
 
 function WalletModule:Run(player: Player)
-	assert(self._data[player] ~= nil, "Wallet memento is not set")
+	local data = assert(self._data[player], "Wallet memento is not set")
+	if not data.IsInitialized then
+		local config = assert(self._config, "WalletModule is not initialized")
+		for currencyId in WalletConfig.CurrencyIds do
+			data[currencyId] = config.StartingBalances[currencyId]
+		end
+		data.IsInitialized = true
+		self.MementoChanged:Fire(player)
+	end
 	self._running[player] = true
 end
 
@@ -87,7 +125,11 @@ function WalletModule:Stop(player: Player)
 end
 
 function WalletModule:ToClientMemento(_player: Player, value: any)
-	return TableUtil.deepCopy(value)
+	local result = {}
+	for currencyId in WalletConfig.CurrencyIds do
+		result[currencyId] = value[currencyId]
+	end
+	return result
 end
 
 function WalletModule:GetBalance(player: Player, currencyId: string): number?

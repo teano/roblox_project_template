@@ -27,9 +27,12 @@ Before editing, adding, moving, or deleting source code:
 
 Before the first Roblox Studio tool or UI operation in a task, run the same
 Rojo preflight again, then explicitly select the Studio instance for the
-current canonical `place.rbxl`. Verify that the Edit DataModel `game.Name`
-matches `default.project.json` `name`; do not inspect or mutate another open
-project. Rerun the preflight after changing repositories, restarting Studio,
+current canonical `place.rbxl`; do not inspect or mutate another open project.
+Treat `default.project.json` `name` only as the Rojo project/server identity,
+not as the Roblox place identity, and never require it to match
+`game.Name`. For a published project, use stable `game.PlaceId`/`game.GameId`
+values recorded by the project or a configured `servePlaceIds` allowlist when
+available. Rerun the preflight after changing repositories, restarting Studio,
 or any event that may have replaced the Rojo process.
 
 The preflight owns the single default Rojo endpoint. It may stop a process only

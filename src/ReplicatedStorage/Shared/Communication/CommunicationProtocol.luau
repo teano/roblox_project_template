@@ -4,6 +4,7 @@ return table.freeze({
 	RemoteFolderName = "Communication",
 	ClientToServerEventName = "ClientToServer",
 	ServerToClientEventName = "ServerToClient",
+	RequestFunctionName = "Request",
 
 	Priorities = table.freeze({
 		Critical = "Critical",

@@ -13,6 +13,7 @@ Command.__index = Command
 function Command.new(deps: {
 	SaveModule: any,
 	Communication: any,
+	Config: any,
 	Version: any,
 	Wallet: any,
 })
@@ -23,12 +24,14 @@ function Command.new(deps: {
 		_logger = Logger.new("GlobalSave.Client", "info"),
 		_controller = nil,
 		_snapshotFunction = nil,
+		_config = nil,
 	}, Command)
 end
 
 function Command:_requestSnapshot()
 	local response
-	for attempt = 1, 20 do
+	local config = assert(self._config, "GlobalSave client config is not initialized")
+	for attempt = 1, config.SnapshotRequestAttempts do
 		local ok, result = pcall(function()
 			return self._snapshotFunction:InvokeServer()
 		end)
@@ -45,7 +48,7 @@ function Command:_requestSnapshot()
 			Attempt = attempt,
 			Code = if ok and typeof(result) == "table" then result.Code else tostring(result),
 		})
-		task.wait(0.5)
+		task.wait(config.SnapshotRetryDelaySeconds)
 	end
 	assert(response ~= nil, "Global save snapshot could not be loaded")
 
@@ -60,6 +63,7 @@ end
 
 function Command:Initialize(context: any)
 	local deps = self._deps
+	self._config = deps.Config:GetRequired("GlobalSave")
 	local controller = deps.SaveModule:BuildSaveController(SaveProtocol.GlobalControllerId)
 		:WithSaveProvider(deps.Version)
 		:WithSaveProvider(deps.Wallet)

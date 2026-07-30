@@ -28,6 +28,9 @@ production и построенная с помощью [Rojo](https://rojo.space
   количеству и размеру, rate limiting, приоритетами, номерами
   последовательности, эпохами снимков, backpressure и автоматической
   ресинхронизацией.
+- Серверный каталог Roblox Experience Configs с чистыми доменными codecs,
+  атомарными immutable generations, deny-by-default клиентскими bundles и
+  явными безопасными проекциями.
 - Независимые от конкретного слоя реестр и строители контроллеров сохранения.
 - Атомарное применение снимков провайдеров с полным откатом.
 - Сохранение в DataStore через `UpdateAsync` с ограниченными повторами,
@@ -217,7 +220,12 @@ Project ADR находятся только в `docs/adr/project/`, поэтом
 5. Проверьте `VersionConfig.CurrentVersion`.
 6. Выберите имя production DataStore и ограничения сохранения в
    `StorageConfig`.
-7. Настройте валюты и начальные балансы в `WalletConfig`.
+7. Настройте стабильные идентификаторы валют в `WalletConfig`.
+8. Создайте обязательные Experience Configs `wallet_config` и
+   `global_save_config` по схемам из
+   [docs/ExperienceConfiguration.md](docs/ExperienceConfiguration.md).
+   Оба значения должны иметь нативный тип `JSON` и быть опубликованы; строка с
+   сериализованным JSON и staged-only значение не подходят.
 
 Для проверки сборки или изучения только исходников используйте сборку Rojo:
 
@@ -277,7 +285,7 @@ StarterPlayerScripts/Bootstrap.client.luau
 Порядок серверной инициализации:
 
 ```text
-Assets → Pooling → Players → Communication → Save → DomainData
+Assets → Pooling → Players → Communication → Config → Save → DomainData
        → GlobalSave → PersistenceSchedule
 ```
 
@@ -285,7 +293,7 @@ Assets → Pooling → Players → Communication → Save → DomainData
 
 ```text
 Assets → StartupContentPreload → Pooling → Players → Communication
-       → Save → DomainData → GlobalSave
+       → Config → Save → DomainData → GlobalSave
 ```
 
 `Assets` один раз индексирует только явно заданные статические корни. Сервер
@@ -316,6 +324,8 @@ Version → Wallet → project providers
 
 Подробное описание жизненного цикла и расширения системы:
 [docs/InitializationAndSaveSystem.md](docs/InitializationAndSaveSystem.md).
+Контракт Experience Configs, codecs, клиентских bundles и refresh:
+[docs/ExperienceConfiguration.md](docs/ExperienceConfiguration.md).
 Контракт папок, путей, `AssetKey` и запросов:
 [docs/AssetRegistry.md](docs/AssetRegistry.md).
 Единая точка предзагрузки, группы, прогресс и ошибки:
@@ -343,7 +353,9 @@ docs/
 ├── CodeGraphSetup.md                 настройка CodeGraph на чистом компьютере
 ├── AssetRegistry.md                  папки, пути, ключи и запросы ассетов
 ├── ContentPreloading.md              единая точка предзагрузки контента
+├── ExperienceConfiguration.md        Experience Configs и client bundles
 ├── InitializationAndSaveSystem.md
+├── IntegrationTesting.md             отдельное интеграционное окружение
 └── ResourceManagement.md             пулы, адаптеры, lease и очистка
 .agents/rules/                        обязательные правила изменения проекта
 ```
@@ -467,8 +479,11 @@ walletModule:Add(player, "Coins", amount, reason, metadata)
 walletModule:TrySpend(player, "Coins", price, reason, metadata)
 ```
 
-Поддерживаемые идентификаторы валют и начальные балансы настраиваются в
-`ReplicatedStorage/Shared/Wallet/WalletConfig.luau`.
+Поддерживаемые идентификаторы валют задаются в
+`ReplicatedStorage/Shared/Wallet/WalletConfig.luau`. Одноразовые начальные
+балансы новых игроков задаются в Experience Config `wallet_config`; серверный
+persistent memento хранит `IsInitialized`, поэтому стартовая выдача не
+повторяется.
 
 ## Настройка сохранения
 
@@ -478,7 +493,7 @@ Production-настройки по умолчанию находятся в
 По умолчанию Studio использует `MemoryStorage`, поэтому обычные Play-сессии не
 обращаются к DataStore. В production используется `DataStoreStorage`, обёрнутый
 в `SessionLockingStorage`. Автосохранение обрабатывает изменённые контроллеры с
-целевым интервалом 60 секунд; при выходе игрока и завершении сервера сохранение
+интервалом из `global_save_config`; при выходе игрока и завершении сервера сохранение
 выполняется явно.
 
 Не запускайте smoke-тест настоящего DataStore в production place или
@@ -499,6 +514,7 @@ Studio Play:
 require(game.ServerScriptService.Tests.ResourceManagementTestRunner).runAll()
 require(game.ServerScriptService.Tests.AssetRegistryTestRunner).runAll()
 require(game.ServerScriptService.Tests.ContentPreloaderTestRunner).runAll()
+require(game.ServerScriptService.Tests.ConfigCatalogTestRunner).runAll()
 require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 ```
@@ -512,8 +528,25 @@ require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 require(game.ServerScriptService.Tests.RealDataStoreSmokeTest).run()
 ```
 
-Он записывает GUID-ключ только в `PlayerData_IntegrationTests_v1`, после чего
-пытается удалить его.
+Он создаёт 42-символьный ключ `Smoke_<GUID>` только в
+`PlayerData_IntegrationTests_v1`, записывает данные, освобождает блокировку,
+повторно загружает и проверяет их, после чего удаляет ключ. Успех означает
+одновременно `Ok = true` и `CleanupOk = true`.
+
+Подготовка интеграционного окружения всегда выполняется в фиксированном
+порядке:
+
+1. Создать или обновить отдельную локальную копию
+   `{project_folder}_IntegrationTest` и отдельный Roblox test Experience.
+2. Перенести в test Experience все обязательные Experience Configs,
+   обязательно создать структурированные значения с нативным типом `JSON`,
+   опубликовать их и сверить ключи, типы и значения во вкладке Published.
+3. Только после публикации конфигов прикрепить канонический `place.rbxl`
+   интеграционной копии к test Experience и проверить его стабильные
+   `PlaceId`/`GameId`.
+
+Полный порядок, проверки и критерии готовности описаны в
+[docs/IntegrationTesting.md](docs/IntegrationTesting.md).
 
 ## Управление проектом
 
