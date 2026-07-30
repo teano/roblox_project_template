@@ -10,6 +10,17 @@ local SaveSerialize = require(ReplicatedStorage.Shared.Save.SaveSerialize)
 local MementoTransaction = require(ReplicatedStorage.Shared.Save.MementoTransaction)
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 
+type SaveOperation = {
+	Pending: boolean,
+	Completed: boolean,
+	Result: any?,
+}
+
+type CloseOperation = {
+	Completed: boolean,
+	Result: any?,
+}
+
 type Runtime = {
 	Owner: Player,
 	Key: string,
@@ -18,8 +29,9 @@ type Runtime = {
 	Dirty: boolean,
 	Running: boolean,
 	State: string,
-	SaveInFlight: boolean,
-	PendingSave: boolean,
+	ActiveSave: SaveOperation?,
+	ActiveClose: CloseOperation?,
+	CloseRequested: boolean,
 	LastSavedAt: number,
 	LastLockRefreshAt: number,
 }
@@ -281,8 +293,9 @@ function ServerSaveController:Load(player: Player, beforeApply: ((any) -> any)?)
 		Dirty = false,
 		Running = false,
 		State = "Loading",
-		SaveInFlight = false,
-		PendingSave = false,
+		ActiveSave = nil,
+		ActiveClose = nil,
+		CloseRequested = false,
 		LastSavedAt = os.clock(),
 		LastLockRefreshAt = os.clock(),
 	}
@@ -293,6 +306,17 @@ function ServerSaveController:Load(player: Player, beforeApply: ((any) -> any)?)
 		runtime.State = "LoadFailed"
 		self.PlayerLoadFailed:Fire(player, loaded)
 		return loaded
+	end
+	if runtime.CloseRequested then
+		local releaseResult = self._storage:Release(key)
+		runtime.State = "LoadCancelled"
+		return {
+			Ok = false,
+			Code = "LoadCancelled",
+			Error = if releaseResult.Ok
+				then "Load was cancelled because the player is closing"
+				else `Load was cancelled and lock release failed: {releaseResult.Error or releaseResult.Code or "unknown"}`,
+		}
 	end
 
 	local ok, applyError = xpcall(function()
@@ -314,6 +338,13 @@ function ServerSaveController:Load(player: Player, beforeApply: ((any) -> any)?)
 			Ok = false,
 			Code = "ApplyFailed",
 			Error = tostring(applyError),
+		}
+	end
+	if runtime.CloseRequested then
+		return {
+			Ok = false,
+			Code = "LoadCancelled",
+			Error = "Load completed after player close was requested",
 		}
 	end
 
@@ -346,39 +377,52 @@ function ServerSaveController:_captureDirty(player: Player, runtime: Runtime): (
 		return true, nil
 	end
 
-	local changed = false
-	local dirty = runtime.DirtyProviders
+	local dirtyProviders = runtime.DirtyProviders
 	runtime.DirtyProviders = {}
 
-	for providerId in dirty do
-		local provider = self._providersById[providerId]
-		if provider == nil then
-			continue
+	local function restoreDirtyProviders()
+		for providerId in dirtyProviders do
+			runtime.DirtyProviders[providerId] = true
 		end
+	end
 
-		local ok, dataOrError = xpcall(function()
+	local providerIds = {}
+	for providerId in dirtyProviders do
+		table.insert(providerIds, providerId)
+	end
+	table.sort(providerIds)
+
+	local capturedEnvelopes = {}
+	local captured, captureError = xpcall(function()
+		for _, providerId in providerIds do
+			local provider = self._providersById[providerId]
+			if provider == nil then
+				continue
+			end
+
 			if provider.BeforeMementoGet then
 				provider:BeforeMementoGet(player)
 			end
-			return provider:GetMemento(player)
-		end, debug.traceback)
-		if not ok then
-			runtime.DirtyProviders[providerId] = true
-			return false, tostring(dataOrError)
-		end
+			local value = provider:GetMemento(player)
+			local valid, sanitized, validationError = provider:ValidateMemento(player, value)
+			if not valid then
+				error(`Provider '{providerId}' capture invalid: {validationError or "unknown"}`)
+			end
 
-		local valid, sanitized, validationError = provider:ValidateMemento(player, dataOrError)
-		if not valid then
-			runtime.DirtyProviders[providerId] = true
-			return false, `Provider '{providerId}' capture invalid: {validationError or "unknown"}`
+			local data = if sanitized ~= nil then sanitized else value
+			capturedEnvelopes[providerId] = self:_makeProviderEnvelope(provider, data)
 		end
-
-		local data = if sanitized ~= nil then sanitized else dataOrError
-		runtime.Document.Providers[providerId] = self:_makeProviderEnvelope(provider, data)
-		changed = true
+	end, debug.traceback)
+	if not captured then
+		restoreDirtyProviders()
+		return false, tostring(captureError)
 	end
 
-	if changed then
+	for providerId, envelope in capturedEnvelopes do
+		runtime.Document.Providers[providerId] = envelope
+	end
+
+	if next(capturedEnvelopes) ~= nil then
 		runtime.Document.Revision += 1
 		runtime.Document.Metadata.UpdatedAt = os.time()
 		runtime.Dirty = true
@@ -508,9 +552,10 @@ function ServerSaveController:ForceSave(player: Player, _reason: string?, option
 		}
 	end
 
-	if runtime.SaveInFlight then
-		runtime.PendingSave = true
-		while runtime.SaveInFlight do
+	local activeSave = runtime.ActiveSave
+	if activeSave ~= nil then
+		activeSave.Pending = true
+		while not activeSave.Completed do
 			if options and options.Deadline and os.clock() >= options.Deadline then
 				return {
 					Ok = false,
@@ -520,79 +565,104 @@ function ServerSaveController:ForceSave(player: Player, _reason: string?, option
 			end
 			task.wait()
 		end
-		return {
-			Ok = true,
-			Revision = runtime.Document.Revision,
-		}
+		return TableUtil.deepCopy(activeSave.Result)
 	end
 
-	runtime.SaveInFlight = true
-	local finalResult: any = nil
+	local operation: SaveOperation = {
+		Pending = false,
+		Completed = false,
+		Result = nil,
+	}
+	runtime.ActiveSave = operation
 
-	repeat
-		if options and options.Deadline and os.clock() >= options.Deadline then
-			finalResult = {
-				Ok = false,
-				Code = "DeadlineExceeded",
-				Error = "Save deadline exceeded",
-			}
-			break
-		end
-		runtime.PendingSave = false
-		local captured, captureError = self:_captureDirty(player, runtime)
-		if not captured then
-			finalResult = {
-				Ok = false,
-				Code = "CaptureFailed",
-				Error = captureError or "Capture failed",
-			}
-			break
-		end
+	local completed, resultOrError = xpcall(function()
+		local finalResult: any = nil
+		repeat
+			if options and options.Deadline and os.clock() >= options.Deadline then
+				finalResult = {
+					Ok = false,
+					Code = "DeadlineExceeded",
+					Error = "Save deadline exceeded",
+				}
+				break
+			end
+			operation.Pending = false
+			local captured, captureError = self:_captureDirty(player, runtime)
+			if not captured then
+				finalResult = {
+					Ok = false,
+					Code = "CaptureFailed",
+					Error = captureError or "Capture failed",
+				}
+				break
+			end
 
-		if not runtime.Dirty then
+			if not runtime.Dirty then
+				finalResult = {
+					Ok = true,
+					Revision = runtime.Document.Revision,
+				}
+				break
+			end
+
+			local document = TableUtil.deepCopy(runtime.Document)
+			local valid, issues = SaveSerialize.validate(document)
+			if not valid then
+				finalResult = {
+					Ok = false,
+					Code = "SerializeInvalid",
+					Error = `{issues[1].Path}: {issues[1].Reason}`,
+				}
+				break
+			end
+
+			local measured, encodedSize, measurementError = SaveSerialize.measureEncodedSize(document)
+			if not measured then
+				finalResult = {
+					Ok = false,
+					Code = "SerializeInvalid",
+					Error = measurementError or "Save document could not be JSON encoded",
+				}
+				break
+			end
+			if (encodedSize :: number) > self._softLimit then
+				finalResult = {
+					Ok = false,
+					Code = "SizeLimit",
+					Error = "Save document exceeds soft size limit",
+				}
+				break
+			end
+
+			local revisionBeingSaved = document.Revision
+			local saveResult = self._storage:Save(runtime.Key, document, options)
+			if not saveResult.Ok then
+				finalResult = saveResult
+				break
+			end
+
+			runtime.LastSavedAt = os.clock()
+			runtime.LastLockRefreshAt = os.clock()
+			runtime.Dirty = runtime.Document.Revision > revisionBeingSaved
+				or next(runtime.DirtyProviders) ~= nil
 			finalResult = {
 				Ok = true,
-				Revision = runtime.Document.Revision,
+				Revision = revisionBeingSaved,
 			}
-			break
-		end
+		until not operation.Pending and not runtime.Dirty
+		return finalResult
+	end, debug.traceback)
 
-		local document = TableUtil.deepCopy(runtime.Document)
-		local valid, issues = SaveSerialize.validate(document)
-		if not valid then
-			finalResult = {
-				Ok = false,
-				Code = "SerializeInvalid",
-				Error = `{issues[1].Path}: {issues[1].Reason}`,
-			}
-			break
-		end
-		if SaveSerialize.estimateSize(document) > self._softLimit then
-			finalResult = {
-				Ok = false,
-				Code = "SizeLimit",
-				Error = "Save document exceeds soft size limit",
-			}
-			break
-		end
-
-		local revisionBeingSaved = document.Revision
-		local saveResult = self._storage:Save(runtime.Key, document, options)
-		if not saveResult.Ok then
-			finalResult = saveResult
-			break
-		end
-
-		runtime.LastSavedAt = os.clock()
-		runtime.LastLockRefreshAt = os.clock()
-		runtime.Dirty = runtime.Document.Revision > revisionBeingSaved
-		finalResult = {
-			Ok = true,
-			Revision = revisionBeingSaved,
+	local finalResult = if completed
+		then resultOrError
+		else {
+			Ok = false,
+			Code = "SaveFailed",
+			Error = tostring(resultOrError),
 		}
-	until not runtime.PendingSave and not runtime.Dirty
-
-	runtime.SaveInFlight = false
+	operation.Result = finalResult
+	operation.Completed = true
+	runtime.ActiveSave = nil
 	return finalResult
 end
 
@@ -623,37 +693,94 @@ function ServerSaveController:Close(player: Player, saveBeforeClose: boolean?, o
 	if runtime == nil then
 		return { Ok = true }
 	end
-	runtime.State = "Closing"
 
-	local saveResult = { Ok = true, Revision = runtime.Document.Revision }
-	if saveBeforeClose ~= false then
-		runtime.State = "Loaded"
-		saveResult = self:ForceSave(player, "Close", options)
+	local activeClose = runtime.ActiveClose
+	if activeClose ~= nil then
+		while not activeClose.Completed do
+			if options and options.Deadline and os.clock() >= options.Deadline then
+				return {
+					Ok = false,
+					Code = "DeadlineExceeded",
+					Error = "Timed out waiting for the active close",
+				}
+			end
+			task.wait()
+		end
+		return TableUtil.deepCopy(activeClose.Result)
+	end
+
+	local operation: CloseOperation = {
+		Completed = false,
+		Result = nil,
+	}
+	runtime.ActiveClose = operation
+	runtime.CloseRequested = true
+
+	local completed, resultOrError = xpcall(function()
+		while runtime.State == "Loading" or runtime.State == "Applying" do
+			if options and options.Deadline and os.clock() >= options.Deadline then
+				return {
+					Ok = false,
+					Code = "DeadlineExceeded",
+					Error = "Timed out waiting for load or snapshot application to finish",
+				}
+			end
+			task.wait()
+		end
+
+		if self._runtimes[player] ~= runtime then
+			return { Ok = true }
+		end
+
+		local shouldSave = saveBeforeClose ~= false and (runtime.State == "Loaded" or runtime.Running)
 		runtime.State = "Closing"
-		if not saveResult.Ok and saveResult.Code == "DeadlineExceeded" then
+
+		local saveResult = { Ok = true, Revision = runtime.Document.Revision }
+		if shouldSave then
 			runtime.State = "Loaded"
+			saveResult = self:ForceSave(player, "Close", options)
+			runtime.State = "Closing"
+			if not saveResult.Ok and saveResult.Code == "DeadlineExceeded" then
+				runtime.State = "Loaded"
+				return saveResult
+			end
+		end
+
+		local stopOk, stopError = xpcall(function()
+			self:_stopProviders(player)
+		end, debug.traceback)
+		if not stopOk then
+			self._logger:Error("provider_stop_failed", {
+				UserId = player.UserId,
+				Error = tostring(stopError),
+			})
+		end
+
+		local releaseResult = self._storage:Release(runtime.Key, options)
+		if self._runtimes[player] == runtime then
+			self._runtimes[player] = nil
+			self.PlayerClosed:Fire(player)
+		end
+
+		if not saveResult.Ok then
 			return saveResult
 		end
-	end
-
-	local stopOk, stopError = xpcall(function()
-		self:_stopProviders(player)
+		return releaseResult
 	end, debug.traceback)
-	if not stopOk then
-		self._logger:Error("provider_stop_failed", {
-			UserId = player.UserId,
-			Error = tostring(stopError),
-		})
-	end
 
-	local releaseResult = self._storage:Release(runtime.Key, options)
-	self._runtimes[player] = nil
-	self.PlayerClosed:Fire(player)
-
-	if not saveResult.Ok then
-		return saveResult
+	local finalResult = if completed
+		then resultOrError
+		else {
+			Ok = false,
+			Code = "CloseFailed",
+			Error = tostring(resultOrError),
+		}
+	operation.Result = finalResult
+	operation.Completed = true
+	if self._runtimes[player] == runtime then
+		runtime.ActiveClose = nil
 	end
-	return releaseResult
+	return finalResult
 end
 
 function ServerSaveController:Destroy(saveBeforeClose: boolean?)

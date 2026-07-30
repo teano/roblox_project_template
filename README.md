@@ -500,6 +500,10 @@ walletModule:TrySpend(player, "Coins", price, reason, metadata)
 балансы новых игроков задаются в Experience Config `wallet_config`; серверный
 persistent memento хранит `IsInitialized`, поэтому стартовая выдача не
 повторяется.
+Балансы, стартовые значения и суммы транзакций должны быть неотрицательными
+safe integers не выше `WalletConfig.MaxBalance` (`2^53 - 1`). Операция, которая
+превысила бы этот предел, завершается с `BalanceLimitExceeded` без изменения
+кошелька.
 
 ## Настройка сохранения
 

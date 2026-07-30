@@ -29,6 +29,10 @@ local function createEmptyMemento(isInitialized: boolean)
 	return result
 end
 
+local function isSafeBalance(value: any): boolean
+	return isFiniteInteger(value) and value >= 0 and value <= WalletConfig.MaxBalance
+end
+
 function WalletModule.new(communication: any, configCatalog: any)
 	return setmetatable({
 		Id = WalletConfig.ProviderId,
@@ -68,7 +72,7 @@ function WalletModule:ReconcileMemento(_player: Player, value: any, fromVersion:
 	for currencyId in WalletConfig.CurrencyIds do
 		local amount = value[currencyId]
 		if isFiniteInteger(amount) then
-			result[currencyId] = math.max(0, amount)
+			result[currencyId] = math.min(WalletConfig.MaxBalance, math.max(0, amount))
 		end
 	end
 	return result
@@ -87,7 +91,7 @@ function WalletModule:ValidateMemento(_player: Player, value: any): (boolean, an
 	local data = createEmptyMemento(value.IsInitialized)
 	for currencyId in WalletConfig.CurrencyIds do
 		local amount = value[currencyId]
-		if not isFiniteInteger(amount) or amount < 0 then
+		if not isSafeBalance(amount) then
 			return false, nil, `Invalid amount for '{currencyId}'`
 		end
 		data[currencyId] = amount
@@ -139,6 +143,7 @@ function WalletModule:GetBalance(player: Player, currencyId: string): number?
 end
 
 function WalletModule:_set(player: Player, currencyId: string, newValue: number, reason: string, metadata: any?)
+	assert(isSafeBalance(newValue), "new wallet balance must be a safe non-negative integer")
 	local data = assert(self._data[player], "Wallet is not loaded")
 	assert(self._running[player], "Wallet is not running")
 	local oldValue = data[currencyId]
@@ -178,14 +183,21 @@ end
 
 function WalletModule:Add(player: Player, currencyId: string, amount: number, reason: string, metadata: any?)
 	assert(WalletConfig.CurrencyIds[currencyId] == true, `Unknown currency '{currencyId}'`)
-	assert(isFiniteInteger(amount) and amount >= 0, "amount must be a non-negative integer")
+	assert(isSafeBalance(amount), "amount must be a safe non-negative integer")
 	local balance = assert(self:GetBalance(player, currencyId), "Wallet is not loaded")
+	if amount > WalletConfig.MaxBalance - balance then
+		return {
+			Ok = false,
+			Code = "BalanceLimitExceeded",
+			Error = "Wallet balance would exceed the safe integer limit",
+		}
+	end
 	return self:_set(player, currencyId, balance + amount, reason, metadata)
 end
 
 function WalletModule:TrySpend(player: Player, currencyId: string, amount: number, reason: string, metadata: any?)
 	assert(WalletConfig.CurrencyIds[currencyId] == true, `Unknown currency '{currencyId}'`)
-	assert(isFiniteInteger(amount) and amount >= 0, "amount must be a non-negative integer")
+	assert(isSafeBalance(amount), "amount must be a safe non-negative integer")
 	local balance = assert(self:GetBalance(player, currencyId), "Wallet is not loaded")
 	if balance < amount then
 		return {

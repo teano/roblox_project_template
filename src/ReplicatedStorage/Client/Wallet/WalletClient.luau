@@ -17,6 +17,10 @@ local function isFiniteInteger(value: any): boolean
 		and value == math.floor(value)
 end
 
+local function isSafeBalance(value: any): boolean
+	return isFiniteInteger(value) and value >= 0 and value <= WalletConfig.MaxBalance
+end
+
 function WalletClient.new(communication: any)
 	local self = setmetatable({
 		Id = WalletConfig.ProviderId,
@@ -43,7 +47,7 @@ function WalletClient:ValidateMemento(value: any): (boolean, any?, string?)
 	local result = {}
 	for currencyId in WalletConfig.CurrencyIds do
 		local amount = value[currencyId]
-		if not isFiniteInteger(amount) or amount < 0 then
+		if not isSafeBalance(amount) then
 			return false, nil, `Invalid currency '{currencyId}'`
 		end
 		result[currencyId] = amount
@@ -81,7 +85,8 @@ function WalletClient:_handleChanged(change: any)
 	local currencyId = change.Path[1]
 	if typeof(currencyId) ~= "string"
 		or WalletConfig.CurrencyIds[currencyId] ~= true
-		or not isFiniteInteger(change.NewValue)
+		or not isSafeBalance(change.NewValue)
+		or not isSafeBalance(change.OldValue)
 	then
 		error("Invalid Wallet.Changed payload")
 	end

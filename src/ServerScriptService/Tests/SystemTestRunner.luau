@@ -16,7 +16,9 @@ local MemoryStorage = require(ServerScriptService.Modules.Storage.MemoryStorage)
 local SessionLockingStorage = require(ServerScriptService.Modules.Storage.SessionLockingStorage)
 local ServerSaveController = require(ServerScriptService.Modules.Save.ServerSaveController)
 local MigrationModule = require(ServerScriptService.Modules.Migration.MigrationModule)
+local PlayersModule = require(ServerScriptService.Modules.Players.PlayersModule)
 local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
+local WalletConfig = require(ReplicatedStorage.Shared.Wallet.WalletConfig)
 local ServerManifest = require(ServerScriptService.Initialization.ServerManifest)
 
 local SystemTestRunner = {}
@@ -198,6 +200,83 @@ function SystemTestRunner.runAll()
 		assertTrue(not laterConnection.Connected, "destroy must disconnect remaining listeners")
 	end)
 
+	test("player observation emits each player once across subscribe-enumerate races", function()
+		local playersModule = PlayersModule.new()
+		local player = { UserId = 4_201 } :: any
+		local added = 0
+		local removed = 0
+		local currentPlayer = player
+
+		playersModule.GetPlayers = function(self)
+			self.PlayerAdded:Fire(player)
+			return { player }
+		end
+		playersModule.GetPlayerByUserId = function(_self, userId)
+			return if currentPlayer ~= nil and currentPlayer.UserId == userId then currentPlayer else nil
+		end
+
+		local disconnect = playersModule:ObservePlayers(function(observedPlayer)
+			assertEqual(observedPlayer, player)
+			added += 1
+		end, function(observedPlayer)
+			assertEqual(observedPlayer, player)
+			removed += 1
+		end)
+		task.wait()
+		assertEqual(added, 1, "subscribe-enumerate race emitted a duplicate player")
+
+		currentPlayer = nil
+		playersModule.PlayerRemoving:Fire(player)
+		playersModule.PlayerRemoving:Fire(player)
+		task.wait()
+		assertEqual(removed, 1, "player removal must be emitted once per observation")
+
+		disconnect()
+		disconnect()
+		playersModule.PlayerAdded:Fire(player)
+		task.wait()
+		assertEqual(added, 1, "disconnected observer received another player")
+
+		currentPlayer = player
+		local addedWithoutRemovalCallback = 0
+		local disconnectWithoutRemovalCallback = playersModule:ObservePlayers(function()
+			addedWithoutRemovalCallback += 1
+		end)
+		task.wait()
+		assertEqual(addedWithoutRemovalCallback, 1)
+		currentPlayer = nil
+		playersModule.PlayerRemoving:Fire(player)
+		task.wait()
+		currentPlayer = player
+		playersModule.PlayerAdded:Fire(player)
+		task.wait()
+		assertEqual(
+			addedWithoutRemovalCallback,
+			2,
+			"observation state must be cleared on removal even without an onRemoving callback"
+		)
+		disconnectWithoutRemovalCallback()
+
+		local departedPlayersModule = PlayersModule.new()
+		local departedPlayer = { UserId = 4_202 } :: any
+		local departedCurrent = departedPlayer
+		departedPlayersModule.GetPlayerByUserId = function(_self, userId)
+			return if departedCurrent ~= nil and departedCurrent.UserId == userId then departedCurrent else nil
+		end
+		departedPlayersModule.GetPlayers = function(self)
+			departedCurrent = nil
+			self.PlayerRemoving:Fire(departedPlayer)
+			return { departedPlayer }
+		end
+		local departedAdds = 0
+		local disconnectDeparted = departedPlayersModule:ObservePlayers(function()
+			departedAdds += 1
+		end)
+		task.wait()
+		assertEqual(departedAdds, 0, "enumeration must not deliver a player who already left")
+		disconnectDeparted()
+	end)
+
 	test("initialization follows manifest and is idempotent", function()
 		local order = {}
 		local commands = {
@@ -337,6 +416,20 @@ function SystemTestRunner.runAll()
 		assertEqual(dirty, 2)
 		assertEqual(#messages, 1)
 		assertEqual(wallet:TrySpend(player, "Coins", 126, "Test").Code, "InsufficientFunds")
+		assertTrue(
+			wallet:Add(player, "Coins", WalletConfig.MaxBalance - 125, "Boundary").Ok,
+			"safe maximum balance must be accepted"
+		)
+		assertEqual(wallet:GetBalance(player, "Coins"), WalletConfig.MaxBalance)
+		assertEqual(wallet:Add(player, "Coins", 1, "Overflow").Code, "BalanceLimitExceeded")
+		assertEqual(wallet:GetBalance(player, "Coins"), WalletConfig.MaxBalance)
+
+		local validOversized = wallet:ValidateMemento(player, {
+			IsInitialized = true,
+			Coins = WalletConfig.MaxBalance + 1,
+			Gems = 0,
+		})
+		assertEqual(validOversized, false, "unsafe persisted balances must be rejected")
 
 		local legacy = wallet:ReconcileMemento(player, {
 			Coins = 9,

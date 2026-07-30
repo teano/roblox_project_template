@@ -10,6 +10,8 @@ Apply to player joins/leaves, character spawn/removal, player lookup, character 
 - Client systems MUST consume local player and character lifecycle through `ReplicatedStorage.Client.Players.PlayersModule`.
 - `PlayersModule` is the only project wrapper that subscribes directly to platform player/character lifecycle events.
 - `ObservePlayers` consumers MUST handle players already present at subscription time.
+- Existing-player enumeration MUST confirm that a player is still present before delivery.
+- Observer membership MUST be cleared on player removal even when the consumer does not request an `onRemoving` callback.
 - Player removal cleanup MUST be idempotent because shutdown and removal paths may overlap.
 - Character-bound resources MUST be disconnected or destroyed on character removal/destruction.
 - Save loading and closing remain subscribers of `PlayersModule`; they do not belong inside the wrapper.

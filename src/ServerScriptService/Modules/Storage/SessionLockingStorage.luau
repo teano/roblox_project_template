@@ -44,30 +44,42 @@ end
 
 function SessionLockingStorage:Load(key: string, options: any?)
 	local lockId = HttpService:GenerateGUID(false)
-	local acquired = false
 	local staleTakeover = false
 
 	local result = self._base:Update(key, function(raw)
+		staleTakeover = false
+		if raw ~= nil and typeof(raw) ~= "table" then
+			return raw
+		end
 		local document = if typeof(raw) == "table" then TableUtil.deepCopy(raw) else createEmptyDocument()
 		local session = document.Session
 		if typeof(session) == "table" and session.LockId ~= lockId then
 			local lastHeartbeat = if typeof(session.LastHeartbeatAt) == "number" then session.LastHeartbeatAt else 0
 			local stale = os.time() - lastHeartbeat >= self._config.StaleLockSeconds
 			if not stale then
-				return document
+				return nil
 			end
 			staleTakeover = stale
 		end
 
 		document.Session = self:_makeSession(lockId)
-		acquired = true
 		return document
 	end, options)
 
 	if not result.Ok then
 		return result
 	end
-	if not acquired then
+	if result.Value ~= nil and typeof(result.Value) ~= "table" then
+		return {
+			Ok = false,
+			Code = "InvalidDocument",
+			Error = "Stored save document root must be a table",
+		}
+	end
+	if typeof(result.Value) ~= "table"
+		or typeof(result.Value.Session) ~= "table"
+		or result.Value.Session.LockId ~= lockId
+	then
 		return {
 			Ok = false,
 			Code = "SessionLocked",
@@ -94,16 +106,14 @@ function SessionLockingStorage:Save(key: string, document: any, options: any?)
 		}
 	end
 
-	local owned = false
 	local result = self._base:Update(key, function(current)
 		if typeof(current) ~= "table"
 			or typeof(current.Session) ~= "table"
 			or current.Session.LockId ~= lockId
 		then
-			return current
+			return nil
 		end
 
-		owned = true
 		local nextDocument = TableUtil.deepCopy(document)
 		nextDocument.Session = self:_makeSession(lockId)
 		nextDocument.Metadata = nextDocument.Metadata or {}
@@ -114,7 +124,10 @@ function SessionLockingStorage:Save(key: string, document: any, options: any?)
 	if not result.Ok then
 		return result
 	end
-	if not owned then
+	if typeof(result.Value) ~= "table"
+		or typeof(result.Value.Session) ~= "table"
+		or result.Value.Session.LockId ~= lockId
+	then
 		self._locks[key] = nil
 		return {
 			Ok = false,
@@ -137,15 +150,13 @@ function SessionLockingStorage:Refresh(key: string, options: any?)
 		}
 	end
 
-	local owned = false
 	local result = self._base:Update(key, function(current)
 		if typeof(current) ~= "table"
 			or typeof(current.Session) ~= "table"
 			or current.Session.LockId ~= lockId
 		then
-			return current
+			return nil
 		end
-		owned = true
 		local nextDocument = TableUtil.deepCopy(current)
 		nextDocument.Session = self:_makeSession(lockId)
 		return nextDocument
@@ -154,7 +165,10 @@ function SessionLockingStorage:Refresh(key: string, options: any?)
 	if not result.Ok then
 		return result
 	end
-	if not owned then
+	if typeof(result.Value) ~= "table"
+		or typeof(result.Value.Session) ~= "table"
+		or result.Value.Session.LockId ~= lockId
+	then
 		self._locks[key] = nil
 		return {
 			Ok = false,
@@ -176,17 +190,17 @@ function SessionLockingStorage:Release(key: string, options: any?)
 			or typeof(current.Session) ~= "table"
 			or current.Session.LockId ~= lockId
 		then
-			return current
+			return nil
 		end
 		local nextDocument = TableUtil.deepCopy(current)
 		nextDocument.Session = nil
 		return nextDocument
 	end, options)
 
-	self._locks[key] = nil
 	if not result.Ok then
 		return result
 	end
+	self._locks[key] = nil
 	return { Ok = true }
 end
 

@@ -13,9 +13,11 @@ local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 local CommunicationProtocol = require(ReplicatedStorage.Shared.Communication.CommunicationProtocol)
 local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.CommunicationConfig)
 local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
+local SaveSerialize = require(ReplicatedStorage.Shared.Save.SaveSerialize)
 local TokenBucket = require(ReplicatedStorage.Shared.Communication.TokenBucket)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
 local ClientSaveController = require(ReplicatedStorage.Client.Save.ClientSaveController)
+local WalletClient = require(ReplicatedStorage.Client.Wallet.WalletClient)
 
 local GlobalSaveInitializationCommand =
 	require(ServerScriptService.Initialization.Commands.GlobalSaveInitializationCommand)
@@ -291,6 +293,487 @@ function ProductionIntegrationTestRunner.runAll()
 		assertTrue(second:Release("Shared").Ok, "takeover release failed")
 	end)
 
+	test("session ownership follows only the final UpdateAsync transform", function()
+		local function makeReplayBase(replayConflict: boolean)
+			local base = {
+				ReplayConflict = replayConflict,
+				Stored = nil,
+			}
+			function base:Update(_key, transform)
+				local candidate = transform(self.Stored)
+				if self.ReplayConflict then
+					local finalCandidate = transform({
+						FormatVersion = 1,
+						Revision = 0,
+						Providers = {},
+						Metadata = {},
+						Session = {
+							LockId = "foreign-live-lock",
+							LastHeartbeatAt = os.time(),
+						},
+					})
+					if finalCandidate ~= nil then
+						self.Stored = finalCandidate
+					end
+					return {
+						Ok = true,
+						Value = finalCandidate,
+					}
+				end
+				if candidate ~= nil then
+					self.Stored = candidate
+				end
+				return {
+					Ok = true,
+					Value = candidate,
+				}
+			end
+			return base
+		end
+
+		local blockedBase = makeReplayBase(true)
+		local blocked = SessionLockingStorage.new(blockedBase, { StaleLockSeconds = 1_800 })
+		assertEqual(blocked:Load("Replay").Code, "SessionLocked")
+		assertEqual(blocked:HasLock("Replay"), false)
+
+		local saveBase = makeReplayBase(false)
+		local saveOwner = SessionLockingStorage.new(saveBase, { StaleLockSeconds = 1_800 })
+		local loaded = saveOwner:Load("Replay")
+		assertTrue(loaded.Ok, "save replay owner did not acquire initial lock")
+		saveBase.ReplayConflict = true
+		assertEqual(saveOwner:Save("Replay", loaded.Document).Code, "LockLost")
+		assertEqual(saveOwner:HasLock("Replay"), false)
+
+		local refreshBase = makeReplayBase(false)
+		local refreshOwner = SessionLockingStorage.new(refreshBase, { StaleLockSeconds = 1_800 })
+		assertTrue(refreshOwner:Load("Replay").Ok, "refresh replay owner did not acquire initial lock")
+		refreshBase.ReplayConflict = true
+		assertEqual(refreshOwner:Refresh("Replay").Code, "LockLost")
+		assertEqual(refreshOwner:HasLock("Replay"), false)
+	end)
+
+	test("session locking rejects a corrupted document root without replacing it", function()
+		local base = {
+			Stored = "corrupted-profile",
+		}
+		function base:Update(_key, transform)
+			local candidate = transform(self.Stored)
+			if candidate ~= nil then
+				self.Stored = candidate
+			end
+			return {
+				Ok = true,
+				Value = candidate,
+			}
+		end
+
+		local storage = SessionLockingStorage.new(base, { StaleLockSeconds = 1_800 })
+		local result = storage:Load("Corrupt")
+		assertEqual(result.Ok, false)
+		assertEqual(result.Code, "InvalidDocument")
+		assertEqual(base.Stored, "corrupted-profile")
+		assertEqual(storage:HasLock("Corrupt"), false)
+	end)
+
+	test("concurrent ForceSave callers receive the active save failure", function()
+		local saveStarted = false
+		local releaseSave = false
+		local saveCalls = 0
+		local storage = {
+			Load = function()
+				return {
+					Ok = true,
+					Document = {
+						FormatVersion = 1,
+						Revision = 0,
+						Providers = {},
+						Metadata = {
+							CreatedAt = os.time(),
+							UpdatedAt = os.time(),
+						},
+					},
+				}
+			end,
+			Save = function()
+				saveCalls += 1
+				saveStarted = true
+				while not releaseSave do
+					task.wait()
+				end
+				return {
+					Ok = false,
+					Code = "InjectedFailure",
+					Error = "expected",
+				}
+			end,
+			Release = function()
+				return { Ok = true }
+			end,
+		}
+		local provider = makeServerProvider("SingleFlight", nil)
+		local controller = ServerSaveController.new({
+			Id = "single_flight",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function()
+				return "SingleFlight"
+			end,
+		})
+		local player = { UserId = 4_211 } :: any
+		assertTrue(controller:Load(player).Ok, "single-flight controller load failed")
+
+		local firstResult = nil
+		local secondResult = nil
+		task.spawn(function()
+			firstResult = controller:ForceSave(player, "First")
+		end)
+		while not saveStarted do
+			task.wait()
+		end
+		task.spawn(function()
+			secondResult = controller:ForceSave(player, "Second")
+		end)
+		task.wait()
+		releaseSave = true
+		while firstResult == nil or secondResult == nil do
+			task.wait()
+		end
+
+		assertEqual(firstResult.Ok, false)
+		assertEqual(secondResult.Ok, false)
+		assertEqual(firstResult.Code, "InjectedFailure")
+		assertEqual(secondResult.Code, "InjectedFailure")
+		assertEqual(saveCalls, 1)
+		controller:Destroy(false)
+	end)
+
+	test("player close cancels an in-flight load without applying provider state", function()
+		local loadStarted = false
+		local releaseLoad = false
+		local releaseCalls = 0
+		local storage = {
+			Load = function()
+				loadStarted = true
+				while not releaseLoad do
+					task.wait()
+				end
+				return {
+					Ok = true,
+					Document = {
+						FormatVersion = 1,
+						Revision = 0,
+						Providers = {},
+						Metadata = {
+							CreatedAt = os.time(),
+							UpdatedAt = os.time(),
+						},
+					},
+				}
+			end,
+			Save = function()
+				error("a cancelled load must not save")
+			end,
+			Release = function()
+				releaseCalls += 1
+				return { Ok = true }
+			end,
+		}
+		local provider = makeServerProvider("LoadCloseRace", nil)
+		local controller = ServerSaveController.new({
+			Id = "load_close_race",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function()
+				return "LoadCloseRace"
+			end,
+		})
+		local player = { UserId = 4_214 } :: any
+		local loadResult = nil
+		local closeResult = nil
+		task.spawn(function()
+			loadResult = controller:Load(player)
+		end)
+		while not loadStarted do
+			task.wait()
+		end
+		task.spawn(function()
+			closeResult = controller:Close(player, true)
+		end)
+		task.wait()
+		assertEqual(loadResult, nil, "load unexpectedly completed before storage resumed")
+		assertEqual(closeResult, nil, "close must wait for in-flight lock acquisition")
+
+		releaseLoad = true
+		while loadResult == nil or closeResult == nil do
+			task.wait()
+		end
+		assertEqual(loadResult.Ok, false)
+		assertEqual(loadResult.Code, "LoadCancelled")
+		assertTrue(closeResult.Ok, "close failed after cancelling an in-flight load")
+		assertTrue(releaseCalls >= 1, "cancelled load did not release its acquired lock")
+		assertEqual(provider:GetValue(player), nil, "cancelled load applied provider runtime state")
+		assertEqual(controller:GetState(player), "NotLoaded")
+		controller:Destroy(false)
+	end)
+
+	test("concurrent player closes share one close operation", function()
+		local saveStarted = false
+		local releaseSave = false
+		local releaseCalls = 0
+		local storage = {
+			Load = function()
+				return {
+					Ok = true,
+					Document = {
+						FormatVersion = 1,
+						Revision = 0,
+						Providers = {},
+						Metadata = {
+							CreatedAt = os.time(),
+							UpdatedAt = os.time(),
+						},
+					},
+				}
+			end,
+			Save = function()
+				saveStarted = true
+				while not releaseSave do
+					task.wait()
+				end
+				return { Ok = true }
+			end,
+			Release = function()
+				releaseCalls += 1
+				return { Ok = true }
+			end,
+		}
+		local provider = makeServerProvider("ConcurrentClose", nil)
+		local controller = ServerSaveController.new({
+			Id = "concurrent_close",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function()
+				return "ConcurrentClose"
+			end,
+		})
+		local player = { UserId = 4_215 } :: any
+		assertTrue(controller:Load(player).Ok, "concurrent-close controller load failed")
+
+		local closedEvents = 0
+		controller.PlayerClosed:Connect(function(closedPlayer)
+			assertEqual(closedPlayer, player)
+			closedEvents += 1
+		end)
+		local firstResult = nil
+		local secondResult = nil
+		task.spawn(function()
+			firstResult = controller:Close(player, true)
+		end)
+		while not saveStarted do
+			task.wait()
+		end
+		task.spawn(function()
+			secondResult = controller:Close(player, true)
+		end)
+		task.wait()
+		releaseSave = true
+		while firstResult == nil or secondResult == nil do
+			task.wait()
+		end
+		task.wait()
+
+		assertTrue(firstResult.Ok and secondResult.Ok, "concurrent close did not share success")
+		assertEqual(releaseCalls, 1, "concurrent close released storage more than once")
+		assertEqual(closedEvents, 1, "concurrent close emitted PlayerClosed more than once")
+		assertEqual(controller:GetState(player), "NotLoaded")
+		controller:Destroy(false)
+	end)
+
+	test("ForceSave captures a provider dirtied while persistence is in flight", function()
+		local values = {}
+		local provider = {
+			Id = "SaveRace",
+			Version = 1,
+			Authority = "Server",
+			MementoChanged = Signal.new(),
+			CreateDefault = function()
+				return { Value = 1 }
+			end,
+			ValidateMemento = function(_self, _player, value)
+				return typeof(value) == "table" and typeof(value.Value) == "number", value, nil
+			end,
+			SetMemento = function(_self, player, value)
+				values[player] = { Value = value.Value }
+			end,
+			GetMemento = function(_self, player)
+				return { Value = values[player].Value }
+			end,
+			Run = function() end,
+			Stop = function(_self, player)
+				values[player] = nil
+			end,
+		}
+
+		local saveStarted = false
+		local releaseFirstSave = false
+		local savedValues = {}
+		local storage = {
+			Load = function()
+				return {
+					Ok = true,
+					Document = {
+						FormatVersion = 1,
+						Revision = 0,
+						Providers = {},
+						Metadata = {
+							CreatedAt = os.time(),
+							UpdatedAt = os.time(),
+						},
+					},
+				}
+			end,
+			Save = function(_self, _key, document)
+				table.insert(savedValues, document.Providers.SaveRace.Data.Value)
+				if #savedValues == 1 then
+					saveStarted = true
+					while not releaseFirstSave do
+						task.wait()
+					end
+				end
+				return { Ok = true }
+			end,
+			Release = function()
+				return { Ok = true }
+			end,
+		}
+		local controller = ServerSaveController.new({
+			Id = "save_race",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function()
+				return "SaveRace"
+			end,
+		})
+		local player = { UserId = 4_213 } :: any
+		assertTrue(controller:Load(player).Ok, "save-race controller load failed")
+
+		local saveResult = nil
+		task.spawn(function()
+			saveResult = controller:ForceSave(player, "Race")
+		end)
+		while not saveStarted do
+			task.wait()
+		end
+
+		values[player] = { Value = 2 }
+		controller:MarkDirty(player, provider.Id)
+		releaseFirstSave = true
+		while saveResult == nil do
+			task.wait()
+		end
+
+		assertTrue(saveResult.Ok, "save-race ForceSave failed")
+		assertEqual(#savedValues, 2, "dirty state created during Save was not persisted before success")
+		assertEqual(savedValues[1], 1)
+		assertEqual(savedValues[2], 2)
+		controller:Destroy(false)
+	end)
+
+	test("failed dirty capture retains the complete provider set", function()
+		local captureControl = {
+			FailB = true,
+			ThrowValidationC = false,
+		}
+		local function makeCaptureProvider(id: string)
+			local values = {}
+			return {
+				Id = id,
+				Version = 1,
+				Authority = "Server",
+				MementoChanged = Signal.new(),
+				CreateDefault = function()
+					return { Value = 1 }
+				end,
+				ValidateMemento = function(_self, _player, value)
+					if id == "C" and captureControl.ThrowValidationC then
+						error(`validation failed for {id}`)
+					end
+					return typeof(value) == "table" and typeof(value.Value) == "number", value, nil
+				end,
+				SetMemento = function(_self, player, value)
+					values[player] = value
+				end,
+				GetMemento = function(_self, player)
+					if id == "B" and captureControl.FailB then
+						error(`capture failed for {id}`)
+					end
+					return values[player]
+				end,
+				Run = function() end,
+				Stop = function(_self, player)
+					values[player] = nil
+				end,
+				SetValue = function(_self, player, value)
+					values[player] = { Value = value }
+				end,
+			}
+		end
+
+		local providers = {
+			makeCaptureProvider("A"),
+			makeCaptureProvider("B"),
+			makeCaptureProvider("C"),
+			makeCaptureProvider("D"),
+		}
+		local storage = SessionLockingStorage.new(MemoryStorage.new(), { StaleLockSeconds = 1_800 })
+		local controller = ServerSaveController.new({
+			Id = "dirty_capture",
+			Providers = providers,
+			Storage = storage,
+			KeyResolver = function()
+				return "DirtyCapture"
+			end,
+		})
+		local player = { UserId = 4_212 } :: any
+		assertTrue(controller:Load(player).Ok, "dirty capture controller load failed")
+		for index, provider in providers do
+			provider:SetValue(player, index + 10)
+			controller:MarkDirty(player, provider.Id)
+		end
+
+		local captured = controller:FlushDirty(player)
+		assertEqual(captured, false)
+		captureControl.FailB = false
+		local retried = controller:FlushDirty(player)
+		assertEqual(retried, true)
+		local snapshot = controller:BuildSnapshot(player)
+		for index, provider in providers do
+			assertEqual(
+				snapshot.Providers[provider.Id].Data.Value,
+				index + 10,
+				`dirty provider {provider.Id} was lost after retry`
+			)
+		end
+
+		for index, provider in providers do
+			provider:SetValue(player, index + 20)
+			controller:MarkDirty(player, provider.Id)
+		end
+		captureControl.ThrowValidationC = true
+		assertEqual(controller:FlushDirty(player), false)
+		captureControl.ThrowValidationC = false
+		assertEqual(controller:FlushDirty(player), true)
+		local validationRetrySnapshot = controller:BuildSnapshot(player)
+		for index, provider in providers do
+			assertEqual(
+				validationRetrySnapshot.Providers[provider.Id].Data.Value,
+				index + 20,
+				`dirty provider {provider.Id} was lost after validation exception`
+			)
+		end
+		controller:Destroy(false)
+	end)
+
 	test("DataStore retry succeeds within its bounded budget", function()
 		local calls = 0
 		local value = nil
@@ -407,6 +890,45 @@ function ProductionIntegrationTestRunner.runAll()
 		})
 		part:Destroy()
 		assertEqual(instanceValid, false)
+	end)
+
+	test("save serializer rejects unsafe JSON shapes and measures encoded bytes", function()
+		local mixedValid, mixedIssues = SaveSerialize.validate({
+			[1] = "array",
+			Named = "dictionary",
+		})
+		assertEqual(mixedValid, false)
+		assertEqual(mixedIssues[1].Reason, "mixed_table_keys")
+
+		local sparseValid, sparseIssues = SaveSerialize.validate({
+			[1] = "first",
+			[3] = "third",
+		})
+		assertEqual(sparseValid, false)
+		assertEqual(sparseIssues[1].Reason, "sparse_array")
+
+		local utf8Valid, utf8Issues = SaveSerialize.validate(string.char(255))
+		assertEqual(utf8Valid, false)
+		assertEqual(utf8Issues[1].Reason, "invalid_utf8")
+
+		local document = {
+			Message = string.rep("ю", 64),
+		}
+		local measured, bytes = SaveSerialize.measureEncodedSize(document)
+		assertTrue(measured, "valid save document must be JSON encodable")
+		local encoded = game:GetService("HttpService"):JSONEncode(document)
+		assertEqual(bytes, #encoded, "save limit must use actual JSON byte count")
+	end)
+
+	test("wallet client rejects balances outside the safe integer range", function()
+		local wallet = WalletClient.new({
+			RegisterHandler = function() end,
+		})
+		local valid = wallet:ValidateMemento({
+			Coins = 9_007_199_254_740_992,
+			Gems = 0,
+		})
+		assertEqual(valid, false)
 	end)
 
 	test("communication serializer rejects non-finite compounds and unsafe table shapes", function()
@@ -987,6 +1509,138 @@ function ProductionIntegrationTestRunner.runAll()
 		end)
 		task.wait()
 		assertEqual(resyncs, 1)
+		client:Stop()
+	end)
+
+	test("client rejects ordinary outbound messages while paused for resync", function()
+		local client = CommunicationClient.new()
+		client:SetResyncHandler(function()
+			error("keep recovery paused")
+		end)
+		client:ResumeAfterSnapshot(1)
+		client:_handleBatch({
+			Epoch = 1,
+			Sequence = 2,
+			Messages = {},
+		})
+		task.wait()
+
+		local queued = client:Queue("Integration.Intent", {
+			Value = 1,
+		})
+		assertEqual(queued, false)
+		assertEqual(client:GetQueueStats().Messages, 0)
+		client:Stop()
+	end)
+
+	test("failed client resync retries with backoff and can recover", function()
+		local scheduledDelay = nil
+		local scheduledCallback = nil
+		local client = CommunicationClient.new(nil, nil, function(delaySeconds, callback)
+			scheduledDelay = delaySeconds
+			scheduledCallback = callback
+		end)
+		local attempts = 0
+		client:SetResyncHandler(function()
+			attempts += 1
+			if attempts == 1 then
+				error("transient snapshot failure")
+			end
+			client:ResumeAfterSnapshot(2)
+		end)
+		client:ResumeAfterSnapshot(1)
+		client:_handleBatch({
+			Epoch = 1,
+			Sequence = 2,
+			Messages = {},
+		})
+		task.wait()
+
+		assertEqual(attempts, 1)
+		assertEqual(scheduledDelay, CommunicationConfig.ResyncRetryBaseDelaySeconds)
+		assertTrue(scheduledCallback ~= nil, "failed resync did not schedule a retry")
+		local retryCallback = assert(scheduledCallback)
+		retryCallback()
+		task.wait()
+		assertEqual(attempts, 2)
+		assertEqual(client:GetQueueStats().PausedForResync, false)
+		client:Stop()
+	end)
+
+	test("stale resync retry callbacks cannot block a newer recovery generation", function()
+		local scheduledCallbacks = {}
+		local client = CommunicationClient.new(nil, nil, function(_delaySeconds, callback)
+			table.insert(scheduledCallbacks, callback)
+		end)
+		local attempts = 0
+		client:SetResyncHandler(function()
+			attempts += 1
+			if attempts < 3 then
+				error(`transient snapshot failure {attempts}`)
+			end
+			client:ResumeAfterSnapshot(3)
+		end)
+
+		client:ResumeAfterSnapshot(1)
+		client:_handleBatch({
+			Epoch = 1,
+			Sequence = 2,
+			Messages = {},
+		})
+		task.wait()
+		assertEqual(attempts, 1)
+		assertTrue(scheduledCallbacks[1] ~= nil, "first recovery did not schedule a retry")
+
+		client:ResumeAfterSnapshot(2)
+		client:_handleBatch({
+			Epoch = 2,
+			Sequence = 2,
+			Messages = {},
+		})
+		task.wait()
+		assertEqual(attempts, 2)
+		assertTrue(scheduledCallbacks[2] ~= nil, "new recovery did not schedule its own retry")
+
+		scheduledCallbacks[1]()
+		task.wait()
+		assertEqual(attempts, 2, "stale retry callback started a recovery in the new generation")
+		assertEqual(client:GetQueueStats().PausedForResync, true)
+
+		scheduledCallbacks[2]()
+		task.wait()
+		assertEqual(attempts, 3)
+		assertEqual(client:GetQueueStats().PausedForResync, false)
+		client:Stop()
+	end)
+
+	test("stopping communication cancels an in-flight resync handler", function()
+		local handlerStarted = false
+		local releaseHandler = false
+		local client = CommunicationClient.new()
+		client:SetResyncHandler(function()
+			handlerStarted = true
+			while not releaseHandler do
+				task.wait()
+			end
+			client:ResumeAfterSnapshot(99)
+		end)
+
+		client:ResumeAfterSnapshot(1)
+		client:_handleBatch({
+			Epoch = 1,
+			Sequence = 2,
+			Messages = {},
+		})
+		while not handlerStarted do
+			task.wait()
+		end
+
+		client:Stop()
+		releaseHandler = true
+		task.wait()
+		local stats = client:GetQueueStats()
+		assertEqual(stats.PausedForResync, false)
+		assertEqual(stats.Epoch, 0, "cancelled resync handler resumed a stopped client")
 	end)
 
 	test("successful snapshot clears a lost client-authority patch", function()

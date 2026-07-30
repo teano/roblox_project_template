@@ -46,11 +46,19 @@ local function waitForRemotes(): (RemoteEvent, RemoteEvent, RemoteFunction)
 	return clientToServer, serverToClient, request
 end
 
-function CommunicationClient.new(logger: any?, clock: (() -> number)?)
+function CommunicationClient.new(
+	logger: any?,
+	clock: (() -> number)?,
+	delayScheduler: ((number, () -> ()) -> ())?
+)
 	local resolvedClock = clock or os.clock
+	local resolvedDelayScheduler = delayScheduler or function(delaySeconds: number, callback: () -> ())
+		task.delay(delaySeconds, callback)
+	end
 	return setmetatable({
 		_logger = logger or Logger.new("Communication.Client", "info"),
 		_clock = resolvedClock,
+		_delayScheduler = resolvedDelayScheduler,
 		_handlers = {} :: { [string]: (any, string?) -> () },
 		_outgoing = {},
 		_outgoingBytes = 0,
@@ -61,6 +69,10 @@ function CommunicationClient.new(logger: any?, clock: (() -> number)?)
 		_pausedForResync = false,
 		_resyncHandler = nil,
 		_resyncInFlight = false,
+		_resyncRetryAttempt = 0,
+		_resyncRetryScheduled = false,
+		_resyncGeneration = 0,
+		_resyncThread = nil :: thread?,
 		_connections = {},
 		_initialized = false,
 		_clientToServer = nil :: RemoteEvent?,
@@ -140,6 +152,9 @@ function CommunicationClient:Queue(
 	requestId: string?,
 	options: { Priority: string? }?
 ): boolean
+	if self._pausedForResync then
+		return false
+	end
 	if typeof(messageType) ~= "string"
 		or messageType == ""
 		or #messageType > CommunicationConfig.MaxMessageTypeLength
@@ -196,19 +211,59 @@ end
 
 function CommunicationClient:_startResync()
 	local handler = self._resyncHandler
-	if not self._pausedForResync or self._resyncInFlight or handler == nil then
+	if not self._pausedForResync
+		or self._resyncInFlight
+		or self._resyncRetryScheduled
+		or handler == nil
+	then
 		return
 	end
 	self._resyncInFlight = true
-	task.spawn(function()
-		local ok, err = xpcall(handler, debug.traceback)
-		self._resyncInFlight = false
-		if not ok then
-			self._logger:Error("resync_handler_failed", {
-				Error = tostring(err),
-			})
+	local generation = self._resyncGeneration
+	local resyncThread = task.spawn(function()
+		local currentThread = coroutine.running()
+		local function clearResyncThread()
+			if self._resyncThread == currentThread then
+				self._resyncThread = nil
+			end
 		end
+
+		local ok, err = xpcall(handler, debug.traceback)
+		if self._resyncGeneration ~= generation then
+			clearResyncThread()
+			return
+		end
+		self._resyncInFlight = false
+		if not ok or self._pausedForResync then
+			self._resyncRetryAttempt += 1
+			local retryDelay = math.min(
+				CommunicationConfig.ResyncRetryMaxDelaySeconds,
+				CommunicationConfig.ResyncRetryBaseDelaySeconds * (2 ^ (self._resyncRetryAttempt - 1))
+			)
+			self._logger:Error("resync_handler_failed", {
+				Error = if ok then "Resync handler returned without resuming after a snapshot" else tostring(err),
+				RetryAttempt = self._resyncRetryAttempt,
+				RetryDelaySeconds = retryDelay,
+			})
+			if self._pausedForResync and not self._resyncRetryScheduled then
+				self._resyncRetryScheduled = true
+				self._delayScheduler(retryDelay, function()
+					if self._resyncGeneration ~= generation then
+						return
+					end
+					self._resyncRetryScheduled = false
+					if self._pausedForResync then
+						self:_startResync()
+					end
+				end)
+			end
+		end
+		clearResyncThread()
 	end)
+	self._resyncThread = resyncThread
+	if coroutine.status(resyncThread) == "dead" then
+		self._resyncThread = nil
+	end
 end
 
 function CommunicationClient:_requestResync(reason: string)
@@ -216,6 +271,9 @@ function CommunicationClient:_requestResync(reason: string)
 		return
 	end
 	self._pausedForResync = true
+	self._resyncRetryAttempt = 0
+	self._resyncGeneration += 1
+	self._resyncRetryScheduled = false
 	table.clear(self._outgoing)
 	self._outgoingBytes = 0
 	self._logger:Warn("resync_required", { Reason = reason })
@@ -224,9 +282,21 @@ end
 
 function CommunicationClient:ResumeAfterSnapshot(epoch: number)
 	assert(typeof(epoch) == "number" and epoch >= 1 and epoch == math.floor(epoch), "Snapshot epoch invalid")
+	local currentThread = coroutine.running()
+	local resyncThread = self._resyncThread
+	if resyncThread ~= nil and resyncThread ~= currentThread then
+		self._resyncThread = nil
+		if coroutine.status(resyncThread) ~= "dead" then
+			task.cancel(resyncThread)
+		end
+	end
 	self._incomingEpoch = epoch
 	self._expectedIncomingSequence = 1
 	self._pausedForResync = false
+	self._resyncInFlight = false
+	self._resyncRetryAttempt = 0
+	self._resyncRetryScheduled = false
+	self._resyncGeneration += 1
 end
 
 function CommunicationClient:_handleBatch(batch: any)
@@ -309,7 +379,7 @@ function CommunicationClient:_handleBatch(batch: any)
 end
 
 function CommunicationClient:_flush()
-	if #self._outgoing == 0 or self._clientToServer == nil then
+	if self._pausedForResync or #self._outgoing == 0 or self._clientToServer == nil then
 		return
 	end
 
@@ -408,6 +478,14 @@ function CommunicationClient:Initialize()
 end
 
 function CommunicationClient:Stop()
+	local resyncThread = self._resyncThread
+	self._resyncThread = nil
+	if resyncThread ~= nil
+		and resyncThread ~= coroutine.running()
+		and coroutine.status(resyncThread) ~= "dead"
+	then
+		task.cancel(resyncThread)
+	end
 	for _, connection in self._connections do
 		connection:Disconnect()
 	end
@@ -423,6 +501,9 @@ function CommunicationClient:Stop()
 	self._incomingEpoch = 0
 	self._pausedForResync = false
 	self._resyncInFlight = false
+	self._resyncRetryAttempt = 0
+	self._resyncRetryScheduled = false
+	self._resyncGeneration += 1
 	self._initialized = false
 end
 

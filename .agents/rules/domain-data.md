@@ -59,6 +59,7 @@ runtime models, and domain change messages.
 - MUST NOT fire dirty/change signals when the effective value did not change.
 - MUST NOT trust client old/new values as authority.
 - MUST NOT use full snapshot replacement for ordinary domain events.
+- Wallet balances and transaction amounts MUST remain non-negative integers at or below `WalletConfig.MaxBalance`; additions that would overflow that safe-integer boundary MUST fail without mutation.
 
 ## Positive example
 

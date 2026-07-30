@@ -50,6 +50,9 @@ function PlayersModule:_disconnectCharacter(player: Player)
 end
 
 function PlayersModule:_trackPlayer(player: Player)
+	if self:GetPlayerByUserId(player.UserId) ~= player then
+		return
+	end
 	if self._characterConnections[player] ~= nil then
 		return
 	end
@@ -106,18 +109,45 @@ end
 function PlayersModule:ObservePlayers(onAdded: (Player) -> (), onRemoving: ((Player) -> ())?): () -> ()
 	assert(typeof(onAdded) == "function", "onAdded required")
 
-	local addedConnection = self.PlayerAdded:Connect(onAdded)
-	local removingConnection = if onRemoving then self.PlayerRemoving:Connect(onRemoving) else nil
+	local active = true
+	local observed: { [Player]: boolean } = {}
 
-	for _, player in self:GetPlayers() do
+	local function emitAdded(player: Player)
+		if not active
+			or observed[player]
+			or self:GetPlayerByUserId(player.UserId) ~= player
+		then
+			return
+		end
+		observed[player] = true
 		onAdded(player)
 	end
 
-	return function()
-		addedConnection:Disconnect()
-		if removingConnection then
-			removingConnection:Disconnect()
+	local function emitRemoving(player: Player)
+		if not active or not observed[player] then
+			return
 		end
+		observed[player] = nil
+		if onRemoving then
+			onRemoving(player)
+		end
+	end
+
+	local addedConnection = self.PlayerAdded:Connect(emitAdded)
+	local removingConnection = self.PlayerRemoving:Connect(emitRemoving)
+
+	for _, player in self:GetPlayers() do
+		emitAdded(player)
+	end
+
+	return function()
+		if not active then
+			return
+		end
+		active = false
+		addedConnection:Disconnect()
+		removingConnection:Disconnect()
+		table.clear(observed)
 	end
 end
 

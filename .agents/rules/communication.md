@@ -55,6 +55,12 @@ Required context: `docs/InitializationAndSaveSystem.md`.
 - Server batches MUST carry a snapshot epoch and sequence.
 - Stale older-epoch packets MUST be ignored.
 - Current-epoch sequence gaps MUST trigger resync.
+- A failed client resync handler MUST retry with bounded exponential backoff while the client remains paused; it MUST NOT leave recovery permanently dormant after one transient failure.
+- In-flight resync completions and delayed retry callbacks MUST be scoped to
+  their recovery generation; stale work after snapshot resume, `Stop`, or a
+  newer recovery MUST NOT mutate or block the active recovery state.
+- While paused for resync, the client MUST neither accept nor flush ordinary
+  outbound messages derived from the stale baseline.
 - `ClientReady` MUST acknowledge the exact active snapshot epoch before the
   server resumes buffered delivery.
 - Snapshot handling MUST allow at most one in-flight request per player,

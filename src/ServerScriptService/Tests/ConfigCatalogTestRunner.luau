@@ -14,6 +14,7 @@ local ClientConfigCatalog = require(ReplicatedStorage.Client.Config.ClientConfig
 local ClientConfigManifest = require(ReplicatedStorage.Client.Config.ClientConfigManifest)
 local ExperienceConfigCatalog = require(ServerScriptService.Modules.Config.ExperienceConfigCatalog)
 local ServerConfigManifest = require(ServerScriptService.Modules.Config.ServerConfigManifest)
+local WalletConfigCodec = require(ServerScriptService.Modules.Config.Codecs.WalletConfigCodec)
 
 local ConfigCatalogTestRunner = {}
 
@@ -291,6 +292,20 @@ function ConfigCatalogTestRunner.runAll()
 		assertEqual(catalog:IsInitialized(), false)
 		catalog:Destroy()
 		snapshot.UpdateAvailable:Destroy()
+	end)
+
+	test("production Wallet config rejects unsafe integer balances", function()
+		local valid, _, decodeError = WalletConfigCodec.decode({
+			startingBalances = {
+				Coins = 9_007_199_254_740_992,
+				Gems = 0,
+			},
+		})
+		assertEqual(valid, false)
+		assertTrue(
+			string.find(decodeError or "", "safe non-negative integer", 1, true) ~= nil,
+			"unsafe Wallet balance returned an unrelated validation error"
+		)
 	end)
 
 	test("client catalog decodes an allowed bundle and retains old data after invalid refresh", function()

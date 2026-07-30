@@ -25,6 +25,8 @@ return table.freeze({
 	RequestResponseByteBurst = 128 * 1024,
 	DiagnosticLogCooldownSeconds = 1,
 	SnapshotRequestCooldownSeconds = 0.5,
+	ResyncRetryBaseDelaySeconds = 1,
+	ResyncRetryMaxDelaySeconds = 10,
 	MaxSnapshotNetworkEstimatedBytes = 256 * 1024,
 	MaxSnapshotInspectionNodes = 500_000,
 })

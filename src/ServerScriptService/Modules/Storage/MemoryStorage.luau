@@ -21,6 +21,12 @@ function MemoryStorage:Update(key: string, transform: (any) -> any)
 			Error = tostring(nextValue),
 		}
 	end
+	if nextValue == nil then
+		return {
+			Ok = true,
+			Value = nil,
+		}
+	end
 	self._data[key] = TableUtil.deepCopy(nextValue)
 	return {
 		Ok = true,

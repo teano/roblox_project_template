@@ -43,7 +43,18 @@ A controller MUST remain `Loaded` only after full success or full rollback. Fail
 - Dirty providers are captured separately from persistence scheduling.
 - `AutoSaveModule` decides when to call `ForceSave`; save controllers do not own autosave timing.
 - Player close MUST capture/save before provider Stop.
-- Production persistence MUST use `UpdateAsync`, bounded retry, validation, serialized-size limits, and session locking.
+- Close MUST coordinate with in-flight load or snapshot application; it MUST NOT remove a runtime while lock acquisition or provider application is still active.
+- Concurrent close callers for one player MUST share one close operation and one `PlayerClosed` notification.
+- A load cancelled by player close after acquiring a session lock MUST release that lock without applying provider runtime state.
+- Production persistence MUST use `UpdateAsync`, bounded retry, validation, actual JSON-encoded byte limits, and session locking.
+- A session-lock transform may be invoked more than once by `UpdateAsync`; ownership MUST be derived from the final returned document, never from sticky callback side effects.
+- A non-table stored document root MUST fail closed and remain unchanged; it
+  MUST NOT be replaced with a newly initialized profile.
+- Save tables MUST be UTF-8-safe string-keyed dictionaries or dense arrays; mixed/sparse tables, metatables, cycles, unsupported values, and non-finite numbers MUST be rejected.
+- A failed multi-provider capture MUST retain every dirty provider needed for a complete retry.
+- Concurrent `ForceSave` callers waiting on one active operation MUST receive that operation's real result.
+- A provider dirtied while persistence is in flight MUST remain dirty and be
+  captured before that `ForceSave` reports a clean successful result.
 - Shutdown MUST use the shared deadline and bounded-concurrency coordinator.
 - No new retry may begin after the propagated deadline.
 - Existing test saves MUST NOT cause speculative legacy migrations. Add a migration only for a real released-version transition.

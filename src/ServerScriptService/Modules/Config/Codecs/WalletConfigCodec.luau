@@ -12,6 +12,7 @@ local function isNonNegativeInteger(value: any): boolean
 		and value ~= math.huge
 		and value ~= -math.huge
 		and value >= 0
+		and value <= WalletConfig.MaxBalance
 		and value == math.floor(value)
 end
 
@@ -37,7 +38,7 @@ function WalletConfigCodec.decode(value: any): (boolean, any?, string?)
 	for currencyId in WalletConfig.CurrencyIds do
 		local amount = value.startingBalances[currencyId]
 		if not isNonNegativeInteger(amount) then
-			return false, nil, `wallet_config.startingBalances.{currencyId}: expected non-negative integer`
+			return false, nil, `wallet_config.startingBalances.{currencyId}: expected safe non-negative integer`
 		end
 		startingBalances[currencyId] = amount
 	end

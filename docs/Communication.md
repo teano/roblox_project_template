@@ -131,6 +131,19 @@ RemoteFunction hard limit.
 `ClientReady` is accepted only for the current outgoing epoch, so a delayed
 acknowledgement cannot unpause another snapshot generation.
 
+If the client resync handler fails transiently, the client remains paused and
+retries the handler with exponential backoff from one to ten seconds. A
+successful snapshot resets the retry state. This prevents a single request or
+apply failure from leaving the client permanently frozen in resync mode.
+Every in-flight attempt and delayed retry belongs to one recovery generation,
+so a callback left over after snapshot resume, `Stop`, or a newer recovery
+cannot clear or block the newer recovery state.
+
+While recovery is paused, the client rejects and does not flush ordinary
+outbound messages because they were derived from the stale snapshot baseline.
+After the replacement snapshot resumes communication, current domain state may
+produce new messages against that new baseline.
+
 Applying a replacement snapshot retires any pending client-authority patch and
 marks the new snapshot as the synchronization baseline. Later local changes can
 then create a new patch instead of waiting forever for an acknowledgement that

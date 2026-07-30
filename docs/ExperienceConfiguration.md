@@ -63,9 +63,10 @@ serialized JSON does not satisfy these contracts.
 ```
 
 Every code-owned currency ID must be present exactly once with a non-negative
-integer amount. Unknown currency names and unknown object fields reject the
-complete config generation. The template's published starting balances are
-zero; a derived game may replace them with its reviewed launch values.
+safe-integer amount no greater than `WalletConfig.MaxBalance` (`2^53 - 1`).
+Unknown currency names and unknown object fields reject the complete config
+generation. The template's published starting balances are zero; a derived
+game may replace them with its reviewed launch values.
 
 `global_save_config`:
 

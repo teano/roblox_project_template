@@ -122,6 +122,36 @@ Production storage uses:
   `global_save_config.autoSaveIntervalSeconds`;
 - save on player exit and server shutdown.
 
+Dirty capture is atomic across the selected providers: if any capture or
+validation fails, the complete dirty set remains available for retry. Calls
+that join an active `ForceSave` receive that operation's actual success or
+failure instead of synthesizing success after the waiter wakes. A provider
+dirtied while the storage write yields remains pending; `ForceSave` captures
+and persists that newer state before it reports a clean success.
+
+Player close is also single-flight. A close that overlaps lock acquisition or
+snapshot application waits for that transition instead of removing the runtime
+under the active operation. If the player leaves while storage load is still
+in flight, the acquired lock is released without applying provider state.
+Overlapping player-removal and shutdown closes share one result and emit one
+`PlayerClosed` notification.
+
+Session-lock ownership is verified from the final document returned by
+`UpdateAsync`. This matters because Roblox may invoke the transform repeatedly
+after concurrent writes; an earlier candidate can never establish local
+ownership by itself.
+
+A stored value whose root is not a table is treated as corruption. Lock
+acquisition fails without replacing it with an empty profile, preserving the
+value for operator recovery instead of turning corruption into silent data
+loss.
+
+Before persistence, save documents must contain valid UTF-8 and DataStore-safe
+JSON shapes: tables are either string-keyed dictionaries or dense arrays, and
+mixed/sparse tables, metatables, cycles, unsupported values, and non-finite
+numbers are rejected. The 3.5 MB soft limit uses the actual `JSONEncode` byte
+count rather than a heuristic estimate.
+
 Shutdown uses a shared 20-second deadline and at most four concurrent close workers. The deadline is propagated into save, lock release, and DataStore retry waits. No new retry begins after expiration. An already executing Roblox `UpdateAsync` cannot be force-cancelled, so the coordinator returns at the global deadline and reports unfinished players instead of serially consuming the entire shutdown window.
 
 Studio uses the same controller and locking behavior over `MemoryStorage`.
@@ -189,9 +219,19 @@ modules emit small operation/change messages, preserving client runtime object
 identity. Client-authority providers may send dirty mementos; unknown,
 server-authority, or invalid providers are rejected and logged.
 
+Wallet balances are non-negative safe integers capped by
+`WalletConfig.MaxBalance` (`2^53 - 1`). Startup configuration, persisted
+mementos, client snapshots, and incremental changes enforce the same bound;
+an addition that would cross it returns `BalanceLimitExceeded` without
+changing state.
+
+While the client is paused for snapshot recovery, ordinary outbound messages
+from the stale baseline are rejected and cannot be flushed. Normal queuing
+resumes only after the replacement snapshot is applied.
+
 ## Player lifecycle
 
-`PlayersModule` is the single wrapper around Roblox `Players`. It owns player and character signals. The global save command subscribes to it for load and close; gameplay modules consume the same wrapper instead of independently scattering `Players` event subscriptions.
+`PlayersModule` is the single wrapper around Roblox `Players`. It owns player and character signals. The global save command subscribes to it for load and close; gameplay modules consume the same wrapper instead of independently scattering `Players` event subscriptions. Existing-player enumeration rechecks membership before delivery, and per-observer membership is retired on removal even when the consumer does not need a removal callback.
 
 These notifications, initialization completion, and provider
 `MementoChanged` events use the shared side-local signal contract. Listener
