@@ -337,6 +337,8 @@ Version → Wallet → project providers
 [docs/ResourceManagement.md](docs/ResourceManagement.md).
 Контракт локальных сигналов, подключений и рассылки:
 [docs/Signal.md](docs/Signal.md).
+Контракт уровней, безопасного формата и output sink:
+[docs/Logger.md](docs/Logger.md).
 
 ## Структура репозитория
 
@@ -361,6 +363,7 @@ docs/
 ├── ExperienceConfiguration.md        Experience Configs и client bundles
 ├── InitializationAndSaveSystem.md
 ├── IntegrationTesting.md             отдельное интеграционное окружение
+├── Logger.md                         формат и гарантии журналирования
 ├── ResourceManagement.md             пулы, адаптеры, lease и очистка
 └── Signal.md                         локальные события и lifecycle подключений
 .agents/rules/                        обязательные правила изменения проекта
@@ -517,6 +520,7 @@ rojo build default.project.json --output $env:TEMP\roblox-template-validation.rb
 Studio Play:
 
 ```lua
+require(game.ServerScriptService.Tests.LoggerTestRunner).runAll()
 require(game.ServerScriptService.Tests.ResourceManagementTestRunner).runAll()
 require(game.ServerScriptService.Tests.AssetRegistryTestRunner).runAll()
 require(game.ServerScriptService.Tests.ContentPreloaderTestRunner).runAll()

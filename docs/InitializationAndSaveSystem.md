@@ -167,6 +167,13 @@ These notifications, initialization completion, and provider
 yields do not block publishers or later listeners, and disconnected callbacks
 are released immediately. See [Signal.md](Signal.md).
 
+## Logging
+
+Initialization, persistence, communication, configuration, and client loading
+use the shared side-neutral Logger. It emits bounded one-line structured
+records, treats `Error` as a non-throwing severity, and leaves persistence or
+transport to an explicitly added consumer. See [Logger.md](Logger.md).
+
 ## Loading screen
 
 `ReplicatedFirst/Loading.client.luau` removes the default screen, displays initialization progress, and fades only after `ClientInitialized=true`. A failed bootstrap leaves a visible rejoin message.
