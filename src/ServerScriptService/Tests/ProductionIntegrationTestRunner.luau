@@ -13,9 +13,12 @@ local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 local CommunicationProtocol = require(ReplicatedStorage.Shared.Communication.CommunicationProtocol)
 local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.CommunicationConfig)
 local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
+local TokenBucket = require(ReplicatedStorage.Shared.Communication.TokenBucket)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
 local ClientSaveController = require(ReplicatedStorage.Client.Save.ClientSaveController)
 
+local GlobalSaveInitializationCommand =
+	require(ServerScriptService.Initialization.Commands.GlobalSaveInitializationCommand)
 local CommunicationServer = require(ServerScriptService.Modules.Communication.CommunicationServer)
 local DataStoreStorage = require(ServerScriptService.Modules.Storage.DataStoreStorage)
 local MemoryStorage = require(ServerScriptService.Modules.Storage.MemoryStorage)
@@ -470,6 +473,49 @@ function ProductionIntegrationTestRunner.runAll()
 		assertTrue(reachedNodeLimit, "invalid keys must still consume the inspection work budget")
 	end)
 
+	test("token bucket permits configured burst and refills continuously", function()
+		local now = 0
+		local bucket = TokenBucket.new(10, 4, function()
+			return now
+		end)
+
+		for _ = 1, 4 do
+			assertEqual(bucket:TryConsume(1), true)
+		end
+		assertEqual(bucket:TryConsume(1), false, "burst capacity exceeded")
+
+		now = 0.2
+		assertEqual(bucket:TryConsume(2), true, "continuous refill did not restore budget")
+		assertEqual(bucket:TryConsume(1), false)
+
+		now = 0.4
+		assertEqual(bucket:TryConsume(2), true)
+		assertEqual(bucket:TryConsume(1), false, "bucket must not double-burst at a time boundary")
+	end)
+
+	test("players own independent communication buckets", function()
+		local now = 0
+		local server = CommunicationServer.new({
+			PlayersModule = {
+				PlayerRemoving = Signal.new(),
+			},
+			Clock = function()
+				return now
+			end,
+		})
+		local firstPlayer = { UserId = 3961 } :: any
+		local secondPlayer = { UserId = 3962 } :: any
+
+		for _ = 1, CommunicationConfig.BatchInvocationBurst do
+			assertEqual(server:_reserveBatchInvocation(firstPlayer), true)
+		end
+		assertEqual(server:_reserveBatchInvocation(firstPlayer), false)
+		assertEqual(server:_reserveBatchInvocation(secondPlayer), true)
+
+		now = 1 / CommunicationConfig.MaxBatchInvocationsPerSecond
+		assertEqual(server:_reserveBatchInvocation(firstPlayer), true, "player bucket did not refill")
+	end)
+
 	test("server rejects dictionary batches without advancing sequence", function()
 		local logger = makeLogger()
 		local server = CommunicationServer.new({
@@ -523,13 +569,13 @@ function ProductionIntegrationTestRunner.runAll()
 		})
 		local player = { UserId = 398 } :: any
 
-		for _ = 1, CommunicationConfig.MaxBatchInvocationsPerSecond + 5 do
+		for _ = 1, CommunicationConfig.BatchInvocationBurst + 5 do
 			server:_handleBatch(player, "invalid")
 		end
-		assertEqual(#entries, 2, "invalid batch and rate-limit logs must each be emitted once per window")
+		assertEqual(#entries, 2, "invalid batch and rate-limit logs must each be cooldown-bounded")
 
 		local lastResponse
-		for _ = 1, CommunicationConfig.MaxRequestsPerSecond + 1 do
+		for _ = 1, CommunicationConfig.RequestInvocationBurst + 1 do
 			lastResponse = server:_handleRequest(player, "invalid")
 		end
 		assertEqual(lastResponse.Code, "RateLimited")
@@ -537,6 +583,35 @@ function ProductionIntegrationTestRunner.runAll()
 		now = 1
 		local resetResponse = server:_handleRequest(player, "invalid")
 		assertEqual(resetResponse.Code, "Unavailable")
+	end)
+
+	test("client pacing retains unsent batches and advances sequence only after send", function()
+		local now = 0
+		local client = CommunicationClient.new(nil, function()
+			return now
+		end)
+		local batches = {}
+		client._clientToServer = {
+			FireServer = function(_self, batch)
+				table.insert(batches, batch)
+			end,
+		}
+
+		for _ = 1, CommunicationConfig.BatchInvocationBurst do
+			assertEqual(client._outboundRate.Batches:TryConsume(1), true)
+		end
+		assertEqual(client:Queue("Integration.Paced", { Value = 1 }), true)
+		client:_flush()
+		assertEqual(#batches, 0)
+		assertEqual(client:GetQueueStats().Messages, 1)
+		assertEqual(client._outgoingSequence, 0)
+
+		now = 1 / CommunicationConfig.MaxBatchInvocationsPerSecond
+		client:_flush()
+		assertEqual(#batches, 1)
+		assertEqual(client:GetQueueStats().Messages, 0)
+		assertEqual(client._outgoingSequence, 1)
+		assertEqual(batches[1].Sequence, 1)
 	end)
 
 	test("message validator failures are contained and force resync", function()
@@ -593,6 +668,81 @@ function ProductionIntegrationTestRunner.runAll()
 		now += CommunicationConfig.SnapshotRequestCooldownSeconds
 		assertEqual(server:TryBeginSnapshotRequest(player), true)
 		server:EndSnapshotRequest(player)
+	end)
+
+	test("snapshot network cap is checked before epoch mutation and guard always releases", function()
+		local logger, entries = makeLogger()
+		local inFlight = false
+		local epoch = 7
+		local beginCalls = 0
+		local endCalls = 0
+		local communication = {
+			TryBeginSnapshotRequest = function()
+				if inFlight then
+					return false, "Busy"
+				end
+				inFlight = true
+				return true, nil
+			end,
+			EndSnapshotRequest = function()
+				inFlight = false
+				endCalls += 1
+			end,
+			GetNextSnapshotEpoch = function()
+				return epoch + 1
+			end,
+			BeginSnapshot = function()
+				beginCalls += 1
+				epoch += 1
+				return epoch
+			end,
+		}
+		local snapshotValue: any = string.rep("x", CommunicationConfig.MaxSnapshotNetworkEstimatedBytes)
+		local controller = {
+			IsLoaded = function()
+				return true
+			end,
+			GetState = function()
+				return "Loaded"
+			end,
+			BuildSnapshot = function()
+				if snapshotValue == "Throw" then
+					error("snapshot build failed")
+				end
+				return {
+					Value = snapshotValue,
+				}
+			end,
+		}
+		local command = GlobalSaveInitializationCommand.new({
+			Communication = communication,
+		} :: any)
+		command._logger = logger
+		local player = { UserId = 3983 } :: any
+
+		local oversized = command:_handleSnapshotRequest(controller, player, 1)
+		assertEqual(oversized.Ok, false)
+		assertEqual(oversized.Code, "SnapshotTooLarge")
+		assertEqual(beginCalls, 0, "oversized snapshot must not begin a new epoch")
+		assertEqual(epoch, 7)
+		assertEqual(inFlight, false)
+		assertEqual(endCalls, 1)
+		assertEqual(#entries, 1, "oversized snapshot must emit one bounded structured log")
+		assertEqual(entries[1].Message, "snapshot_response_rejected")
+
+		snapshotValue = "Normal"
+		local normal = command:_handleSnapshotRequest(controller, player, 1)
+		assertEqual(normal.Ok, true)
+		assertEqual(normal.CommunicationEpoch, 8)
+		assertEqual(beginCalls, 1)
+		assertEqual(inFlight, false)
+
+		snapshotValue = "Throw"
+		local failed = command:_handleSnapshotRequest(controller, player, 1)
+		assertEqual(failed.Ok, false)
+		assertEqual(failed.Code, "InternalError")
+		assertEqual(inFlight, false, "snapshot guard remained in flight after error")
+		assertEqual(endCalls, 3)
 	end)
 
 	test("bounded communication request validates type and response", function()
@@ -682,6 +832,96 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(typeof(capturedBatch.Messages[1].Payload.Impulse), "Vector3")
 		assertEqual(capturedBatch.Messages[1].Payload.Impulse, Vector3.new(1, 2, 3))
 		assertEqual(server:GetQueueStats(player).Messages, 0)
+	end)
+
+	test("server outbound byte budget drains a queue across heartbeats", function()
+		local now = 0
+		local server = CommunicationServer.new({
+			PlayersModule = {
+				PlayerRemoving = Signal.new(),
+			},
+			Clock = function()
+				return now
+			end,
+		})
+		local player = { UserId = 4001 } :: any
+		local batches = {}
+		server._serverToClient = {
+			FireClient = function(_self, _targetPlayer, batch)
+				table.insert(batches, batch)
+			end,
+		}
+
+		local epoch = server:BeginSnapshot(player)
+		assertEqual(server:SetClientReady(player, epoch), true)
+		for index = 1, 5 do
+			assertEqual(server:Queue(player, "Integration.Large", {
+				Index = index,
+				Value = string.rep("x", 40 * 1024),
+			}), true)
+		end
+
+		server:_flush()
+		local firstHeartbeatBatches = #batches
+		assertTrue(firstHeartbeatBatches > 0, "initial outbound burst sent nothing")
+		assertTrue(
+			firstHeartbeatBatches < CommunicationConfig.ServerToClientBatchBurst,
+			"byte budget must constrain independently of batch budget"
+		)
+		assertEqual(server:GetQueueStats(player).Messages, 5 - firstHeartbeatBatches)
+		assertEqual(server._outgoingSequence[player], firstHeartbeatBatches)
+
+		now = 1
+		server:_flush()
+		assertEqual(#batches, 5)
+		assertEqual(server:GetQueueStats(player).Messages, 0)
+		assertEqual(server._outgoingSequence[player], 5)
+	end)
+
+	test("communication limiter state is cleared for a player and on stop", function()
+		local server = CommunicationServer.new({
+			PlayersModule = {
+				PlayerRemoving = Signal.new(),
+			},
+		})
+		local firstPlayer = { UserId = 4002 } :: any
+		local secondPlayer = { UserId = 4003 } :: any
+		server:_getMessageRateState(firstPlayer)
+		server:_getRequestRateState(firstPlayer)
+		server:_getOutboundRateState(firstPlayer)
+		server:_clearPlayerState(firstPlayer)
+		assertEqual(server._rate[firstPlayer], nil)
+		assertEqual(server._requestRate[firstPlayer], nil)
+		assertEqual(server._outboundRate[firstPlayer], nil)
+
+		server:_getMessageRateState(secondPlayer)
+		server:_getRequestRateState(secondPlayer)
+		server:_getOutboundRateState(secondPlayer)
+		server._request = {
+			OnServerInvoke = function() end,
+		}
+		server:Stop()
+		assertEqual(next(server._rate), nil)
+		assertEqual(next(server._requestRate), nil)
+		assertEqual(next(server._outboundRate), nil)
+
+		local now = 0
+		local client = CommunicationClient.new(nil, function()
+			return now
+		end)
+		for _ = 1, CommunicationConfig.BatchInvocationBurst do
+			client._outboundRate.Batches:TryConsume(1)
+		end
+		client:Stop()
+		local sent = 0
+		client._clientToServer = {
+			FireServer = function()
+				sent += 1
+			end,
+		}
+		assertEqual(client:Queue("Integration.AfterStop", {}), true)
+		client:_flush()
+		assertEqual(sent, 1, "client Stop must reset outbound limiter state")
 	end)
 
 	test("client detects packet loss and accepts sequence one after resync", function()

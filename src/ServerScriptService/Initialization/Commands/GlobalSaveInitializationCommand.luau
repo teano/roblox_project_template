@@ -84,6 +84,82 @@ function Command:_waitUntilLoaded(controller: any, player: Player, timeout: numb
 	return controller:IsLoaded(player)
 end
 
+function Command:_handleSnapshotRequest(controller: any, player: Player, loadTimeoutSeconds: number)
+	local communication = self._deps.Communication
+	local allowed, denialCode = communication:TryBeginSnapshotRequest(player)
+	if not allowed then
+		return {
+			Ok = false,
+			Code = denialCode or "RateLimited",
+		}
+	end
+
+	local callOk, response = xpcall(function()
+		if not self:_waitUntilLoaded(controller, player, loadTimeoutSeconds) then
+			return {
+				Ok = false,
+				Code = "NotLoaded",
+			}
+		end
+
+		local snapshot = controller:BuildSnapshot(player)
+		if snapshot == nil then
+			return {
+				Ok = false,
+				Code = "SnapshotFailed",
+			}
+		end
+
+		local nextEpoch = communication:GetNextSnapshotEpoch(player)
+		local successResponse = {
+			Ok = true,
+			Snapshot = snapshot,
+			CommunicationEpoch = nextEpoch,
+		}
+		local responseValid, issues, estimatedBytes = CommunicationSerialize.inspect(successResponse, {
+			MaxBytes = CommunicationConfig.MaxSnapshotNetworkEstimatedBytes,
+			MaxNodes = CommunicationConfig.MaxSnapshotInspectionNodes,
+		})
+		if not responseValid then
+			local reason = if issues[1] then issues[1].Reason else "snapshot_invalid"
+			local oversized = reason == "maximum_estimated_bytes_exceeded"
+			local fields = {
+				UserId = player.UserId,
+				Error = reason,
+				EstimatedBytes = estimatedBytes,
+				MaxEstimatedBytes = CommunicationConfig.MaxSnapshotNetworkEstimatedBytes,
+			}
+			if oversized then
+				self._logger:Warn("snapshot_response_rejected", fields)
+			else
+				self._logger:Error("snapshot_response_invalid", fields)
+			end
+			return {
+				Ok = false,
+				Code = if oversized then "SnapshotTooLarge" else "SnapshotFailed",
+			}
+		end
+
+		local communicationEpoch = communication:BeginSnapshot(player)
+		assert(communicationEpoch == nextEpoch, "Snapshot epoch changed during guarded request")
+		successResponse.CommunicationEpoch = communicationEpoch
+		return successResponse
+	end, debug.traceback)
+	communication:EndSnapshotRequest(player)
+
+	if not callOk then
+		self._logger:Error("snapshot_request_failed", {
+			UserId = player.UserId,
+			Error = tostring(response),
+		})
+		return {
+			Ok = false,
+			Code = "InternalError",
+		}
+	end
+	return response
+end
+
 function Command:Initialize(context: any)
 	local deps = self._deps
 	local globalSaveConfig = deps.Config:GetRequired("GlobalSave")
@@ -147,66 +223,11 @@ function Command:Initialize(context: any)
 
 	local snapshotRemote = ensureSnapshotRemote()
 	snapshotRemote.OnServerInvoke = function(player: Player)
-		local allowed, denialCode = deps.Communication:TryBeginSnapshotRequest(player)
-		if not allowed then
-			return {
-				Ok = false,
-				Code = denialCode or "RateLimited",
-			}
-		end
-
-		local callOk, response = xpcall(function()
-			if not self:_waitUntilLoaded(controller, player, globalSaveConfig.SnapshotLoadTimeoutSeconds) then
-				return {
-					Ok = false,
-					Code = "NotLoaded",
-				}
-			end
-			local communicationEpoch = deps.Communication:BeginSnapshot(player)
-			local snapshot = controller:BuildSnapshot(player)
-			if snapshot == nil then
-				return {
-					Ok = false,
-					Code = "SnapshotFailed",
-				}
-			end
-
-			local successResponse = {
-				Ok = true,
-				Snapshot = snapshot,
-				CommunicationEpoch = communicationEpoch,
-			}
-			local responseValid, issues, estimatedBytes = CommunicationSerialize.inspect(successResponse, {
-				MaxBytes = deps.StorageConfig.SoftSerializedBytesLimit
-					+ CommunicationConfig.MaxSnapshotEnvelopeEstimatedBytes,
-				MaxNodes = CommunicationConfig.MaxSnapshotInspectionNodes,
-			})
-			if not responseValid then
-				self._logger:Error("snapshot_response_invalid", {
-					UserId = player.UserId,
-					Error = if issues[1] then issues[1].Reason else "snapshot_too_large",
-					EstimatedBytes = estimatedBytes,
-				})
-				return {
-					Ok = false,
-					Code = "SnapshotFailed",
-				}
-			end
-			return successResponse
-		end, debug.traceback)
-		deps.Communication:EndSnapshotRequest(player)
-
-		if not callOk then
-			self._logger:Error("snapshot_request_failed", {
-				UserId = player.UserId,
-				Error = tostring(response),
-			})
-			return {
-				Ok = false,
-				Code = "InternalError",
-			}
-		end
-		return response
+		return self:_handleSnapshotRequest(
+			controller,
+			player,
+			globalSaveConfig.SnapshotLoadTimeoutSeconds
+		)
 	end
 
 	deps.PlayersModule:ObservePlayers(function(player)

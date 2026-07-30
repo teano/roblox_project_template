@@ -27,6 +27,7 @@ Repositories derived from the template receive these records from their
 | [ADR-0017](0017-server-owned-experience-config-catalog.md) | Use a server-owned Experience Config catalog with explicit client projections | Accepted |
 | [ADR-0018](0018-identify-studio-target-by-stable-place-identity.md) | Identify Studio targets without comparing mutable names | Accepted |
 | [ADR-0019](0019-side-local-non-blocking-signals.md) | Use one side-local non-blocking Signal contract | Accepted |
+| [ADR-0020](0020-shape-communication-traffic-and-bound-snapshots.md) | Shape communication traffic and bound network snapshots | Accepted |
 
 ## Ownership and numbering
 

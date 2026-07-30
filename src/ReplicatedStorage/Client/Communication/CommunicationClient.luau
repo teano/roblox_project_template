@@ -6,10 +6,31 @@ local RunService = game:GetService("RunService")
 local CommunicationProtocol = require(ReplicatedStorage.Shared.Communication.CommunicationProtocol)
 local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.CommunicationConfig)
 local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
+local TokenBucket = require(ReplicatedStorage.Shared.Communication.TokenBucket)
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 
 local CommunicationClient = {}
 CommunicationClient.__index = CommunicationClient
+
+local function newOutboundRate(clock: () -> number)
+	return {
+		Batches = TokenBucket.new(
+			CommunicationConfig.MaxBatchInvocationsPerSecond,
+			CommunicationConfig.BatchInvocationBurst,
+			clock
+		),
+		Messages = TokenBucket.new(
+			CommunicationConfig.MaxMessagesPerSecond,
+			CommunicationConfig.MessageBurst,
+			clock
+		),
+		Bytes = TokenBucket.new(
+			CommunicationConfig.MaxBytesPerSecond,
+			CommunicationConfig.ByteBurst,
+			clock
+		),
+	}
+end
 
 local function waitForRemotes(): (RemoteEvent, RemoteEvent, RemoteFunction)
 	local root = ReplicatedStorage:WaitForChild("Remotes")
@@ -25,13 +46,16 @@ local function waitForRemotes(): (RemoteEvent, RemoteEvent, RemoteFunction)
 	return clientToServer, serverToClient, request
 end
 
-function CommunicationClient.new(logger: any?)
+function CommunicationClient.new(logger: any?, clock: (() -> number)?)
+	local resolvedClock = clock or os.clock
 	return setmetatable({
 		_logger = logger or Logger.new("Communication.Client", "info"),
+		_clock = resolvedClock,
 		_handlers = {} :: { [string]: (any, string?) -> () },
 		_outgoing = {},
 		_outgoingBytes = 0,
 		_outgoingSequence = 0,
+		_outboundRate = newOutboundRate(resolvedClock),
 		_expectedIncomingSequence = 1,
 		_incomingEpoch = 0,
 		_pausedForResync = false,
@@ -292,34 +316,68 @@ function CommunicationClient:_flush()
 	while #self._outgoing > 0 do
 		local messages = {}
 		local batchBytes = 0
-		while #self._outgoing > 0 and #messages < CommunicationConfig.MaxMessagesPerBatch do
-			local entry = self._outgoing[1]
+		for _, entry in self._outgoing do
+			if #messages >= CommunicationConfig.MaxMessagesPerBatch then
+				break
+			end
 			if #messages > 0
 				and batchBytes + entry.EstimatedBytes > CommunicationConfig.MaxEstimatedPayloadBytes
 			then
 				break
 			end
-			table.remove(self._outgoing, 1)
-			self._outgoingBytes = math.max(0, self._outgoingBytes - entry.EstimatedBytes)
 			table.insert(messages, entry.Message)
 			batchBytes += entry.EstimatedBytes
 		end
 
-		local valid, issues, estimatedBytes = CommunicationSerialize.inspect(messages, {
+		local sequence = self._outgoingSequence + 1
+		local batch = {
+			Sequence = sequence,
+			Messages = messages,
+		}
+		local valid, issues, estimatedBytes = CommunicationSerialize.inspect(batch, {
 			MaxBytes = CommunicationConfig.MaxEstimatedPayloadBytes,
 		})
 		if not valid then
 			self._logger:Error("outgoing_batch_invalid", {
 				Error = if issues[1] then issues[1].Reason else "payload_too_large",
 			})
-			continue
+			self:_requestResync("InvalidOutgoingBatch")
+			return
 		end
 
-		self._outgoingSequence += 1
-		self._clientToServer:FireServer({
-			Sequence = self._outgoingSequence,
-			Messages = messages,
+		local budgetAvailable = TokenBucket.tryConsumeAll({
+			{
+				Bucket = self._outboundRate.Batches,
+				Amount = 1,
+			},
+			{
+				Bucket = self._outboundRate.Messages,
+				Amount = #messages,
+			},
+			{
+				Bucket = self._outboundRate.Bytes,
+				Amount = estimatedBytes,
+			},
 		})
+		if not budgetAvailable then
+			return
+		end
+
+		local sent, sendError = pcall(function()
+			(self._clientToServer :: RemoteEvent):FireServer(batch)
+		end)
+		if not sent then
+			self._logger:Error("outgoing_batch_transport_failed", {
+				Error = tostring(sendError),
+			})
+			return
+		end
+
+		self._outgoingSequence = sequence
+		for _ = 1, #messages do
+			local entry = table.remove(self._outgoing, 1)
+			self._outgoingBytes = math.max(0, self._outgoingBytes - entry.EstimatedBytes)
+		end
 	end
 end
 
@@ -360,6 +418,7 @@ function CommunicationClient:Stop()
 	table.clear(self._outgoing)
 	self._outgoingBytes = 0
 	self._outgoingSequence = 0
+	self._outboundRate = newOutboundRate(self._clock)
 	self._expectedIncomingSequence = 1
 	self._incomingEpoch = 0
 	self._pausedForResync = false

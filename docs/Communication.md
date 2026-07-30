@@ -65,7 +65,7 @@ tables.
 ## Limits and abuse resistance
 
 Server inbound invocation budgets are charged before deep envelope or payload
-inspection. Malformed calls therefore consume the same per-player window as
+inspection. Malformed calls therefore consume the same per-player budget as
 valid calls and cannot bypass rate limiting by failing validation early.
 Separate limits cover:
 
@@ -75,8 +75,29 @@ Separate limits cover:
 - message type and request identifier lengths.
 
 Repeated invalid-input and rate-limit warnings are deduplicated per player and
-window. The exact production defaults live in
-`CommunicationConfig.luau`.
+diagnostic cooldown. Continuously refilled token buckets avoid the double burst
+of a fixed one-second window. The client uses matching batch, message, and byte
+buckets as cooperative pacing; these are not a security boundary, so the server
+still charges and enforces its own authoritative buckets.
+
+The server separately shapes sustained server-to-client traffic per player by
+batch invocations and estimated bytes. A temporarily exhausted budget leaves
+the unsent queue and sequence unchanged until a later Heartbeat refill.
+Queues remain bounded by the priority/backpressure policy below.
+
+Roblox publicly documents an approximate client-to-server RemoteEvent
+throttling rate, recommends avoiding frequent or large remote traffic, and
+documents argument-shape limitations. Roblox does not publish an exact hard
+payload-size limit for an ordinary reliable RemoteEvent. Consequently, the
+exact production defaults live in `CommunicationConfig.luau`.
+
+All configured byte limits are application-level estimates produced by
+`CommunicationSerialize`. They bound inspection and traffic shaping, but they
+are not the actual Roblox wire size and are not presented as engine hard
+limits. Engine traffic also contains protocol and replication overhead. See
+Roblox's [RemoteEvent reference](https://create.roblox.com/docs/reference/engine/classes/RemoteEvent),
+[remote argument limitations](https://create.roblox.com/docs/scripting/events/remote),
+and [network performance guidance](https://create.roblox.com/docs/performance-optimization/improve).
 
 ## Backpressure and recovery
 
@@ -98,9 +119,17 @@ client registers handlers
 
 The server permits only one snapshot request per player at a time, applies a
 cooldown between attempts, and validates the complete response envelope against
-an explicit node and estimated-byte budget. `ClientReady` is accepted only for
-the current outgoing epoch, so a delayed acknowledgement cannot unpause another
-snapshot generation.
+an explicit node budget and the separate
+`MaxSnapshotNetworkEstimatedBytes` network cap. The current 256 KiB estimate is
+well above the template's Version-plus-Wallet snapshot and ordinary 64 KiB
+batch cap, while remaining independent of the much larger DataStore soft
+serialization limit. An oversized response returns `SnapshotTooLarge` before
+`BeginSnapshot`, so it does not change epoch, clear the queue, or strand the
+in-flight guard. This is an application-level estimate, not a Roblox
+RemoteFunction hard limit.
+
+`ClientReady` is accepted only for the current outgoing epoch, so a delayed
+acknowledgement cannot unpause another snapshot generation.
 
 Applying a replacement snapshot retires any pending client-authority patch and
 marks the new snapshot as the synchronization baseline. Later local changes can
@@ -110,10 +139,10 @@ belonged to the old epoch.
 ## Lifecycle
 
 `Stop` disconnects Roblox callbacks and clears queues, sequences, epochs,
-recovery state, rate windows, and snapshot guards. `PlayerRemoving` performs
-the same per-player server cleanup. A resync handler installed after the client
-has already paused starts the pending recovery instead of leaving the client
-stuck.
+recovery state, token-bucket state, diagnostic cooldowns, and snapshot guards.
+`PlayerRemoving` performs the same per-player server cleanup. A resync handler
+installed after the client has already paused starts the pending recovery
+instead of leaving the client stuck.
 
 ## Verification
 
@@ -125,6 +154,9 @@ require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 ```
 
 The production integration suite covers supported Roblox values, malformed and
-oversized payloads, bounded inspection, invalid batch shapes, rate-limit
-evasion, validator and handler failures, queue pressure, stale epochs, snapshot
-guards, late resync registration, and client-authority patch recovery.
+oversized payloads, bounded inspection, invalid batch shapes, token-bucket
+burst/refill and player isolation, malformed-call invocation charging,
+client/server pacing, independent byte budgets, queue retention and sequence
+preservation, validator and handler failures, priority pressure, stale epochs,
+snapshot network caps and guard release, late resync registration, and
+client-authority patch recovery.

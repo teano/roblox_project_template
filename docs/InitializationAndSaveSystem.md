@@ -141,7 +141,14 @@ register client handlers
   → server flushes buffered messages in order
 ```
 
-`CommunicationModule` handles ordinary runtime messages through RemoteEvents. It batches messages once per Heartbeat, caps batch and queue sizes by both count and estimated bytes, validates envelopes, applies message/byte rate limits, and sequences each direction.
+`CommunicationModule` handles ordinary runtime messages through RemoteEvents.
+It batches messages once per Heartbeat, caps batch and queue sizes by both count
+and estimated bytes, validates envelopes, and sequences each direction.
+Continuously refilled token buckets authoritatively limit server inbound
+invocations/messages/bytes, cooperatively pace the client to those same
+budgets, and shape per-player server outbound batches/estimated bytes. Budget
+exhaustion leaves unsent queue entries and sequence numbers unchanged until a
+later Heartbeat.
 
 The shared `Signal` module never crosses the client/server boundary. It is used
 only for side-local notifications before a message is queued or after a Roblox
@@ -169,10 +176,13 @@ response, rate, and byte limits. It is not used for ordinary gameplay
 mutations or notifications.
 
 Snapshot requests allow only one in-flight operation per player, enforce a
-cooldown, and bound the complete response envelope. `ClientReady` carries the
-exact snapshot communication epoch; a stale acknowledgement cannot release a
-newer buffered queue. Applying a replacement snapshot also retires pending
-client-authority patch correlation from the previous baseline.
+cooldown, and bound the complete response envelope with a network-specific
+estimated-byte cap independent of the DataStore serialization limit. Snapshot
+construction and network validation complete before `BeginSnapshot` changes
+the epoch or clears buffered output. `ClientReady` carries the exact snapshot
+communication epoch; a stale acknowledgement cannot release a newer buffered
+queue. Applying a replacement snapshot also retires pending client-authority
+patch correlation from the previous baseline.
 
 Normal gameplay does not replace whole provider tables. Server-authoritative
 modules emit small operation/change messages, preserving client runtime object
@@ -208,4 +218,15 @@ require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 ```
 
-The production integration suite injects failures and verifies complete server/client rollback, lock contention and stale takeover, bounded retry, expired deadlines, shutdown concurrency, packet loss, stale epochs, serialization and queue overflow. `RealDataStoreSmokeTest` is intentionally opt-in because Roblox requires a published place with Studio API access. It creates a fresh 42-character `Smoke_<GUID>` key only in `PlayerData_IntegrationTests_v1`, writes data, releases the session lock, reloads and verifies the data, then removes the key. A run passes only when both `Ok` and `CleanupOk` are true. See [IntegrationTesting.md](IntegrationTesting.md) for the required environment setup order.
+The production integration suite injects failures and verifies complete
+server/client rollback, lock contention and stale takeover, bounded retry,
+expired deadlines, shutdown concurrency, packet loss, stale epochs,
+serialization, token-bucket pacing, queue overflow, and snapshot network-cap
+failure safety. `RealDataStoreSmokeTest` is intentionally opt-in because Roblox
+requires a published place with Studio API access. It creates a fresh
+42-character `Smoke_<GUID>` key only in
+`PlayerData_IntegrationTests_v1`, writes data, releases the session lock,
+reloads and verifies the data, then removes the key. A run passes only when
+both `Ok` and `CleanupOk` are true. See
+[IntegrationTesting.md](IntegrationTesting.md) for the required environment
+setup order.

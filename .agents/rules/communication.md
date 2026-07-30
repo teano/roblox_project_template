@@ -25,8 +25,14 @@ Required context: `docs/InitializationAndSaveSystem.md`.
 - Server inbound rate limiting MUST account for both message count and bytes.
 - Server inbound invocation budgets MUST be charged before deep validation, so
   malformed envelopes and payloads cannot bypass rate limiting.
+- Sustained inbound and outbound rates MUST use continuously refilled budgets,
+  not fixed time windows that permit a double burst at a boundary.
+- The client MUST pace legitimate outgoing batches within the corresponding
+  authoritative server invocation, message-count, and estimated-byte budgets.
+- The server MUST pace outgoing batches and estimated bytes independently per
+  player without removing unsent messages or advancing sequence numbers.
 - Repeated invalid-input and rate-limit diagnostics MUST be bounded per player
-  and rate window.
+  and diagnostic cooldown.
 - Request IDs MUST be bounded and treated as untrusted.
 - Communication serialization MUST be separate from DataStore serialization.
 - Safe value types such as `Vector3` and `CFrame` MAY cross the network only
@@ -52,7 +58,12 @@ Required context: `docs/InitializationAndSaveSystem.md`.
 - `ClientReady` MUST acknowledge the exact active snapshot epoch before the
   server resumes buffered delivery.
 - Snapshot handling MUST allow at most one in-flight request per player,
-  enforce a retry cooldown, and bound the complete response envelope.
+  enforce a retry cooldown, and bound the complete response envelope with a
+  network-specific estimated-byte limit that is independent of DataStore
+  serialization limits.
+- A snapshot MUST pass network validation before `BeginSnapshot` changes the
+  epoch or clears the outgoing queue, and every request exit MUST release its
+  in-flight guard.
 - Replacing a snapshot MUST retire pending correlated work from the previous
   epoch, including an unacknowledged client-authority patch.
 

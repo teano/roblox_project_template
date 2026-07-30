@@ -6,6 +6,7 @@ local RunService = game:GetService("RunService")
 local CommunicationProtocol = require(ReplicatedStorage.Shared.Communication.CommunicationProtocol)
 local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.CommunicationConfig)
 local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
+local TokenBucket = require(ReplicatedStorage.Shared.Communication.TokenBucket)
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 
 type MessageHandler = {
@@ -25,12 +26,16 @@ type QueueEntry = {
 }
 
 type RateState = {
-	WindowStartedAt: number,
-	Invocations: number,
-	Count: number,
-	Bytes: number,
-	RejectionLogged: boolean,
-	InvalidLogged: boolean,
+	Invocations: any,
+	Count: any,
+	Bytes: any,
+	RejectionLoggedAt: number?,
+	InvalidLoggedAt: number?,
+}
+
+type OutboundRateState = {
+	Batches: any,
+	Bytes: any,
 }
 
 type SnapshotRequestState = {
@@ -113,6 +118,7 @@ function CommunicationServer.new(deps: {
 		_ready = {} :: { [Player]: boolean },
 		_rate = {} :: { [Player]: RateState },
 		_requestRate = {} :: { [Player]: RateState },
+		_outboundRate = {} :: { [Player]: OutboundRateState },
 		_snapshotRequests = {} :: { [Player]: SnapshotRequestState },
 		_resyncQueued = {} :: { [Player]: boolean },
 		_droppedPresentation = {} :: { [Player]: number },
@@ -157,49 +163,60 @@ function CommunicationServer:RegisterRequestHandler(
 end
 
 function CommunicationServer:_getRequestRateState(player: Player): RateState
-	local now = self._clock()
 	local state = self._requestRate[player]
-	if state == nil or now - state.WindowStartedAt >= 1 then
+	if state == nil then
 		state = {
-			WindowStartedAt = now,
-			Invocations = 0,
-			Count = 0,
-			Bytes = 0,
-			RejectionLogged = false,
-			InvalidLogged = false,
+			Invocations = TokenBucket.new(
+				CommunicationConfig.MaxRequestsPerSecond,
+				CommunicationConfig.RequestInvocationBurst,
+				self._clock
+			),
+			Count = TokenBucket.new(1, 1, self._clock),
+			Bytes = TokenBucket.new(
+				CommunicationConfig.MaxRequestResponseBytesPerSecond,
+				CommunicationConfig.RequestResponseByteBurst,
+				self._clock
+			),
+			RejectionLoggedAt = nil,
+			InvalidLoggedAt = nil,
 		}
 		self._requestRate[player] = state
 	end
 	return state
 end
 
-local function reserveRateLimit(state: RateState, allowed: boolean): (boolean, boolean)
+local function reserveRateLimit(state: RateState, allowed: boolean, now: number): (boolean, boolean)
 	if allowed then
 		return true, false
 	end
-	local shouldLog = not state.RejectionLogged
-	state.RejectionLogged = true
+	local shouldLog = state.RejectionLoggedAt == nil
+		or now - state.RejectionLoggedAt >= CommunicationConfig.DiagnosticLogCooldownSeconds
+	if shouldLog then
+		state.RejectionLoggedAt = now
+	end
 	return false, shouldLog
 end
 
-local function shouldLogInvalid(state: RateState): boolean
-	if state.InvalidLogged then
+local function shouldLogInvalid(state: RateState, now: number): boolean
+	if state.InvalidLoggedAt ~= nil
+		and now - state.InvalidLoggedAt < CommunicationConfig.DiagnosticLogCooldownSeconds
+	then
 		return false
 	end
-	state.InvalidLogged = true
+	state.InvalidLoggedAt = now
 	return true
 end
 
 function CommunicationServer:_reserveRequestInvocation(player: Player): (boolean, boolean)
 	local state = self:_getRequestRateState(player)
-	state.Invocations += 1
-	return reserveRateLimit(state, state.Invocations <= CommunicationConfig.MaxRequestsPerSecond)
+	local allowed = state.Invocations:TryConsume(1)
+	return reserveRateLimit(state, allowed, self._clock())
 end
 
 function CommunicationServer:_reserveRequestBytes(player: Player, estimatedBytes: number): (boolean, boolean)
 	local state = self:_getRequestRateState(player)
-	state.Bytes += estimatedBytes
-	return reserveRateLimit(state, state.Bytes <= CommunicationConfig.MaxRequestResponseBytesPerSecond)
+	local allowed = state.Bytes:TryConsume(estimatedBytes)
+	return reserveRateLimit(state, allowed, self._clock())
 end
 
 function CommunicationServer:TryBeginSnapshotRequest(player: Player): (boolean, string?)
@@ -295,7 +312,7 @@ function CommunicationServer:_handleRequest(player: Player, request: any)
 		or request.Type == ""
 		or #request.Type > CommunicationConfig.MaxRequestTypeLength
 	then
-		if shouldLogInvalid(self:_getRequestRateState(player)) then
+		if shouldLogInvalid(self:_getRequestRateState(player), self._clock()) then
 			self._logger:Warn("invalid_request", { UserId = player.UserId })
 		end
 		return {
@@ -507,6 +524,10 @@ function CommunicationServer:BeginSnapshot(player: Player)
 	return self._outgoingEpoch[player]
 end
 
+function CommunicationServer:GetNextSnapshotEpoch(player: Player): number
+	return (self._outgoingEpoch[player] or 0) + 1
+end
+
 function CommunicationServer:SetClientReady(player: Player, epoch: number): boolean
 	if self._outgoingEpoch[player] ~= epoch then
 		self._logger:Warn("client_ready_epoch_mismatch", {
@@ -525,16 +546,26 @@ function CommunicationServer:IsClientReady(player: Player): boolean
 end
 
 function CommunicationServer:_getMessageRateState(player: Player): RateState
-	local now = self._clock()
 	local state = self._rate[player]
-	if state == nil or now - state.WindowStartedAt >= 1 then
+	if state == nil then
 		state = {
-			WindowStartedAt = now,
-			Invocations = 0,
-			Count = 0,
-			Bytes = 0,
-			RejectionLogged = false,
-			InvalidLogged = false,
+			Invocations = TokenBucket.new(
+				CommunicationConfig.MaxBatchInvocationsPerSecond,
+				CommunicationConfig.BatchInvocationBurst,
+				self._clock
+			),
+			Count = TokenBucket.new(
+				CommunicationConfig.MaxMessagesPerSecond,
+				CommunicationConfig.MessageBurst,
+				self._clock
+			),
+			Bytes = TokenBucket.new(
+				CommunicationConfig.MaxBytesPerSecond,
+				CommunicationConfig.ByteBurst,
+				self._clock
+			),
+			RejectionLoggedAt = nil,
+			InvalidLoggedAt = nil,
 		}
 		self._rate[player] = state
 	end
@@ -543,8 +574,8 @@ end
 
 function CommunicationServer:_reserveBatchInvocation(player: Player): (boolean, boolean)
 	local state = self:_getMessageRateState(player)
-	state.Invocations += 1
-	return reserveRateLimit(state, state.Invocations <= CommunicationConfig.MaxBatchInvocationsPerSecond)
+	local allowed = state.Invocations:TryConsume(1)
+	return reserveRateLimit(state, allowed, self._clock())
 end
 
 function CommunicationServer:_reserveBatchPayload(
@@ -553,13 +584,17 @@ function CommunicationServer:_reserveBatchPayload(
 	estimatedBytes: number
 ): (boolean, boolean)
 	local state = self:_getMessageRateState(player)
-	state.Count += messageCount
-	state.Bytes += estimatedBytes
-	return reserveRateLimit(
-		state,
-		state.Count <= CommunicationConfig.MaxMessagesPerSecond
-			and state.Bytes <= CommunicationConfig.MaxBytesPerSecond
-	)
+	local allowed = TokenBucket.tryConsumeAll({
+		{
+			Bucket = state.Count,
+			Amount = messageCount,
+		},
+		{
+			Bucket = state.Bytes,
+			Amount = estimatedBytes,
+		},
+	})
+	return reserveRateLimit(state, allowed, self._clock())
 end
 
 function CommunicationServer:_handleBatch(player: Player, batch: any)
@@ -577,7 +612,7 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 		or batch.Sequence ~= math.floor(batch.Sequence)
 		or typeof(batch.Messages) ~= "table"
 	then
-		if shouldLogInvalid(self:_getMessageRateState(player)) then
+		if shouldLogInvalid(self:_getMessageRateState(player), self._clock()) then
 			self._logger:Warn("invalid_batch_envelope", { UserId = player.UserId })
 		end
 		return
@@ -585,7 +620,7 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 	local denseMessages, messageCount =
 		CommunicationSerialize.inspectDenseArray(batch.Messages, CommunicationConfig.MaxMessagesPerBatch)
 	if not denseMessages then
-		if shouldLogInvalid(self:_getMessageRateState(player)) then
+		if shouldLogInvalid(self:_getMessageRateState(player), self._clock()) then
 			self._logger:Warn("batch_message_limit", { UserId = player.UserId, Count = messageCount })
 		end
 		return
@@ -601,7 +636,7 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 		return
 	end
 	if not serializable then
-		if shouldLogInvalid(self:_getMessageRateState(player)) then
+		if shouldLogInvalid(self:_getMessageRateState(player), self._clock()) then
 			self._logger:Warn("invalid_batch_payload", {
 				UserId = player.UserId,
 				Error = if serializeIssues[1] then serializeIssues[1].Reason else "payload_too_large",
@@ -629,7 +664,7 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 			or message.Type == ""
 			or #message.Type > CommunicationConfig.MaxMessageTypeLength
 		then
-			if shouldLogInvalid(self:_getMessageRateState(player)) then
+			if shouldLogInvalid(self:_getMessageRateState(player), self._clock()) then
 				self._logger:Warn("invalid_message", { UserId = player.UserId })
 			end
 			continue
@@ -638,7 +673,7 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 			and (typeof(message.RequestId) ~= "string"
 				or #message.RequestId > CommunicationConfig.MaxRequestIdLength)
 		then
-			if shouldLogInvalid(self:_getMessageRateState(player)) then
+			if shouldLogInvalid(self:_getMessageRateState(player), self._clock()) then
 				self._logger:Warn("invalid_request_id", {
 					UserId = player.UserId,
 					MessageType = message.Type,
@@ -649,7 +684,7 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 
 		local handler = self._handlers[message.Type]
 		if handler == nil then
-			if shouldLogInvalid(self:_getMessageRateState(player)) then
+			if shouldLogInvalid(self:_getMessageRateState(player), self._clock()) then
 				self._logger:Warn("unknown_message", {
 					UserId = player.UserId,
 					MessageType = message.Type,
@@ -669,7 +704,7 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 			return
 		end
 		if not valid then
-			if shouldLogInvalid(self:_getMessageRateState(player)) then
+			if shouldLogInvalid(self:_getMessageRateState(player), self._clock()) then
 				self._logger:Warn("invalid_message_payload", {
 					UserId = player.UserId,
 					MessageType = message.Type,
@@ -692,30 +727,55 @@ function CommunicationServer:_handleBatch(player: Player, batch: any)
 	end
 end
 
+function CommunicationServer:_getOutboundRateState(player: Player): OutboundRateState
+	local state = self._outboundRate[player]
+	if state == nil then
+		state = {
+			Batches = TokenBucket.new(
+				CommunicationConfig.MaxServerToClientBatchInvocationsPerSecond,
+				CommunicationConfig.ServerToClientBatchBurst,
+				self._clock
+			),
+			Bytes = TokenBucket.new(
+				CommunicationConfig.MaxServerToClientBytesPerSecond,
+				CommunicationConfig.ServerToClientByteBurst,
+				self._clock
+			),
+		}
+		self._outboundRate[player] = state
+	end
+	return state
+end
+
 function CommunicationServer:_flush()
 	for player, queue in self._outgoing do
 		if self._ready[player] ~= true or #queue == 0 then
 			continue
 		end
 
-		self._outgoing[player] = {}
-		self._outgoingBytes[player] = 0
 		while #queue > 0 do
 			local messages = {}
 			local batchBytes = 0
-			while #queue > 0 and #messages < CommunicationConfig.MaxMessagesPerBatch do
-				local entry = queue[1]
+			for index, entry in queue do
+				if #messages >= CommunicationConfig.MaxMessagesPerBatch then
+					break
+				end
 				if #messages > 0
 					and batchBytes + entry.EstimatedBytes > CommunicationConfig.MaxEstimatedPayloadBytes
 				then
 					break
 				end
-				table.remove(queue, 1)
 				table.insert(messages, entry.Message)
 				batchBytes += entry.EstimatedBytes
 			end
 
-			local valid, issues, estimatedBytes = CommunicationSerialize.inspect(messages, {
+			local sequence = (self._outgoingSequence[player] or 0) + 1
+			local batch = {
+				Epoch = self._outgoingEpoch[player] or 0,
+				Sequence = sequence,
+				Messages = messages,
+			}
+			local valid, issues, estimatedBytes = CommunicationSerialize.inspect(batch, {
 				MaxBytes = CommunicationConfig.MaxEstimatedPayloadBytes,
 			})
 			if not valid then
@@ -723,16 +783,44 @@ function CommunicationServer:_flush()
 					UserId = player.UserId,
 					Error = if issues[1] then issues[1].Reason else "payload_too_large",
 				})
-				continue
+				self:_setResyncRequired(player, "InvalidOutgoingBatch")
+				break
 			end
 
-			local sequence = (self._outgoingSequence[player] or 0) + 1
-			self._outgoingSequence[player] = sequence
-			self._serverToClient:FireClient(player, {
-				Epoch = self._outgoingEpoch[player] or 0,
-				Sequence = sequence,
-				Messages = messages,
+			local outboundRate = self:_getOutboundRateState(player)
+			local budgetAvailable = TokenBucket.tryConsumeAll({
+				{
+					Bucket = outboundRate.Batches,
+					Amount = 1,
+				},
+				{
+					Bucket = outboundRate.Bytes,
+					Amount = estimatedBytes,
+				},
 			})
+			if not budgetAvailable then
+				break
+			end
+
+			local sent, sendError = pcall(function()
+				self._serverToClient:FireClient(player, batch)
+			end)
+			if not sent then
+				self._logger:Error("outgoing_batch_transport_failed", {
+					UserId = player.UserId,
+					Error = tostring(sendError),
+				})
+				break
+			end
+
+			self._outgoingSequence[player] = sequence
+			for _ = 1, #messages do
+				local entry = table.remove(queue, 1)
+				self._outgoingBytes[player] = math.max(
+					0,
+					(self._outgoingBytes[player] or 0) - entry.EstimatedBytes
+				)
+			end
 		end
 	end
 end
@@ -746,6 +834,21 @@ function CommunicationServer:GetQueueStats(player: Player)
 		DroppedPresentation = self._droppedPresentation[player] or 0,
 		Epoch = self._outgoingEpoch[player] or 0,
 	}
+end
+
+function CommunicationServer:_clearPlayerState(player: Player)
+	self._outgoing[player] = nil
+	self._outgoingBytes[player] = nil
+	self._outgoingSequence[player] = nil
+	self._outgoingEpoch[player] = nil
+	self._expectedIncomingSequence[player] = nil
+	self._ready[player] = nil
+	self._rate[player] = nil
+	self._requestRate[player] = nil
+	self._outboundRate[player] = nil
+	self._snapshotRequests[player] = nil
+	self._resyncQueued[player] = nil
+	self._droppedPresentation[player] = nil
 end
 
 function CommunicationServer:Initialize()
@@ -764,17 +867,7 @@ function CommunicationServer:Initialize()
 		self:_flush()
 	end))
 	table.insert(self._connections, self._players.PlayerRemoving:Connect(function(player)
-		self._outgoing[player] = nil
-		self._outgoingBytes[player] = nil
-		self._outgoingSequence[player] = nil
-		self._outgoingEpoch[player] = nil
-		self._expectedIncomingSequence[player] = nil
-		self._ready[player] = nil
-		self._rate[player] = nil
-		self._requestRate[player] = nil
-		self._snapshotRequests[player] = nil
-		self._resyncQueued[player] = nil
-		self._droppedPresentation[player] = nil
+		self:_clearPlayerState(player)
 	end))
 end
 
@@ -792,6 +885,7 @@ function CommunicationServer:Stop()
 	table.clear(self._ready)
 	table.clear(self._rate)
 	table.clear(self._requestRate)
+	table.clear(self._outboundRate)
 	table.clear(self._snapshotRequests)
 	table.clear(self._resyncQueued)
 	table.clear(self._droppedPresentation)
