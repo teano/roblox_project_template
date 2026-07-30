@@ -33,6 +33,7 @@ affects save-provider and communication contracts.
 | `AssetRegistry`, `AssetKey`, static asset lookup, asset roots, or asset folder/query contracts | `assets.md`, `architecture.md`, `initialization.md`, `rojo-project.md`, `testing.md` |
 | `ContentPreloader`, `ContentProvider`, `PreloadAsync`, preload tags/groups, startup content loading, or loading before pool warmup | `content-preloading.md`, `assets.md`, `architecture.md`, `initialization.md`, `testing.md` |
 | Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |
+| `Shared/Util/Signal.luau`, module-owned local event, `Connect`, `Once`, `Fire`, `Wait`, or signal `Destroy` | `signals.md`, `architecture.md`, `testing.md`, plus every affected subsystem rule |
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
 | `src/**/Save/**`, storage, autosave, session locks, migration, version persistence | `architecture.md`, `save-system.md`, `testing.md` |
 | Communication, RemoteEvent, RemoteFunction, DTO, protocol, serialization, rate limit, resync | `architecture.md`, `communication.md`, `testing.md` |
@@ -70,6 +71,8 @@ affects save-provider and communication contracts.
 - `content-preloading.md`: the single preloading entry point, catalog-backed
   selection, named requests, progress, failure policy, and startup loading.
 - `resource-management.md`: pooling ownership, adapters, leases, budgets, and cleanup.
+- `signals.md`: side-local dispatch, connection lifecycle, yielding, errors,
+  waiting, and destruction.
 
 ## Architecture decision records
 

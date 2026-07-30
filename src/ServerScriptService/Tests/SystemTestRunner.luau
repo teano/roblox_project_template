@@ -99,6 +99,105 @@ function SystemTestRunner.runAll()
 		table.insert(tests, { Name = name, Callback = callback })
 	end
 
+	test("signal disconnect and destroy keep connection state accurate", function()
+		local signal = Signal.new()
+		local calls = 0
+		local disconnected = signal:Connect(function()
+			calls += 1
+		end)
+
+		assertTrue(disconnected.Connected, "new signal connection must be connected")
+		local writeOk = pcall(function()
+			(disconnected :: any).Connected = false
+		end)
+		assertTrue(not writeOk, "connection state must be read-only")
+		disconnected:Disconnect()
+		disconnected:Disconnect()
+		assertTrue(not disconnected.Connected, "disconnected signal connection must report false")
+
+		local destroyed = signal:Connect(function()
+			calls += 1
+		end)
+		signal:Destroy()
+		signal:Destroy()
+		assertTrue(not destroyed.Connected, "destroyed signal connection must report false")
+
+		signal:Fire()
+		task.wait()
+		assertEqual(calls, 0, "disconnected or destroyed listeners must not run")
+	end)
+
+	test("signal once disconnects before listener execution", function()
+		local signal = Signal.new()
+		local calls = 0
+		local connection = signal:Once(function()
+			calls += 1
+			signal:Fire()
+		end)
+
+		signal:Fire()
+		signal:Fire()
+		task.wait()
+
+		assertEqual(calls, 1, "once listener must run exactly once")
+		assertTrue(not connection.Connected, "once connection must report false after dispatch")
+		signal:Destroy()
+	end)
+
+	test("signal yielding listener does not block dispatch", function()
+		local signal = Signal.new()
+		local releaseFirst = false
+		local firstStarted = false
+		local firstCompleted = false
+		local secondCompleted = false
+		local fireReturned = false
+
+		signal:Connect(function()
+			firstStarted = true
+			while not releaseFirst do
+				task.wait()
+			end
+			firstCompleted = true
+		end)
+		signal:Connect(function()
+			secondCompleted = true
+		end)
+
+		task.spawn(function()
+			signal:Fire()
+			fireReturned = true
+		end)
+		task.wait()
+
+		assertTrue(firstStarted, "first listener must start")
+		assertTrue(secondCompleted, "yielding listener must not block later listeners")
+		assertTrue(fireReturned, "yielding listener must not block Fire")
+		assertTrue(not firstCompleted, "first listener must remain suspended until released")
+
+		releaseFirst = true
+		task.wait()
+		assertTrue(firstCompleted, "released listener must complete")
+		signal:Destroy()
+	end)
+
+	test("signal destroy during dispatch prevents remaining listeners", function()
+		local signal = Signal.new()
+		local laterCalls = 0
+
+		signal:Connect(function()
+			signal:Destroy()
+		end)
+		local laterConnection = signal:Connect(function()
+			laterCalls += 1
+		end)
+
+		signal:Fire()
+		task.wait()
+
+		assertEqual(laterCalls, 0, "destroy must stop listeners not yet dispatched")
+		assertTrue(not laterConnection.Connected, "destroy must disconnect remaining listeners")
+	end)
+
 	test("initialization follows manifest and is idempotent", function()
 		local order = {}
 		local commands = {

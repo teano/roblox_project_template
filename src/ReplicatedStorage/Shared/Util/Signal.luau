@@ -1,7 +1,7 @@
 --!strict
 
 export type Connection = {
-	Connected: boolean,
+	read Connected: boolean,
 	Disconnect: (self: Connection) -> (),
 }
 
@@ -13,73 +13,93 @@ export type Signal<T...> = {
 	Destroy: (self: Signal<T...>) -> (),
 }
 
-type Binding = {
-	Connected: boolean,
-	_callback: (...any) -> (),
+type ConnectionState = {
+	_connected: boolean,
+	_signal: any?,
+	_callback: ((...any) -> ())?,
 	_once: boolean,
 }
+
+local ConnectionMethods = {}
+
+local ConnectionMetatable = {
+	__index = function(connection: ConnectionState, key: string)
+		if key == "Connected" then
+			return connection._connected
+		end
+		return (ConnectionMethods :: any)[key]
+	end,
+	__newindex = function(connection: ConnectionState, key: string, value: any)
+		if key == "Connected" then
+			error("Connection.Connected is read-only", 2)
+		end
+		rawset(connection, key, value)
+	end,
+}
+
+local function disconnectConnection(connection: ConnectionState)
+	local signal = connection._signal
+	connection._connected = false
+	connection._signal = nil
+	connection._callback = nil
+
+	if signal == nil then
+		return
+	end
+
+	local index = table.find(signal._connections, connection)
+	if index ~= nil then
+		table.remove(signal._connections, index)
+	end
+end
+
+function ConnectionMethods.Disconnect(self: ConnectionState)
+	disconnectConnection(self)
+end
+
+local function traceListenerError(listenerError: any): string
+	return debug.traceback(tostring(listenerError), 2)
+end
+
+local function runListener(callback: (...any) -> (), ...: any)
+	local ok, err = xpcall(callback, traceListenerError, ...)
+	if not ok then
+		warn(`[Signal] listener error: {err}`)
+	end
+end
 
 local Signal = {}
 Signal.__index = Signal
 
 function Signal.new<T...>(): Signal<T...>
 	local self = setmetatable({
-		_bindings = {} :: { Binding },
+		_connections = {} :: { ConnectionState },
 		_destroyed = false,
 	}, Signal)
 	return (self :: any) :: Signal<T...>
 end
 
-function Signal:Connect(callback: (...any) -> ()): Connection
+local function connect(self: any, callback: (...any) -> (), once: boolean): Connection
 	assert(not self._destroyed, "Signal is destroyed")
 	assert(typeof(callback) == "function", "callback must be a function")
 
-	local binding: Binding = {
-		Connected = true,
+	local connection = setmetatable({
+		_connected = true,
+		_signal = self,
 		_callback = callback,
-		_once = false,
-	}
+		_once = once,
+	}, ConnectionMetatable) :: any
+	table.insert(self._connections, connection)
 
-	table.insert(self._bindings, binding)
+	return (connection :: any) :: Connection
+end
 
-	local connection: Connection = {
-		Connected = true,
-		Disconnect = function(conn)
-			if not conn.Connected then
-				return
-			end
-			conn.Connected = false
-			binding.Connected = false
-		end,
-	}
-
-	return connection
+function Signal:Connect(callback: (...any) -> ()): Connection
+	return connect(self, callback, false)
 end
 
 function Signal:Once(callback: (...any) -> ()): Connection
-	assert(not self._destroyed, "Signal is destroyed")
-	assert(typeof(callback) == "function", "callback must be a function")
-
-	local binding: Binding = {
-		Connected = true,
-		_callback = callback,
-		_once = true,
-	}
-
-	table.insert(self._bindings, binding)
-
-	local connection: Connection = {
-		Connected = true,
-		Disconnect = function(conn)
-			if not conn.Connected then
-				return
-			end
-			conn.Connected = false
-			binding.Connected = false
-		end,
-	}
-
-	return connection
+	return connect(self, callback, true)
 end
 
 function Signal:Fire(...: any)
@@ -87,44 +107,45 @@ function Signal:Fire(...: any)
 		return
 	end
 
-	local snapshot = table.clone(self._bindings)
-	for _, binding in snapshot do
-		if not binding.Connected then
+	local snapshot = table.clone(self._connections)
+	for _, connection in snapshot do
+		if not connection._connected then
 			continue
 		end
 
-		if binding._once then
-			binding.Connected = false
+		local callback = connection._callback
+		if callback == nil then
+			continue
 		end
 
-		local ok, err = pcall(binding._callback, ...)
-		if not ok then
-			warn(`[Signal] listener error: {err}`)
+		if connection._once then
+			disconnectConnection(connection)
 		end
-	end
 
-	local compacted: { Binding } = {}
-	for _, binding in self._bindings do
-		if binding.Connected then
-			table.insert(compacted, binding)
-		end
+		-- A yielding listener must not block Fire or any later listener.
+		task.spawn(runListener, callback, ...)
 	end
-	self._bindings = compacted
 end
 
 function Signal:Wait(): ...any
 	local thread = coroutine.running()
-	local connection: Connection
-	connection = self:Connect(function(...: any)
-		connection:Disconnect()
+	self:Once(function(...: any)
 		task.spawn(thread, ...)
 	end)
 	return coroutine.yield()
 end
 
 function Signal:Destroy()
+	if self._destroyed then
+		return
+	end
 	self._destroyed = true
-	table.clear(self._bindings)
+	for _, connection in self._connections do
+		connection._connected = false
+		connection._signal = nil
+		connection._callback = nil
+	end
+	table.clear(self._connections)
 end
 
 return Signal

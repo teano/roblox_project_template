@@ -133,6 +133,10 @@ one, or several content references.
 `RequestCompleted` fires once with the final result. Result tables, failure
 lists, and catalog path lists are immutable.
 
+Both notifications use the shared side-local event lifecycle documented in
+[Signal.md](Signal.md). An in-flight request fires its internal completion
+signal before destroying it so concurrent `Wait` callers resume.
+
 Failure policies:
 
 - `Warn` records and logs failures, then returns the result;

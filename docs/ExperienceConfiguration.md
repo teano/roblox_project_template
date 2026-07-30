@@ -164,6 +164,9 @@ projections must be split or reduced when necessary.
 does not mutate the published catalog. A domain coordinator may call
 `ExperienceConfigCatalog:Refresh()` at a safe boundary.
 
+Catalog update and generation-change notifications use the shared side-local
+contract documented in [Signal.md](Signal.md).
+
 Refresh follows:
 
 ```text

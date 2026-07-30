@@ -24,6 +24,9 @@ production и построенная с помощью [Rojo](https://rojo.space
   очисткой.
 - Централизованные серверная и клиентская обёртки над жизненным циклом игроков
   и персонажей Roblox.
+- Общий side-local `Signal` для событий модулей с неблокирующей рассылкой,
+  точным lifecycle подключений и немедленным освобождением callback при
+  отключении.
 - Упорядоченная пакетная отправка RemoteEvent с валидацией, ограничениями по
   количеству и размеру, rate limiting, приоритетами, номерами
   последовательности, эпохами снимков, backpressure и автоматической
@@ -332,6 +335,8 @@ Version → Wallet → project providers
 [docs/ContentPreloading.md](docs/ContentPreloading.md).
 Контракт пулов, адаптеров, lease и очистки:
 [docs/ResourceManagement.md](docs/ResourceManagement.md).
+Контракт локальных сигналов, подключений и рассылки:
+[docs/Signal.md](docs/Signal.md).
 
 ## Структура репозитория
 
@@ -356,7 +361,8 @@ docs/
 ├── ExperienceConfiguration.md        Experience Configs и client bundles
 ├── InitializationAndSaveSystem.md
 ├── IntegrationTesting.md             отдельное интеграционное окружение
-└── ResourceManagement.md             пулы, адаптеры, lease и очистка
+├── ResourceManagement.md             пулы, адаптеры, lease и очистка
+└── Signal.md                         локальные события и lifecycle подключений
 .agents/rules/                        обязательные правила изменения проекта
 ```
 

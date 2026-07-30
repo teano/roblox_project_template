@@ -162,6 +162,11 @@ server-authority, or invalid providers are rejected and logged.
 
 `PlayersModule` is the single wrapper around Roblox `Players`. It owns player and character signals. The global save command subscribes to it for load and close; gameplay modules consume the same wrapper instead of independently scattering `Players` event subscriptions.
 
+These notifications, initialization completion, and provider
+`MementoChanged` events use the shared side-local signal contract. Listener
+yields do not block publishers or later listeners, and disconnected callbacks
+are released immediately. See [Signal.md](Signal.md).
+
 ## Loading screen
 
 `ReplicatedFirst/Loading.client.luau` removes the default screen, displays initialization progress, and fades only after `ClientInitialized=true`. A failed bootstrap leaves a visible rejoin message.
