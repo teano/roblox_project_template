@@ -56,16 +56,28 @@ Expected: the aggregate result and every suite result have `failed = 0`.
 
 ## Studio session preservation
 
-- Reuse an already-open Studio instance when it owns the canonical
-  `place.rbxl` of the project being tested. Never open a duplicate session for
-  the same project. Studio sessions for other projects are out of scope.
+- Reuse an already-open Studio instance when it owns the current project:
+  canonical local `place.rbxl` identity for an unpublished project, or the
+  recorded stable cloud place identity for a published project. Never open a
+  duplicate session for the same project. Studio sessions for other projects
+  are out of scope.
 - Run the Rojo preflight, call the Studio instance-list operation, and
   explicitly select the matching instance before starting or stopping Play,
   executing Luau, reading the DataModel, or using any Studio UI.
-- For a published place, verify the selected instance by the recorded stable
-  `game.PlaceId` and `game.GameId` or the configured `servePlaceIds`
-  allowlist. For an unpublished place, use the canonical file identity. Never
-  choose by `default.project.json` `name` or by an MCP heuristic.
+- For a published place, require exact nonzero recorded `game.PlaceId` and
+  `game.GameId`, matching top-level `placeId`/`gameId`, and a
+  `servePlaceIds` allowlist containing the selected place. For an unpublished
+  place, use the canonical file identity. Never choose by
+  `default.project.json` `name` or by an MCP heuristic.
+- A newly attached or published place is not test-ready until the agent has
+  read the actual post-attachment DataModel IDs, recorded them in
+  `default.project.json` and the owning project ADR, rerun the Rojo preflight,
+  and verified the selected DataModel against those recorded values. Supplied,
+  expected, URL-derived, or name-derived IDs do not satisfy this gate.
+- Do not start Play or a test suite in a published project opened as a local
+  file until the verified Rojo connection has restored the configured IDs and
+  exact DataModel identity has been checked. A zero or mismatched ID blocks
+  the test; republishing is not a test setup step.
 - Open a new canonical Studio session only after reliable instance enumeration
   proves that no matching project session exists. If no instance is returned
   while Studio is running, the selected instance disconnects, or multiple
@@ -127,8 +139,9 @@ Create or rebuild a real integration-test environment in this mandatory order:
    value in the Published view; staged-only configs are not ready for testing.
 3. Only after the configs are published, attach or publish the integration
    project's canonical `place.rbxl` to the dedicated test Experience. Record
-   and verify the resulting stable `game.PlaceId` and `game.GameId`, or protect
-   the Rojo connection with `servePlaceIds`.
+   and verify the resulting stable `game.PlaceId` and `game.GameId`, configure
+   matching top-level `placeId`/`gameId`, and restrict the Rojo connection
+   with `servePlaceIds`.
 
 After setup, enable Studio API access only for the dedicated test Experience,
 run a clean server/client bootstrap, then run the deterministic suites and the

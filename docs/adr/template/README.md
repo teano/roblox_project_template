@@ -25,9 +25,12 @@ Repositories derived from the template receive these records from their
 | [ADR-0015](0015-default-rojo-port-with-project-overrides.md) | Use Rojo's default port with optional project overrides | Superseded by ADR-0016 |
 | [ADR-0016](0016-switch-single-rojo-server-by-project.md) | Switch one default-port Rojo server to the active project | Superseded by ADR-0018 |
 | [ADR-0017](0017-server-owned-experience-config-catalog.md) | Use a server-owned Experience Config catalog with explicit client projections | Accepted |
-| [ADR-0018](0018-identify-studio-target-by-stable-place-identity.md) | Identify Studio targets without comparing mutable names | Accepted |
+| [ADR-0018](0018-identify-studio-target-by-stable-place-identity.md) | Identify Studio targets without comparing mutable names | Superseded by ADR-0022 |
 | [ADR-0019](0019-side-local-non-blocking-signals.md) | Use one side-local non-blocking Signal contract | Accepted |
 | [ADR-0020](0020-shape-communication-traffic-and-bound-snapshots.md) | Shape communication traffic and bound network snapshots | Accepted |
+| [ADR-0021](0021-migrate-locked-raw-save-documents-iteratively.md) | Migrate locked raw save documents through ordered version steps | Accepted |
+| [ADR-0022](0022-launch-published-projects-with-stable-cloud-identity.md) | Launch published projects with stable cloud identity | Superseded by ADR-0023 |
+| [ADR-0023](0023-publish-template-with-non-inheritable-cloud-identity.md) | Publish the template with non-inheritable cloud identity | Accepted |
 
 ## Ownership and numbering
 

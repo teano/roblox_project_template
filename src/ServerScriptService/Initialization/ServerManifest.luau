@@ -23,6 +23,7 @@ local SessionLockModule = require(Modules.Storage.SessionLockModule)
 local AutoSaveModule = require(Modules.AutoSave.AutoSaveModule)
 local VersionModule = require(Modules.Version.VersionModule)
 local MigrationModule = require(Modules.Migration.MigrationModule)
+local MigrationManifest = require(Modules.Migration.MigrationManifest)
 local WalletModule = require(Modules.Wallet.WalletModule)
 
 local Commands = script.Parent.Commands
@@ -32,6 +33,7 @@ local PlayersInitializationCommand = require(Commands.PlayersInitializationComma
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
 local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand)
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
+local MigrationInitializationCommand = require(Commands.MigrationInitializationCommand)
 local DomainDataInitializationCommand = require(Commands.DomainDataInitializationCommand)
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
 local PersistenceScheduleInitializationCommand = require(Commands.PersistenceScheduleInitializationCommand)
@@ -76,7 +78,10 @@ local shutdownSaveCoordinator = ShutdownSaveCoordinator.new({
 	MaxConcurrency = StorageConfig.ShutdownMaxConcurrency,
 })
 local versionModule = VersionModule.new()
-local migrationModule = MigrationModule.new()
+local migrationModule = MigrationModule.new(MigrationManifest.Controllers, {
+	LegacyBaselineVersion = MigrationManifest.LegacyBaselineVersion,
+	MaxSerializedBytes = StorageConfig.SoftSerializedBytesLimit,
+})
 local walletModule = WalletModule.new(communication, configCatalog)
 
 local services = {
@@ -102,7 +107,8 @@ local commands = {
 	CommunicationInitializationCommand.new(communication),
 	ConfigInitializationCommand.new(configCatalog),
 	SaveInitializationCommand.new(saveModule),
-	DomainDataInitializationCommand.new(versionModule, migrationModule, walletModule),
+	MigrationInitializationCommand.new(migrationModule),
+	DomainDataInitializationCommand.new(versionModule, walletModule),
 	GlobalSaveInitializationCommand.new({
 		SaveModule = saveModule,
 		Storage = storage,

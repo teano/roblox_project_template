@@ -123,7 +123,7 @@ local function makeProvider(id: string, authority: string, behavior: any?)
 	return provider
 end
 
-local function makeController(id: string, providers: { any })
+local function makeController(id: string, providers: { any }, softSerializedBytesLimit: number?)
 	return ServerSaveController.new({
 		Id = id,
 		Providers = providers,
@@ -133,6 +133,7 @@ local function makeController(id: string, providers: { any })
 		KeyResolver = function(player)
 			return `{id}_{player.UserId}`
 		end,
+		SoftSerializedBytesLimit = softSerializedBytesLimit,
 		Logger = makeLogger(),
 	})
 end
@@ -448,24 +449,69 @@ function ProductionReadinessTestRunner.runAll()
 		assertEqual(controller:GetState(player), "ApplyFailed")
 	end)
 
-	test("migration chains select versions and run same-version controllers by order", function()
-		local migration = MigrationModule.new()
+	test("oversized prepared snapshots fail before mutating loaded runtime", function(scope)
+		local provider = makeProvider("Test", "Server")
+		local controller = makeController("prepared_size_limit", { provider }, 512)
+		scope:Defer(function()
+			controller:Destroy(false)
+			provider:Destroy()
+		end)
+		local player = { UserId = 33 } :: any
+		assertTrue(controller:Load(player).Ok, "initial controller load failed")
+		assertEqual(provider:GetValue(player), 1)
+
+		assertThrows(function()
+			controller:ApplyMemento(player, {
+				Revision = 1,
+				Providers = {
+					Test = { Version = 1, Data = { Value = 2 } },
+				},
+				Metadata = {},
+				Padding = string.rep("x", 1_000),
+			})
+		end, "exceeds the 512-byte soft size limit")
+		assertEqual(controller:GetState(player), "Loaded")
+		assertEqual(provider:GetValue(player), 1, "oversized target mutated provider runtime")
+
+		assertThrows(function()
+			controller:ApplyMemento(player, {
+				Revision = 2,
+				Providers = {
+					Test = { Version = 1, Data = { Value = 3 } },
+				},
+				Metadata = {},
+				Unsafe = 0 / 0,
+			})
+		end, "not DataStore-safe")
+		assertEqual(controller:GetState(player), "Loaded")
+		assertEqual(provider:GetValue(player), 1, "unsafe target mutated provider runtime")
+	end)
+
+	test("migration chains every skipped version and orders specialized same-version controllers", function()
+		local migration = MigrationModule.new(nil, {
+			CurrentVersion = "3.0.0",
+		})
 		local order = {}
-		local function controller(targetVersion, controllerOrder, name)
+		local contexts = {}
+		local function controller(targetVersion, controllerOrder, name, returnsDocument)
 			return {
+				Id = name,
 				TargetVersion = targetVersion,
 				Order = controllerOrder,
-				Migrate = function(_self, document)
+				Migrate = function(_self, document, context)
 					table.insert(order, name)
+					table.insert(contexts, `{context.SourceVersion}>{context.TargetVersion}:{context.MigrationId}`)
 					document[name] = true
-					return document
+					return if returnsDocument then document else nil
 				end,
 			}
 		end
-		migration:Register(controller("1.0.0", 20, "Last"))
-		migration:Register(controller("0.5.0", 0, "First"))
-		migration:Register(controller("1.0.0", 10, "Middle"))
-		migration:Register(controller("2.0.0", 0, "Future"))
+		migration:Register(controller("2.0.0", 20, "SecondForV2", false))
+		migration:Register(controller("1.0.0", 0, "ForV1", true))
+		migration:Register(controller("2.0.0", 10, "FirstForV2", false))
+		migration:Register(controller("3.0.0", 0, "ForV3", true))
+		migration:Register(controller("4.0.0", 0, "Future", true))
+		migration:Initialize()
 
 		local source = {
 			Providers = {
@@ -476,13 +522,794 @@ function ProductionReadinessTestRunner.runAll()
 				},
 			},
 		}
-		local result = migration:Migrate(source)
-		assertEqual(table.concat(order, ","), "First,Middle,Last")
+		local result, checkpointCommitRequired = migration:Migrate(source)
+		assertEqual(table.concat(order, ","), "ForV1,FirstForV2,SecondForV2,ForV3")
+		assertEqual(
+			table.concat(contexts, ","),
+			"0.0.0>1.0.0:ForV1,1.0.0>2.0.0:FirstForV2,"
+				.. "1.0.0>2.0.0:SecondForV2,2.0.0>3.0.0:ForV3"
+		)
 		assertEqual(result.Future, nil)
-		assertEqual(source.First, nil, "migration mutated its source document")
+		assertEqual(source.ForV1, nil, "migration mutated its source document")
+		assertEqual(checkpointCommitRequired, true)
+	end)
+
+	test("migration registration and semantic versions fail closed", function()
+		local migration = MigrationModule.new(nil, {
+			CurrentVersion = "2.0.0",
+		})
+		migration:Register({
+			Id = "Valid",
+			TargetVersion = "2.0.0",
+			Order = 0,
+			Migrate = function(_self, document)
+				return document
+			end,
+		})
 		assertThrows(function()
-			migration:Register({})
-		end, "Migration TargetVersion required")
+			migration:Register({
+				Id = "Valid",
+				TargetVersion = "2.0.0",
+				Order = 1,
+				Migrate = function() end,
+			})
+		end, "Duplicate migration Id")
+		assertThrows(function()
+			migration:Register({
+				Id = "MalformedVersion",
+				TargetVersion = "2.x.0",
+				Order = 0,
+				Migrate = function() end,
+			})
+		end, "MAJOR.MINOR.PATCH")
+		assertThrows(function()
+			migration:Register({
+				Id = "NonCanonicalVersion",
+				TargetVersion = "02.0.0",
+				Order = 0,
+				Migrate = function() end,
+			})
+		end, "canonical")
+		assertThrows(function()
+			migration:Register({
+				Id = "UnsafeOrder",
+				TargetVersion = "2.0.0",
+				Order = 9_007_199_254_740_992,
+				Migrate = function() end,
+			})
+		end, "safe integer")
+		migration:Initialize()
+		assertThrows(function()
+			migration:Register({
+				Id = "Late",
+				TargetVersion = "2.0.0",
+				Order = 2,
+				Migrate = function() end,
+			})
+		end, "before Initialize")
+		assertThrows(function()
+			migration:GetPlan("3.0.0")
+		end, "newer than server version")
+		assertThrows(function()
+			migration:Migrate({
+				Providers = {
+					Version = {
+						Data = {
+							PreviousVersion = "bad",
+						},
+					},
+				},
+			})
+		end, "Stored PreviousVersion")
+	end)
+
+	test("migration snapshots scheduling metadata and callable at registration", function()
+		local implementation: any = {
+			Id = "Original",
+			TargetVersion = "1.0.0",
+			Order = 0,
+			Migrate = function(_self, document)
+				document.Original = true
+			end,
+		}
+		local migration = MigrationModule.new({ implementation }, {
+			CurrentVersion = "1.0.0",
+		})
+		implementation.Id = "Mutated"
+		implementation.TargetVersion = "9.0.0"
+		implementation.Order = 999
+		implementation.Migrate = function()
+			error("mutated callable must not execute")
+		end
+		migration:Initialize()
+
+		local plan = migration:GetPlan("0.0.0")
+		assertEqual(#plan, 1)
+		assertEqual(plan[1].Id, "Original")
+		local result = migration:Migrate({
+			Providers = {
+				Version = {
+					Data = {
+						PreviousVersion = "0.0.0",
+					},
+				},
+			},
+		})
+		assertEqual(result.Original, true)
+	end)
+
+	test("migration isolates replacement documents returned by controllers", function()
+		local sharedReplacement = {
+			Providers = {
+				Version = {
+					Data = {
+						PreviousVersion = "0.0.0",
+					},
+				},
+			},
+		}
+		local migration = MigrationModule.new({
+			{
+				Id = "ReturnReplacement",
+				TargetVersion = "1.0.0",
+				Order = 0,
+				Migrate = function()
+					return sharedReplacement
+				end,
+			},
+			{
+				Id = "MutateReplacement",
+				TargetVersion = "1.0.0",
+				Order = 1,
+				Migrate = function(_self, document)
+					document.Migrated = true
+				end,
+			},
+		}, {
+			CurrentVersion = "1.0.0",
+		})
+		migration:Initialize()
+
+		local result = migration:Migrate({
+			Providers = {
+				Version = {
+					Data = {
+						PreviousVersion = "0.0.0",
+					},
+				},
+			},
+		})
+		assertEqual(result.Migrated, true)
+		assertEqual(
+			sharedReplacement.Migrated,
+			nil,
+			"a later controller mutated a replacement table owned outside the migration run"
+		)
+	end)
+
+	test("migration rejects cyclic replacement documents before isolation copy", function()
+		local cyclicReplacement = {
+			Providers = {
+				Version = {
+					Data = {
+						PreviousVersion = "0.0.0",
+					},
+				},
+			},
+		}
+		cyclicReplacement.Self = cyclicReplacement
+		local migration = MigrationModule.new({
+			{
+				Id = "CyclicReplacement",
+				TargetVersion = "1.0.0",
+				Order = 0,
+				Migrate = function()
+					return cyclicReplacement
+				end,
+			},
+		}, {
+			CurrentVersion = "1.0.0",
+		})
+		migration:Initialize()
+
+		assertThrows(function()
+			migration:Migrate({
+				Providers = {
+					Version = {
+						Data = {
+							PreviousVersion = "0.0.0",
+						},
+					},
+				},
+			})
+		end, "Migration 'CyclicReplacement' returned an unsafe replacement document")
+	end)
+
+	test("migration failure isolates the source and rejects checkpoint or unsafe output", function()
+		local function sourceDocument()
+			return {
+				Providers = {
+					Version = {
+						Data = {
+							PreviousVersion = "1.0.0",
+						},
+					},
+				},
+				Value = 1,
+			}
+		end
+
+		local failing = MigrationModule.new({
+			{
+				Id = "Throws",
+				TargetVersion = "2.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					document.Value = 2
+					error("injected migration failure")
+				end,
+			},
+		}, {
+			CurrentVersion = "2.0.0",
+		})
+		failing:Initialize()
+		local source = sourceDocument()
+		assertThrows(function()
+			failing:Migrate(source)
+		end, "Migration 'Throws' failed")
+		assertEqual(source.Value, 1, "failed migration leaked mutations into its source")
+
+		local checkpoint = MigrationModule.new({
+			{
+				Id = "Checkpoint",
+				TargetVersion = "2.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					document.Providers.Version.Data.PreviousVersion = "2.0.0"
+				end,
+			},
+		}, {
+			CurrentVersion = "2.0.0",
+		})
+		checkpoint:Initialize()
+		assertThrows(function()
+			checkpoint:Migrate(sourceDocument())
+		end, "must not modify")
+
+		local unsafe = MigrationModule.new({
+			{
+				Id = "Unsafe",
+				TargetVersion = "2.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					document.Value = 0 / 0
+				end,
+			},
+		}, {
+			CurrentVersion = "2.0.0",
+		})
+		unsafe:Initialize()
+		assertThrows(function()
+			unsafe:Migrate(sourceDocument())
+		end, "not DataStore-safe")
+
+		local invalidProviders = MigrationModule.new({
+			{
+				Id = "ArrayProviders",
+				TargetVersion = "2.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					table.insert(document.Providers, {
+						Version = 1,
+						Data = {},
+					})
+				end,
+			},
+		}, {
+			CurrentVersion = "2.0.0",
+		})
+		invalidProviders:Initialize()
+		assertThrows(function()
+			invalidProviders:Migrate(sourceDocument())
+		end, "string-keyed dictionary")
+
+		local lockMutation = MigrationModule.new({
+			{
+				Id = "LockMutation",
+				TargetVersion = "2.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					document.Session.LockId = "stolen"
+				end,
+			},
+		}, {
+			CurrentVersion = "2.0.0",
+		})
+		lockMutation:Initialize()
+		local lockedSource: any = sourceDocument()
+		lockedSource.Session = {
+			LockId = "owned",
+		}
+		assertThrows(function()
+			lockMutation:Migrate(lockedSource)
+		end, "storage-owned Session lock")
+
+		local oversized = MigrationModule.new({
+			{
+				Id = "Oversized",
+				TargetVersion = "2.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					document.Payload = string.rep("x", 2_000)
+				end,
+			},
+		}, {
+			CurrentVersion = "2.0.0",
+			MaxSerializedBytes = 1_000,
+		})
+		oversized:Initialize()
+		assertThrows(function()
+			oversized:Migrate(sourceDocument())
+		end, "exceeds the 1000-byte save limit")
+
+		local oversizedEmptyTransition = MigrationModule.new(nil, {
+			CurrentVersion = "2.0.0",
+			MaxSerializedBytes = 1_000,
+		})
+		oversizedEmptyTransition:Initialize()
+		local oversizedWithoutController = sourceDocument()
+		oversizedWithoutController.Payload = string.rep("x", 2_000)
+		assertThrows(function()
+			oversizedEmptyTransition:Migrate(oversizedWithoutController)
+		end, "exceeds the 1000-byte save limit")
+	end)
+
+	test("migration requires an explicit baseline for non-empty pre-checkpoint profiles", function()
+		local source = {
+			Providers = {
+				Test = {
+					Version = 1,
+					Data = {
+						Value = 1,
+					},
+				},
+			},
+		}
+		local strict = MigrationModule.new(nil, {
+			CurrentVersion = "1.0.0",
+		})
+		strict:Initialize()
+		assertThrows(function()
+			strict:Migrate(source)
+		end, "configure LegacyBaselineVersion explicitly")
+		assertThrows(function()
+			strict:Migrate({
+				Providers = {},
+				LegacyValue = 1,
+			})
+		end, "configure LegacyBaselineVersion explicitly")
+		local newProfile, checkpointCommitRequired = strict:Migrate({
+			Providers = {},
+		}, {
+			IsNewProfile = true,
+		})
+		assertEqual(next(newProfile.Providers), nil)
+		assertEqual(checkpointCommitRequired, false)
+
+		local migrated = MigrationModule.new({
+			{
+				Id = "Legacy",
+				TargetVersion = "1.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					document.Providers.Test.Data.Value = 2
+				end,
+			},
+		}, {
+			CurrentVersion = "1.0.0",
+			LegacyBaselineVersion = "0.0.0",
+		})
+		migrated:Initialize()
+		local result = migrated:Migrate(source)
+		assertEqual(result.Providers.Test.Data.Value, 2)
+		assertEqual(result.Providers.Version, nil, "migration created its owned checkpoint")
+
+		local rawLegacy = MigrationModule.new({
+			{
+				Id = "ReadLegacyRoot",
+				TargetVersion = "1.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					document.IntermediateValue = document.LegacyValue + 1
+				end,
+			},
+			{
+				Id = "CreateProviderRoot",
+				TargetVersion = "1.0.0",
+				Order = 1,
+				Migrate = function(_self, document)
+					document.Providers = {
+						Test = {
+							Version = 1,
+							Data = {
+								Value = document.IntermediateValue,
+							},
+						},
+					}
+					document.LegacyValue = nil
+					document.IntermediateValue = nil
+				end,
+			},
+		}, {
+			CurrentVersion = "1.0.0",
+			LegacyBaselineVersion = "0.0.0",
+		})
+		rawLegacy:Initialize()
+		local rawResult = rawLegacy:Migrate({
+			LegacyValue = 40,
+		})
+		assertEqual(rawResult.Providers.Test.Data.Value, 41)
+		assertEqual(rawResult.LegacyValue, nil)
+
+		local checkpointCreator = MigrationModule.new({
+			{
+				Id = "CheckpointCreator",
+				TargetVersion = "1.0.0",
+				Order = 0,
+				Migrate = function(_self, document)
+					document.Providers.Version = {
+						Data = {
+							PreviousVersion = "0.0.0",
+						},
+					}
+				end,
+			},
+		}, {
+			CurrentVersion = "1.0.0",
+			LegacyBaselineVersion = "0.0.0",
+		})
+		checkpointCreator:Initialize()
+		assertThrows(function()
+			checkpointCreator:Migrate(source)
+		end, "must not create")
+	end)
+
+	test("successful migration persists atomically and is skipped after checkpoint reload", function(scope)
+		local key = "migration_success_28"
+		local memory = MemoryStorage.new({
+			[key] = {
+				FormatVersion = 1,
+				Revision = 7,
+				Providers = {
+					Version = {
+						Version = 1,
+						Data = {
+							InstallationVersion = "0.0.0",
+							PreviousVersion = "0.0.0",
+							PlaceVersion = 0,
+						},
+					},
+					Test = {
+						Version = 1,
+						Data = {
+							Value = 10,
+						},
+					},
+				},
+				Metadata = {
+					CreatedAt = 1,
+					UpdatedAt = 1,
+				},
+				Session = nil,
+			},
+		})
+		local storage = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 1_800,
+		})
+		local executions = 0
+		local migration = MigrationModule.new({
+			{
+				Id = "IncrementTest",
+				TargetVersion = VersionConfig.CurrentVersion,
+				Order = 0,
+				Migrate = function(_self, document)
+					executions += 1
+					document.Providers.Test.Data.Value += 1
+				end,
+			},
+		}, {
+			CurrentVersion = VersionConfig.CurrentVersion,
+			MaxSerializedBytes = 3_500_000,
+		})
+		migration:Initialize()
+
+		local function buildController()
+			local version = VersionModule.new()
+			local provider = makeProvider("Test", "Server")
+			local controller = ServerSaveController.new({
+				Id = "migration_success",
+				Providers = { provider, version },
+				Storage = storage,
+				KeyResolver = function()
+					return key
+				end,
+				Logger = makeLogger(),
+			})
+			scope:Defer(function()
+				controller:Destroy(false)
+				version.MementoChanged:Destroy()
+				provider:Destroy()
+			end)
+			return controller, provider
+		end
+
+		local firstController, firstProvider = buildController()
+		local player = { UserId = 28 } :: any
+		local firstLoad = firstController:Load(player, function(document)
+			local migratedDocument, checkpointCommitRequired = migration:Migrate(document)
+			return migratedDocument, if checkpointCommitRequired then { VersionConfig.ProviderId } else nil
+		end)
+		assertTrue(firstLoad.Ok, "first migrated load failed")
+		assertEqual(firstProvider:GetValue(player), 11)
+		assertEqual(executions, 1)
+		local saveResult = firstController:ForceSave(player, "MigrationTest")
+		assertTrue(saveResult.Ok, "migrated document failed to save immediately after load")
+		assertTrue(firstController:Close(player, false).Ok, "first migrated close failed")
+
+		local persisted = memory:Read(key)
+		assertEqual(persisted.Providers.Test.Data.Value, 11)
+		assertEqual(persisted.Providers.Version.Data.PreviousVersion, VersionConfig.CurrentVersion)
+		assertEqual(persisted.Session, nil)
+
+		local secondController, secondProvider = buildController()
+		local secondLoad = secondController:Load(player, function(document)
+			local migratedDocument, checkpointCommitRequired = migration:Migrate(document)
+			return migratedDocument, if checkpointCommitRequired then { VersionConfig.ProviderId } else nil
+		end)
+		assertTrue(secondLoad.Ok, "checkpoint reload failed")
+		assertEqual(secondProvider:GetValue(player), 11)
+		assertEqual(executions, 1, "persisted migration executed again")
+		assertTrue(secondController:Close(player, false).Ok, "checkpoint reload close failed")
+	end)
+
+	test("Version checkpoint does not advance when an earlier provider fails to run", function(scope)
+		local key = "migration_provider_failure_27"
+		local memory = MemoryStorage.new({
+			[key] = {
+				FormatVersion = 1,
+				Revision = 1,
+				Providers = {
+					Test = {
+						Version = 1,
+						Data = {
+							Value = 2,
+						},
+					},
+					Version = {
+						Version = 1,
+						Data = {
+							InstallationVersion = "0.0.0",
+							PreviousVersion = "0.0.0",
+							PlaceVersion = 0,
+						},
+					},
+				},
+				Metadata = {
+					CreatedAt = 1,
+					UpdatedAt = 1,
+				},
+				Session = nil,
+			},
+		})
+		local storage = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 1_800,
+		})
+		local provider = makeProvider("Test", "Server", {
+			FailRunValue = 2,
+		})
+		local version = VersionModule.new()
+		local checkpointChanges = 0
+		version.MementoChanged:Connect(function()
+			checkpointChanges += 1
+		end)
+		local controller = ServerSaveController.new({
+			Id = "migration_provider_failure",
+			Providers = { provider, version },
+			Storage = storage,
+			KeyResolver = function()
+				return key
+			end,
+			Logger = makeLogger(),
+		})
+		scope:Defer(function()
+			controller:Destroy(false)
+			version.MementoChanged:Destroy()
+			provider:Destroy()
+		end)
+
+		local player = { UserId = 27 } :: any
+		local result = controller:Load(player)
+		assertEqual(result.Ok, false)
+		assertEqual(result.Code, "ApplyFailed")
+		task.wait()
+		assertEqual(checkpointChanges, 0, "Version committed before all domain providers ran")
+		assertEqual(storage:HasLock(key), false)
+		assertEqual(memory:Read(key).Providers.Version.Data.PreviousVersion, "0.0.0")
+	end)
+
+	test("migration failure aborts load before provider runtime and releases the session lock", function(scope)
+		local provider = makeProvider("Test", "Server")
+		scope:Defer(function()
+			provider:Destroy()
+		end)
+		local memory = MemoryStorage.new()
+		local storage = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 1_800,
+		})
+		local controller = ServerSaveController.new({
+			Id = "migration_failure",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function(player)
+				return `migration_failure_{player.UserId}`
+			end,
+			Logger = makeLogger(),
+		})
+		scope:Defer(function()
+			controller:Destroy(false)
+		end)
+		local player = { UserId = 29 } :: any
+		local result = controller:Load(player, function()
+			error("injected raw migration failure")
+		end)
+		assertEqual(result.Ok, false)
+		assertEqual(result.Code, "ApplyFailed")
+		assertEqual(result.LockReleaseOk, true)
+		assertEqual(controller:GetState(player), "LoadFailed")
+		assertEqual(provider:GetValue(player), nil, "provider runtime changed before migration completed")
+		assertEqual(storage:HasLock("migration_failure_29"), false, "failed migration leaked its session lock")
+	end)
+
+	test("persistent pre-apply transforms revalidate lock ownership before runtime application", function(scope)
+		local provider = makeProvider("Test", "Server")
+		local ownedStorage = SessionLockingStorage.new(MemoryStorage.new(), {
+			StaleLockSeconds = 1_800,
+		})
+		local refreshCalls = 0
+		local releaseCalls = 0
+		local storage = {
+			Load = function(_self, key)
+				return ownedStorage:Load(key)
+			end,
+			Refresh = function()
+				refreshCalls += 1
+				return {
+					Ok = false,
+					Code = "LockLost",
+					Error = "injected ownership loss",
+				}
+			end,
+			Release = function(_self, key)
+				releaseCalls += 1
+				return ownedStorage:Release(key)
+			end,
+		}
+		local controller = ServerSaveController.new({
+			Id = "migration_lock_revalidation",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function()
+				return "migration_lock_revalidation_32"
+			end,
+			Logger = makeLogger(),
+		})
+		scope:Defer(function()
+			controller:Destroy(false)
+			provider:Destroy()
+		end)
+
+		local player = { UserId = 32 } :: any
+		local result = controller:Load(player, function(document)
+			document.Transformed = true
+			return document, { "Test" }
+		end)
+		assertEqual(result.Ok, false)
+		assertEqual(result.Code, "ApplyFailed")
+		assertTrue(
+			string.find(result.Error, "Session lock could not be confirmed", 1, true) ~= nil,
+			"lock revalidation failure was not surfaced"
+		)
+		assertEqual(refreshCalls, 1)
+		assertEqual(releaseCalls, 1)
+		assertEqual(provider:GetValue(player), nil, "runtime applied after lock ownership was lost")
+	end)
+
+	test("load failure surfaces a session-lock release failure", function(scope)
+		local provider = makeProvider("Test", "Server")
+		scope:Defer(function()
+			provider:Destroy()
+		end)
+		local ownedStorage = SessionLockingStorage.new(MemoryStorage.new(), {
+			StaleLockSeconds = 1_800,
+		})
+		local storage = {
+			Load = function(_self, key)
+				return ownedStorage:Load(key)
+			end,
+			Release = function()
+				return {
+					Ok = false,
+					Code = "RetryExhausted",
+					Error = "injected release failure",
+				}
+			end,
+		}
+		local controller = ServerSaveController.new({
+			Id = "migration_release_failure",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function(player)
+				return `migration_release_failure_{player.UserId}`
+			end,
+			Logger = makeLogger(),
+		})
+		scope:Defer(function()
+			ownedStorage:Release("migration_release_failure_31")
+			controller:Destroy(false)
+		end)
+		local player = { UserId = 31 } :: any
+		local result = controller:Load(player, function()
+			error("injected raw migration failure")
+		end)
+		assertEqual(result.Ok, false)
+		assertEqual(result.Code, "ApplyFailed")
+		assertEqual(result.LockReleaseOk, false)
+		assertEqual(result.LockReleaseCode, "RetryExhausted")
+		assertTrue(
+			string.find(result.Error, "Session lock release also failed", 1, true) ~= nil,
+			"release failure was hidden from load result"
+		)
+	end)
+
+	test("load failure normalizes a malformed session-lock release result", function(scope)
+		local provider = makeProvider("Test", "Server")
+		local ownedStorage = SessionLockingStorage.new(MemoryStorage.new(), {
+			StaleLockSeconds = 1_800,
+		})
+		local storage = {
+			Load = function(_self, key)
+				return ownedStorage:Load(key)
+			end,
+			Release = function()
+				return nil
+			end,
+		}
+		local controller = ServerSaveController.new({
+			Id = "migration_malformed_release",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function()
+				return "migration_malformed_release_33"
+			end,
+			Logger = makeLogger(),
+		})
+		scope:Defer(function()
+			ownedStorage:Release("migration_malformed_release_33")
+			controller:Destroy(false)
+			provider:Destroy()
+		end)
+
+		local result = controller:Load({ UserId = 33 } :: any, function()
+			error("injected raw migration failure")
+		end)
+		assertEqual(result.Ok, false)
+		assertEqual(result.Code, "ApplyFailed")
+		assertEqual(result.LockReleaseOk, false)
+		assertEqual(result.LockReleaseCode, "ReleaseFailed")
+		assertTrue(
+			string.find(result.Error, "Storage Release returned an invalid result", 1, true) ~= nil,
+			"malformed release result was not normalized"
+		)
 	end)
 
 	test("Version providers reject malformed data and emit dirty only for real upgrades", function(scope)
@@ -513,6 +1340,16 @@ function ProductionReadinessTestRunner.runAll()
 			InstallationVersion = "1.0.0",
 			PreviousVersion = "1.0.0",
 			PlaceVersion = 0.5,
+		}), false)
+		assertEqual(client:ValidateMemento({
+			InstallationVersion = "01.0.0",
+			PreviousVersion = "1.0.0",
+			PlaceVersion = 0,
+		}), false)
+		assertEqual(client:ValidateMemento({
+			InstallationVersion = "1.0.0",
+			PreviousVersion = "1.0.0",
+			PlaceVersion = math.huge,
 		}), false)
 
 		server:SetMemento(player, current)

@@ -3,13 +3,12 @@
 local Command = {}
 Command.__index = Command
 
-function Command.new(versionModule: any, migrationModule: any, walletModule: any)
+function Command.new(versionModule: any, walletModule: any)
 	return setmetatable({
 		Id = "DomainData",
-		DependsOn = { "Save" },
+		DependsOn = { "Migration" },
 		_modules = {
 			versionModule,
-			migrationModule,
 			walletModule,
 		},
 	}, Command)

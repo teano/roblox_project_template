@@ -1,5 +1,10 @@
 {
   "name": "roblox_project_template",
+  "placeId": 91045933836846,
+  "gameId": 10596427617,
+  "servePlaceIds": [
+    91045933836846
+  ],
   "tree": {
     "$className": "DataModel",
 

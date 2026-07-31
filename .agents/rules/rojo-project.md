@@ -37,12 +37,44 @@ else in the scene is preserved by saving and committing
 - The preflight MAY replace another Rojo server on the default port after
   verifying the listener process is Rojo. It MUST refuse to terminate a
   non-Rojo listener.
-- Before using Studio tools, explicitly select the current canonical
-  `place.rbxl` Studio instance. Treat `default.project.json` `name` only as
-  the Rojo project/server identity and never require it to match
-  `game.Name`. For a published project, verify stable `game.PlaceId` and
-  `game.GameId` values recorded by the project or rely on a configured
-  `servePlaceIds` allowlist when available.
+- Before using Studio tools, explicitly select the current project's Studio
+  instance. An unpublished project is identified by the canonical local
+  `place.rbxl`; a published project is identified by its project-recorded
+  stable `game.PlaceId` and `game.GameId`. Treat `default.project.json` `name`
+  only as the Rojo project/server identity and never require it to match
+  `game.Name`.
+- Every published repository MUST configure top-level `placeId`, `gameId`, and
+  `servePlaceIds` in `default.project.json`. `placeId` and `gameId` MUST match
+  the recorded cloud place and Experience, and `servePlaceIds` MUST contain
+  every approved live-sync destination and no unrelated place.
+- The reusable template's configured IDs identify only its dedicated validation
+  place. A derived checkout MUST remove all inherited `placeId`, `gameId`, and
+  `servePlaceIds` fields before its first Rojo preflight, Studio connection, or
+  Studio operation, then leave them absent or replace them with that derived
+  project's independently verified identity. Never connect a derived project
+  while the template IDs remain configured.
+- Immediately after a user-authorized first publish or attachment, read the
+  exact nonzero `game.PlaceId` and `game.GameId` from the selected resulting
+  DataModel. That post-attachment DataModel is the authoritative source for
+  recording identity; names, URLs, requested destinations, process arguments,
+  and expected IDs are not substitutes.
+- Before any subsequent Play, Experience Config, DataStore, test, publish, or
+  other cloud-dependent operation, write the observed IDs to top-level
+  `placeId`/`gameId`, update `servePlaceIds` to the exact approved allowlist,
+  and create the required ADR in the repository's owning namespace for the
+  attachment decision and `default.project.json` identity. Rerun the Rojo
+  preflight, reconnect if needed, and verify the DataModel reports the recorded
+  IDs exactly.
+- If the post-attachment IDs cannot be read, are zero, or do not match the
+  user-authorized destination, stop. Do not guess, partially record identity,
+  continue under an unresolved attachment, or use another publish to repair
+  it.
+- Open a published project either from Roblox cloud (`EditPlace` or My
+  Experiences), or from canonical `place.rbxl` only when the verified Rojo
+  connection will restore the configured `placeId`/`gameId` before any Play,
+  Experience Config, DataStore, publishing, or other cloud-dependent
+  operation. Verify `game.PlaceId` and `game.GameId` after connection and stop
+  on any mismatch or zero value.
 - Reuse an existing Studio session for tests and Studio work when it owns the
   canonical place of the current project. Never open a duplicate session for
   that project, and never inspect or change sessions belonging to other
@@ -61,8 +93,10 @@ else in the scene is preserved by saving and committing
 - Preserve the existing top-level mappings unless an architectural change requires otherwise.
 - New shared/client/server files MUST be placed under the correct mapped container.
 - System startup code MUST remain limited to the two bootstraps plus the dedicated ReplicatedFirst loading LocalScript.
-- Open `place.rbxl` for normal Studio work; do not replace it with a
-  source-only validation build.
+- For an unpublished project, open `place.rbxl` for normal Studio work. For a
+  published project, follow the cloud-identity launch procedure above and
+  export/save Studio-authored scene state back to the exact canonical
+  `place.rbxl`; do not replace it with a source-only validation build.
 - Pull the latest branch and verify that the place has no unresolved Git
   change before beginning a new scene-editing session.
 - Coordinate binary scene ownership so only one branch/person changes
@@ -90,6 +124,16 @@ else in the scene is preserved by saving and committing
 - MUST NOT define `servePort`, pass `--port`, or edit the endpoint field in the
   Studio Rojo plugin. Projects share the default endpoint and switch the
   active server through `scripts/ensure-rojo-server.ps1`.
+- MUST NOT launch a published project as an unidentified local file and then
+  Play, access Experience services, or publish while `game.PlaceId` or
+  `game.GameId` is zero or mismatched.
+- MUST NOT use `Publish to Roblox As` to guess, repair, or silently change a
+  project's cloud identity. Publishing or attaching a place requires explicit
+  user authorization and an exact recorded destination.
+- MUST NOT infer or record `placeId`/`gameId` from a project name, DataModel
+  name, URL, Creator Hub path, command line, requested destination, or another
+  repository. Only the actual selected post-attachment DataModel can supply
+  newly assigned IDs.
 - MUST NOT launch or reopen Studio as an implicit fallback for missing or
   disconnected Studio MCP data when a matching project session may exist.
 

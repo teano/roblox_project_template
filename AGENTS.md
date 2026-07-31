@@ -27,11 +27,15 @@ Before editing, adding, moving, or deleting source code:
 
 Before the first Roblox Studio tool or UI operation against a running
 DataModel in a task, run the same Rojo preflight again, then explicitly select
-the Studio instance for the current canonical `place.rbxl`; do not inspect or
-mutate another open project. If reliable enumeration proves that no matching
-project session exists and opening one is authorized, run the preflight before
-launch and explicitly select the new canonical instance before any subsequent
-Studio operation.
+the Studio instance for the current project; do not inspect or mutate another
+open project. For an unpublished project, identify that instance by the
+canonical local `place.rbxl`. For a published project, identify it by the
+project-recorded stable `game.PlaceId` and `game.GameId`; the canonical
+`place.rbxl` remains the repository's binary scene source, not its cloud
+identity. If reliable enumeration proves that no matching project session
+exists and opening one is authorized, run the preflight before launch and
+explicitly select the new canonical instance before any subsequent Studio
+operation.
 Studio and test workflows MUST reuse an already-open Studio session when that
 session owns the canonical place of the project being tested. Never open a
 duplicate session for the same project, replace the matching session, or
@@ -48,10 +52,33 @@ inside the matching selected Studio instance; it does not mean reopening
 Studio or the place.
 Treat `default.project.json` `name` only as the Rojo project/server identity,
 not as the Roblox place identity, and never require it to match
-`game.Name`. For a published project, use stable `game.PlaceId`/`game.GameId`
-values recorded by the project or a configured `servePlaceIds` allowlist when
-available. Rerun the preflight after changing repositories, restarting Studio,
-or any event that may have replaced the Rojo process.
+`game.Name`. Every published repository MUST record its stable
+`game.PlaceId`/`game.GameId`, configure matching top-level
+`placeId`/`gameId`, and include every approved sync target in
+`servePlaceIds`. Open it from Roblox cloud (`EditPlace`/My Experiences), or
+open the canonical local file only when connecting the verified Rojo project
+will restore those configured IDs before Play, Experience Config, DataStore,
+publishing, or any other cloud-dependent operation. After connection, verify
+the actual DataModel IDs exactly.
+
+Immediately after a user-authorized first publish or attachment, treat the
+selected post-attachment DataModel as the only authoritative source of cloud
+identity. Read its exact nonzero `game.PlaceId` and `game.GameId`; do not infer,
+derive, or copy them from a name, URL, requested destination, process command
+line, or prior expectation. Before Play, Experience Config, DataStore, another
+publish, or any other cloud-dependent operation, record those observed IDs in
+the owning repository's `default.project.json` as top-level `placeId`/`gameId`,
+add the attached place to the exact approved `servePlaceIds` allowlist, and
+create the required ADR in that repository's owning namespace (`template` for
+this reusable template, `project` for a derived game). Then rerun the Rojo
+preflight, reconnect if needed, and re-read the DataModel IDs to prove they
+match the recorded values. If the actual IDs cannot be read, are zero, or do
+not identify the user-authorized destination, stop without guessing or
+recording anything.
+
+Never use `Publish to Roblox As` as an automatic identity-recovery step. Rerun
+the preflight after changing repositories, restarting Studio, or any event
+that may have replaced the Rojo process.
 
 The preflight owns the single default Rojo endpoint. It may stop a process only
 after confirming that the process owning port `34872` is Rojo, and it starts
@@ -77,8 +104,18 @@ project-owned ADR namespace and initial ADR, assigns the Rojo connection name
 from the repository root directory, enforces the shared default Rojo endpoint,
 and reviews every project-specific configuration surface. Project ADR-0001
 must record the connection name, absence of `servePort`, and merge policy that
-preserves both during template updates. This is mandatory setup work and does
-not require the user to repeat these instructions.
+preserves both during template updates. When a stable published place identity
+is already known, it must also record and preserve `placeId`, `gameId`, and
+`servePlaceIds`; otherwise it records cloud identity as unresolved and a later
+project ADR owns the attachment decision. This is mandatory setup work and
+does not require the user to repeat these instructions.
+
+The reusable template's `placeId`, `gameId`, and `servePlaceIds` identify only
+its dedicated validation place and are never inherited as a derived game's
+identity. Immediately after creating a derived checkout, remove those inherited
+fields before the first Rojo preflight, Studio connection, or Studio operation.
+Then either leave them absent while the derived cloud identity is unresolved or
+write only the derived project's independently verified IDs.
 
 When the user asks to create or initialize a project and supplies only the
 target repository URL, treat that URL as the project `origin`, derive the local

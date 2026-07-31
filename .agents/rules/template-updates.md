@@ -107,21 +107,28 @@ action.
   desired, replay them manually in Roblox Studio as a separate authorized
   project change.
 
-### Rojo project identity and shared default endpoint
+### Rojo project identity, cloud identity, and shared default endpoint
 
 - Treat the initialized project's `default.project.json` `name` and required
   absence of `servePort` as project-owned values documented by project
-  ADR-0001.
+  ADR-0001. When the project is published, also treat its recorded `placeId`,
+  `gameId`, and `servePlaceIds` as project-owned values documented by the
+  active owning project ADR.
 - When upstream also changes `default.project.json`, reconcile the JSON
   structure and apply compatible incoming mappings or settings. Preserve the
-  project's current `name` and keep `servePort` absent.
+  project's current `name`, keep `servePort` absent, and preserve the exact
+  published cloud identity fields when present.
+- Template `placeId`, `gameId`, and `servePlaceIds` values are non-inheritable.
+  Never copy them into a derived repository during an upstream merge. Preserve
+  the derived project's own verified values when published; when its identity
+  is unresolved, keep all three fields absent.
 - If an existing project ADR still requires a custom `servePort`, report
   architectural drift and create a superseding project decision before
   removing it; do not silently rewrite Accepted project history.
 - If the active owning project ADR does not name `default.project.json`, does
-  not state the name and shared-endpoint invariant, or disagrees with the
-  current values, stop and ask the user instead of guessing which identity
-  policy should win.
+  not state the name/shared-endpoint invariant, omits existing cloud identity
+  fields, or disagrees with the current values, stop and ask the user instead
+  of guessing which identity policy should win.
 
 ### Text source, scripts, services, rules, and documentation
 

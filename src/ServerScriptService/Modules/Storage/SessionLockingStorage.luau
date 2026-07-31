@@ -33,36 +33,66 @@ function SessionLockingStorage.new(baseStorage: any, config: any, logger: any?)
 	}, SessionLockingStorage)
 end
 
-function SessionLockingStorage:_makeSession(lockId: string)
-	return {
+function SessionLockingStorage:_makeSession(lockId: string, acquisition: any?)
+	local session = {
 		LockId = lockId,
 		JobId = game.JobId,
 		PlaceId = game.PlaceId,
 		LastHeartbeatAt = os.time(),
 	}
+	if acquisition ~= nil and acquisition.Created == true then
+		session.AcquiredFromNewProfile = true
+	end
+	if acquisition ~= nil and acquisition.StaleTakeover == true then
+		session.AcquiredByStaleTakeover = true
+	end
+	return session
 end
 
 function SessionLockingStorage:Load(key: string, options: any?)
 	local lockId = HttpService:GenerateGUID(false)
-	local staleTakeover = false
 
 	local result = self._base:Update(key, function(raw)
-		staleTakeover = false
 		if raw ~= nil and typeof(raw) ~= "table" then
 			return raw
 		end
 		local document = if typeof(raw) == "table" then TableUtil.deepCopy(raw) else createEmptyDocument()
 		local session = document.Session
-		if typeof(session) == "table" and session.LockId ~= lockId then
+		local created = raw == nil
+		local staleTakeover = false
+		if typeof(session) == "table"
+			and session.LockId == nil
+			and session.AcquiredFromNewProfile == true
+		then
+			-- A prior owner released this never-saved profile. There is no live
+			-- lock to wait for, but the storage-owned creation classification must
+			-- survive until provider defaults are saved successfully.
+			created = true
+		elseif typeof(session) == "table" and session.LockId ~= lockId then
 			local lastHeartbeat = if typeof(session.LastHeartbeatAt) == "number" then session.LastHeartbeatAt else 0
 			local stale = os.time() - lastHeartbeat >= self._config.StaleLockSeconds
 			if not stale then
 				return nil
 			end
+			-- If the previous owner crashed after creating the document but
+			-- before its first provider save, the transient creation marker is
+			-- still authoritative. A successful save would have replaced the
+			-- Session and removed this marker.
+			created = session.AcquiredFromNewProfile == true
 			staleTakeover = stale
+		elseif typeof(session) == "table" and session.LockId == lockId then
+			-- A retry of the complete UpdateAsync operation can observe a write
+			-- committed by an earlier attempt whose response was lost. Carry
+			-- acquisition classification in the owned final document instead of
+			-- relying on callback-local side effects.
+			created = session.AcquiredFromNewProfile == true
+			staleTakeover = session.AcquiredByStaleTakeover == true
 		end
 
-		document.Session = self:_makeSession(lockId)
+		document.Session = self:_makeSession(lockId, {
+			Created = created,
+			StaleTakeover = staleTakeover,
+		})
 		return document
 	end, options)
 
@@ -88,11 +118,13 @@ function SessionLockingStorage:Load(key: string, options: any?)
 	end
 
 	self._locks[key] = lockId
+	local finalSession = result.Value.Session
 	return {
 		Ok = true,
 		Document = TableUtil.deepCopy(result.Value),
 		LockId = lockId,
-		StaleTakeover = staleTakeover,
+		Created = finalSession.AcquiredFromNewProfile == true,
+		StaleTakeover = finalSession.AcquiredByStaleTakeover == true,
 	}
 end
 
@@ -158,7 +190,13 @@ function SessionLockingStorage:Refresh(key: string, options: any?)
 			return nil
 		end
 		local nextDocument = TableUtil.deepCopy(current)
-		nextDocument.Session = self:_makeSession(lockId)
+		-- Acquisition classification remains authoritative until the first
+		-- successful profile save. A lock heartbeat must not turn an abandoned
+		-- brand-new document into an ambiguous pre-checkpoint profile.
+		nextDocument.Session = self:_makeSession(lockId, {
+			Created = current.Session.AcquiredFromNewProfile == true,
+			StaleTakeover = current.Session.AcquiredByStaleTakeover == true,
+		})
 		return nextDocument
 	end, options)
 
@@ -193,7 +231,16 @@ function SessionLockingStorage:Release(key: string, options: any?)
 			return nil
 		end
 		local nextDocument = TableUtil.deepCopy(current)
-		nextDocument.Session = nil
+		if current.Session.AcquiredFromNewProfile == true then
+			-- Release ownership without losing the fact that this document has
+			-- never completed its first provider save. The next owner may acquire
+			-- this marker immediately; Save removes it atomically with provider data.
+			nextDocument.Session = {
+				AcquiredFromNewProfile = true,
+			}
+		else
+			nextDocument.Session = nil
+		end
 		return nextDocument
 	end, options)
 

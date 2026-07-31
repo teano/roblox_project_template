@@ -58,6 +58,53 @@ A controller MUST remain `Loaded` only after full success or full rollback. Fail
 - Shutdown MUST use the shared deadline and bounded-concurrency coordinator.
 - No new retry may begin after the propagated deadline.
 - Existing test saves MUST NOT cause speculative legacy migrations. Add a migration only for a real released-version transition.
+- Raw-document migrations MUST run on the server after the session lock is
+  acquired and before provider reconciliation or runtime mutation.
+- Migration controllers MUST be registered explicitly before
+  `MigrationModule:Initialize()`, use a stable unique ID, declare a strict
+  canonical `MAJOR.MINOR.PATCH` target and non-negative integer order, and be
+  deterministic, retry-safe, stateless, and reentrant across concurrent
+  player loads. Scheduling metadata and the callable are snapshotted when
+  registered.
+- Every controller whose target is in `(storedVersion, currentVersion]` MUST
+  run in ascending target-version order; controllers sharing a target run by
+  order and then ID. This complete chain is mandatory when a player skips
+  releases.
+- Migrations MUST operate on an isolated raw-document copy, MUST NOT mutate
+  the storage-owned Session lock or the Version provider's `PreviousVersion`
+  checkpoint, and MUST produce a DataStore-safe document within the
+  controller's serialized-size limit. Any migration, checkpoint, downgrade,
+  or output validation failure MUST abort load before provider runtime is
+  changed and attempt to release the acquired session lock; a release failure
+  MUST be surfaced separately.
+- A replacement document returned by a migration controller MUST be validated
+  as DataStore-safe before the pipeline copies it for isolation, so cyclic or
+  otherwise unsafe controller-owned tables fail with a bounded migration
+  diagnostic instead of entering a recursive copy.
+- A migration chain that requires a checkpoint commit MUST revalidate session
+  lock ownership after raw transformation and before provider application.
+  After successful application, the Version provider MUST be queued
+  synchronously for dirty capture before load success is published; no save
+  may persist transformed provider data with the old checkpoint.
+- An empty new profile without a Version provider starts at the current
+  version only when storage explicitly reports that it created the profile;
+  an empty `Providers` table alone MUST NOT be used to infer newness. An
+  existing pre-checkpoint profile MUST fail closed unless the project
+  explicitly configures its known legacy baseline version. With that baseline,
+  migrations MAY rebuild a missing legacy `Providers` root, but the final raw
+  result MUST contain a string-keyed provider dictionary before application.
+- Session-lock refresh and pre-save release MUST preserve the storage-owned
+  new-profile acquisition marker until the first successful profile save
+  removes it. Release MUST remove active lock ownership while allowing the
+  pending new profile to be reacquired immediately. A crash after a refresh or
+  cancellation before the first save MUST still classify the document as new.
+- The Version checkpoint MUST advance only after the complete migration chain
+  and atomic provider application succeed, so an unpersisted chain is retried
+  from its stored version.
+- Released migration controllers MUST remain durable compatibility code while
+  retained production profiles may still require them. Correct a released
+  transform with a later migration instead of rewriting its historical input
+  contract.
 
 ## Authority rules
 

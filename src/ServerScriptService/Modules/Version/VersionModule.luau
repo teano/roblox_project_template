@@ -9,8 +9,37 @@ local VersionConfig = require(ReplicatedStorage.Shared.Version.VersionConfig)
 local VersionModule = {}
 VersionModule.__index = VersionModule
 
+local function isNonNegativeInteger(value: any): boolean
+	return typeof(value) == "number"
+		and value == value
+		and value ~= math.huge
+		and value ~= -math.huge
+		and value >= 0
+		and value == math.floor(value)
+end
+
 local function isVersion(value: any): boolean
-	return typeof(value) == "string" and string.match(value, "^%d+%.%d+%.%d+$") ~= nil
+	if typeof(value) ~= "string" then
+		return false
+	end
+	local major, minor, patch = string.match(value, "^(%d+)%.(%d+)%.(%d+)$")
+	if major == nil or minor == nil or patch == nil then
+		return false
+	end
+	for _, componentText in { major, minor, patch } do
+		if #componentText > 1 and string.sub(componentText, 1, 1) == "0" then
+			return false
+		end
+		local component = tonumber(componentText)
+		if component == nil
+			or component ~= component
+			or component == math.huge
+			or component > 9_007_199_254_740_991
+		then
+			return false
+		end
+	end
+	return true
 end
 
 function VersionModule.new()
@@ -44,8 +73,8 @@ function VersionModule:ReconcileMemento(player: Player, value: any, _fromVersion
 		if isVersion(value.PreviousVersion) then
 			result.PreviousVersion = value.PreviousVersion
 		end
-		if typeof(value.PlaceVersion) == "number" then
-			result.PlaceVersion = math.max(0, math.floor(value.PlaceVersion))
+		if isNonNegativeInteger(value.PlaceVersion) then
+			result.PlaceVersion = value.PlaceVersion
 		end
 	end
 	return result
@@ -53,8 +82,11 @@ end
 
 function VersionModule:ValidateMemento(player: Player, value: any): (boolean, any?, string?)
 	local data = self:ReconcileMemento(player, value, self.Version)
-	if not isVersion(data.InstallationVersion) or not isVersion(data.PreviousVersion) then
-		return false, nil, "Invalid semantic version"
+	if not isVersion(data.InstallationVersion)
+		or not isVersion(data.PreviousVersion)
+		or not isNonNegativeInteger(data.PlaceVersion)
+	then
+		return false, nil, "Invalid version memento"
 	end
 	return true, data, nil
 end

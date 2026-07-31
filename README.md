@@ -206,9 +206,46 @@ Project ADR находятся только в `docs/adr/project/`, поэтом
 
 ## Локальный запуск
 
+Сначала определите режим проекта:
+
+- **Опубликованный шаблон** использует отдельный place только для проверки
+  шаблона. Его стабильные идентификаторы записаны в `default.project.json` и
+  ADR-0023.
+- **Неопубликованный производный проект или локальный прототип** не имеет
+  облачной идентичности. Открывайте отслеживаемый `place.rbxl`; значения
+  `game.PlaceId` и `game.GameId` закономерно равны нулю.
+- **Опубликованный производный проект** всегда открывается и проверяется по
+  стабильным Place ID и Universe/Experience ID. Локальный `place.rbxl`
+  остаётся канонической Git-копией Studio-сцены, но сам по себе не является
+  облачной идентичностью.
+
+### Однократная настройка опубликованного проекта
+
+Запишите проверенные идентификаторы в project ADR и добавьте рядом с `name` в
+верхний уровень `default.project.json` следующие поля, не изменяя существующее
+`tree`:
+
+```json
+"placeId": 1234567890,
+"gameId": 9876543210,
+"servePlaceIds": [1234567890]
+```
+
+`placeId` — ID конкретного place, `gameId` — Universe/Experience ID.
+`servePlaceIds` перечисляет только разрешённые цели live sync. Для
+мультиплейс-проекта добавьте в allowlist каждый place, который действительно
+обслуживается этим Rojo-проектом. Не копируйте примерные числа.
+
+Текущий шаблон уже имеет отдельное опубликованное назначение для проверок.
+При создании производного проекта его `placeId`, `gameId` и `servePlaceIds`
+нельзя наследовать: удалите их до первого запуска Rojo или подключения Studio,
+а затем оставьте отсутствующими либо запишите собственные проверенные
+идентификаторы проекта.
+
+### Каждый запуск
+
 1. Если используете Codex, выполните настройку CodeGraph из раздела выше.
-2. Откройте отслеживаемый файл `place.rbxl` в Roblox Studio.
-3. Выполните Rojo-preflight и подключите плагин Studio, не меняя его порт:
+2. Выполните Rojo-preflight, не меняя стандартный порт:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-rojo-server.ps1
@@ -217,18 +254,55 @@ Project ADR находятся только в `docs/adr/project/`, поэтом
    Команда проверяет `/api/rojo`. Если стандартный порт обслуживает другой
    Rojo-проект, она останавливает только этот Rojo-процесс и запускает
    `rojo serve default.project.json` из текущего репозитория.
-4. Убедитесь, что поле `name` в `default.project.json` совпадает с именем
+3. Убедитесь, что поле `name` в `default.project.json` совпадает с именем
    корневого каталога репозитория. Это уникальное имя Rojo-подключения,
    отображаемое в Studio.
-5. Проверьте `VersionConfig.CurrentVersion`.
-6. Выберите имя production DataStore и ограничения сохранения в
+4. Откройте Studio одним из способов:
+   - опубликованный проект: откройте нужный place через **My Experiences** или
+     Creator Hub;
+   - опубликованный проект из командной строки:
+
+     ```powershell
+     RobloxStudioBeta.exe --task EditPlace --placeId PLACE_ID --universeId GAME_ID
+     ```
+
+   - неопубликованный проект: откройте локальный `place.rbxl`;
+   - опубликованный проект можно открыть из локального `place.rbxl` только
+     когда `default.project.json` уже содержит правильные `placeId`, `gameId`
+     и `servePlaceIds`. Не запускайте Play и не обращайтесь к Experience
+     Config/DataStore до подключения Rojo и проверки идентичности.
+5. Подключите Studio Rojo plugin к стандартному endpoint. Для локально
+   открытого опубликованного place Rojo восстановит настроенные
+   `placeId`/`gameId`.
+6. До Play, тестов или публикации проверьте в Command Bar:
+
+   ```lua
+   print(game.PlaceId, game.GameId, game.PlaceVersion)
+   ```
+
+   Для опубликованного проекта `PlaceId` и `GameId` должны быть ненулевыми и
+   точно совпадать с project ADR и `default.project.json`. При нуле или
+   несовпадении остановитесь: не используйте `Publish to Roblox As` как
+   способ угадать или восстановить назначение.
+7. Проверьте `VersionConfig.CurrentVersion`.
+8. Выберите имя production DataStore и ограничения сохранения в
    `StorageConfig`.
-7. Настройте стабильные идентификаторы валют в `WalletConfig`.
-8. Создайте обязательные Experience Configs `wallet_config` и
+9. Настройте стабильные идентификаторы валют в `WalletConfig`.
+10. Создайте обязательные Experience Configs `wallet_config` и
    `global_save_config` по схемам из
    [docs/ExperienceConfiguration.md](docs/ExperienceConfiguration.md).
    Оба значения должны иметь нативный тип `JSON` и быть опубликованы; строка с
    сериализованным JSON и staged-only значение не подходят.
+
+После Studio-изменений сцены сохраните или экспортируйте её именно в
+отслеживаемый `place.rbxl` и закоммитьте этот файл. Публикация в Roblox и
+сохранение Git-копии — разные явные операции: первая обновляет облачный place,
+вторая обновляет канонический бинарный источник репозитория.
+
+Официальные справки:
+
+- [Roblox Studio command-line interface](https://create.roblox.com/docs/studio/command-line-interface)
+- [Rojo project format](https://rojo.space/docs/v7/project-format/)
 
 Для проверки сборки или изучения только исходников используйте сборку Rojo:
 
@@ -288,8 +362,8 @@ StarterPlayerScripts/Bootstrap.client.luau
 Порядок серверной инициализации:
 
 ```text
-Assets → Pooling → Players → Communication → Config → Save → DomainData
-       → GlobalSave → PersistenceSchedule
+Assets → Pooling → Players → Communication → Config → Save → Migration
+       → DomainData → GlobalSave → PersistenceSchedule
 ```
 
 Порядок клиентской инициализации:
@@ -316,7 +390,7 @@ Assets → StartupContentPreload → Pooling → Players → Communication
 независимых провайдеров:
 
 ```text
-Version → Wallet → project providers
+Wallet → project providers → Version (checkpoint commit-provider)
 ```
 
 `SaveModule` не знает, что означает глобальный, сессионный или слотовый слой
@@ -327,6 +401,8 @@ Version → Wallet → project providers
 
 Подробное описание жизненного цикла и расширения системы:
 [docs/InitializationAndSaveSystem.md](docs/InitializationAndSaveSystem.md).
+Контракт, пример и release checklist миграций пользовательских данных:
+[docs/UserDataMigrations.md](docs/UserDataMigrations.md).
 Контракт Experience Configs, codecs, клиентских bundles и refresh:
 [docs/ExperienceConfiguration.md](docs/ExperienceConfiguration.md).
 Контракт папок, путей, `AssetKey` и запросов:
@@ -368,7 +444,8 @@ docs/
 ├── IntegrationTesting.md             отдельное интеграционное окружение
 ├── Logger.md                         формат и гарантии журналирования
 ├── ResourceManagement.md             пулы, адаптеры, lease и очистка
-└── Signal.md                         локальные события и lifecycle подключений
+├── Signal.md                         локальные события и lifecycle подключений
+└── UserDataMigrations.md             миграции пользовательских сохранений
 .agents/rules/                        обязательные правила изменения проекта
 ```
 

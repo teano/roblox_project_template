@@ -9,7 +9,27 @@ local VersionClient = {}
 VersionClient.__index = VersionClient
 
 local function isVersion(value: any): boolean
-	return typeof(value) == "string" and string.match(value, "^%d+%.%d+%.%d+$") ~= nil
+	if typeof(value) ~= "string" then
+		return false
+	end
+	local major, minor, patch = string.match(value, "^(%d+)%.(%d+)%.(%d+)$")
+	if major == nil or minor == nil or patch == nil then
+		return false
+	end
+	for _, componentText in { major, minor, patch } do
+		if #componentText > 1 and string.sub(componentText, 1, 1) == "0" then
+			return false
+		end
+		local component = tonumber(componentText)
+		if component == nil
+			or component ~= component
+			or component == math.huge
+			or component > 9_007_199_254_740_991
+		then
+			return false
+		end
+	end
+	return true
 end
 
 function VersionClient.new()
@@ -30,6 +50,9 @@ function VersionClient:ValidateMemento(value: any): (boolean, any?, string?)
 		or not isVersion(value.InstallationVersion)
 		or not isVersion(value.PreviousVersion)
 		or typeof(value.PlaceVersion) ~= "number"
+		or value.PlaceVersion ~= value.PlaceVersion
+		or value.PlaceVersion == math.huge
+		or value.PlaceVersion == -math.huge
 		or value.PlaceVersion < 0
 		or value.PlaceVersion ~= math.floor(value.PlaceVersion)
 	then

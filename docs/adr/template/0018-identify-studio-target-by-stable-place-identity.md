@@ -1,10 +1,10 @@
 # ADR-0018: Identify Studio targets without comparing mutable names
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-30
 - Deciders: Project maintainers
 - Supersedes: ADR-0016
-- Superseded by: None
+- Superseded by: ADR-0022
 
 ## Context
 

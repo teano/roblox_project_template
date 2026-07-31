@@ -36,11 +36,11 @@ clean server/client bootstrap succeeds.
 | Side-local signals | connect, once, wait, disconnect, destroy | listener throws and owner destruction | yielding listeners, nested dispatch, nil arguments | `SystemTestRunner` |
 | Initialization manifests | dependency order, idempotence, catalog composition | missing dependency, duplicate/malformed/out-of-order commands | concurrent callers, sticky failure, non-cancelling watchdog | `SystemTestRunner` |
 | Wallet and base provider rules | initial value and persisted reload | unknown currency, invalid amounts/balances | zero no-op, safe-integer, NaN/fractional limits | `SystemTestRunner`, `ProductionIntegrationTestRunner` |
-| Save transaction | load/apply/run/save and revision updates | capture, set, run, persistence, rollback-cleanup failures | complete reverse/forward ordering, concurrent save/close | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
+| Save transaction | load/apply/run/save and revision updates | capture, set, run, persistence, rollback-cleanup, unsafe prepared document, prepared size-limit, and cancelled-load release failures | complete reverse/forward ordering, pre-mutation persistence gate, concurrent save/close, throwing release retry after cancellation | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
 | Client-authority patch | accepted provider update | server-authority, unknown, malformed and invalid patch | lost acknowledgement retired by replacement snapshot | `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
-| Storage and session locks | owner refresh/release and stale takeover | contention, corrupt document, lost ownership | final `UpdateAsync` transform, retry/deadline limits | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
+| Storage and session locks | owner refresh/release and stale takeover | contention, corrupt document, lost ownership | final `UpdateAsync` transform, same-lock whole-operation retry classification, new-profile marker preservation across refresh, release, and abandoned takeover, retry/deadline limits | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
 | Autosave and shutdown | due dirty save, bounded concurrent close | persistence failure and expired deadline | not-due/clean exclusion, stop during worker cycle | `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
-| Migrations | ordered applicable chain | invalid controller/source and migration failure isolation | same-version order and future-version exclusion | `ProductionReadinessTestRunner`, `SystemTestRunner` |
+| Migrations | complete skipped-version chain plus immediate load/save/reload checkpoint | invalid controller/checkpoint, missing legacy baseline, existing empty pre-checkpoint profile, invalid provider dictionary, post-transform lock loss/release failure, unsafe or oversized output, cyclic replacement | same-version order, raw legacy root reconstruction, synchronous checkpoint capture, registration/replacement isolation, immutable checkpoint, future-version exclusion, oversized empty transition | `ProductionReadinessTestRunner`, `SystemTestRunner` |
 | Communication serialization | supported DTO and Roblox value shapes | malformed, cyclic, unsafe, oversized payloads | work/byte/depth caps and Vector3 batch preservation | `ProductionIntegrationTestRunner` |
 | Communication flow control | queue, request, send, resync and recovery | invalid calls, throwing validators, packet loss, stale epoch | independent player buckets, byte pacing, burst/refill, backpressure | `ProductionIntegrationTestRunner` |
 | Communication cleanup | normal stop and player removal | in-flight resync cancellation | sequence, epoch, queue and limiter reset | `ProductionIntegrationTestRunner` |
@@ -81,9 +81,12 @@ modules. Verify the server and client bootstraps complete and the client
 publishes `ClientInitialized=true`.
 
 A clean or fresh Play session is a stop/start cycle inside the same explicitly
-selected Studio instance when a matching project session is already open. If
-MCP cannot determine whether a matching session exists, the gate is blocked:
-do not launch Studio or reopen the place from incomplete connector data.
+selected Studio instance when a matching project session is already open. A
+published session must have exact nonzero project-recorded `game.PlaceId` and
+`game.GameId`, matching `default.project.json` `placeId`/`gameId`, and an
+allowing `servePlaceIds` entry before Play begins. If MCP cannot determine
+whether a matching session exists, the gate is blocked: do not launch Studio
+or reopen the place from incomplete connector data.
 
 ## Expected diagnostics during tests
 
@@ -93,7 +96,8 @@ behavior, including:
 
 - an isolated signal listener failure;
 - rejected malformed or rate-limited communication traffic;
-- injected save, autosave, lock-refresh, migration, and rollback failures;
+- injected save, autosave, lock-refresh, lock-release, migration, and rollback
+  failures;
 - rejected invalid or oversized configuration, asset, preload, and serialized
   payloads;
 - injected resync handler failures before a successful retry.

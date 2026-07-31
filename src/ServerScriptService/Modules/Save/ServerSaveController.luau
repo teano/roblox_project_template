@@ -53,6 +53,27 @@ local function createDocument(): any
 	}
 end
 
+local function releaseAfterFailedLoad(storage: any, key: string): any
+	local releaseOk, releaseOrError = xpcall(function()
+		return storage:Release(key)
+	end, debug.traceback)
+	if not releaseOk then
+		return {
+			Ok = false,
+			Code = "ReleaseFailed",
+			Error = tostring(releaseOrError),
+		}
+	end
+	if typeof(releaseOrError) ~= "table" or typeof(releaseOrError.Ok) ~= "boolean" then
+		return {
+			Ok = false,
+			Code = "ReleaseFailed",
+			Error = "Storage Release returned an invalid result",
+		}
+	end
+	return releaseOrError
+end
+
 function ServerSaveController.new(config: {
 	Id: string,
 	Providers: { any },
@@ -199,6 +220,29 @@ function ServerSaveController:ApplyMemento(player: Player, document: any)
 		targetValues[provider] = data
 	end
 
+	-- Reconciliation and provider defaults are allowed to expand the raw
+	-- document. Validate the complete persistence candidate before stopping or
+	-- mutating runtime providers so a successful load can never publish state
+	-- that is already impossible to save.
+	local serializable, serializationIssues = SaveSerialize.validate(source)
+	if not serializable then
+		local first = serializationIssues[1]
+		error(
+			`Prepared save document is not DataStore-safe at '{if first then first.Path else ""}': `
+				.. (if first then first.Reason else "unknown")
+		)
+	end
+	local measured, encodedSize, measurementError = SaveSerialize.measureEncodedSize(source)
+	if not measured then
+		error(`Prepared save document could not be JSON encoded: {measurementError or "unknown"}`)
+	end
+	if (encodedSize :: number) > self._softLimit then
+		error(
+			`Prepared save document is {encodedSize} encoded bytes and exceeds the `
+				.. `{self._softLimit}-byte soft size limit`
+		)
+	end
+
 	local previousDocument = TableUtil.deepCopy(runtime.Document)
 	local previousDirtyProviders = table.clone(runtime.DirtyProviders)
 	local previousDirty = runtime.Dirty
@@ -276,7 +320,10 @@ function ServerSaveController:ApplyMemento(player: Player, document: any)
 	end
 end
 
-function ServerSaveController:Load(player: Player, beforeApply: ((any) -> any)?)
+function ServerSaveController:Load(
+	player: Player,
+	beforeApply: ((any, { Created: boolean }) -> (any, { string }?))?
+)
 	if self._runtimes[player] ~= nil then
 		return {
 			Ok = self:IsLoaded(player),
@@ -308,37 +355,101 @@ function ServerSaveController:Load(player: Player, beforeApply: ((any) -> any)?)
 		return loaded
 	end
 	if runtime.CloseRequested then
-		local releaseResult = self._storage:Release(key)
+		local releaseResult = releaseAfterFailedLoad(self._storage, key)
 		runtime.State = "LoadCancelled"
+		if not releaseResult.Ok then
+			self._logger:Error("load_cancel_lock_release_failed", {
+				UserId = player.UserId,
+				Key = key,
+				Code = releaseResult.Code,
+				Error = releaseResult.Error,
+			})
+		end
 		return {
 			Ok = false,
 			Code = "LoadCancelled",
 			Error = if releaseResult.Ok
 				then "Load was cancelled because the player is closing"
 				else `Load was cancelled and lock release failed: {releaseResult.Error or releaseResult.Code or "unknown"}`,
+			LockReleaseOk = releaseResult.Ok == true,
+			LockReleaseCode = releaseResult.Code,
 		}
 	end
 
 	local ok, applyError = xpcall(function()
 		local document = loaded.Document
+		local dirtyProviderIds: { string }? = nil
 		if beforeApply then
-			document = beforeApply(document)
+			document, dirtyProviderIds = beforeApply(document, {
+				Created = loaded.Created == true,
+			})
+			assert(typeof(document) == "table", "The pre-apply transform must return a document table")
+			if dirtyProviderIds ~= nil then
+				assert(typeof(dirtyProviderIds) == "table", "Pre-apply dirty provider IDs must be an array")
+				local count = 0
+				local seen = {}
+				for index, providerId in dirtyProviderIds do
+					count += 1
+					assert(
+						typeof(index) == "number"
+							and index >= 1
+							and index == math.floor(index)
+							and index <= #dirtyProviderIds,
+						"Pre-apply dirty provider IDs must be a dense array"
+					)
+					assert(
+						typeof(providerId) == "string" and self._providersById[providerId] ~= nil,
+						`Unknown pre-apply dirty provider '{tostring(providerId)}'`
+					)
+					assert(not seen[providerId], `Duplicate pre-apply dirty provider '{providerId}'`)
+					seen[providerId] = true
+				end
+				assert(count == #dirtyProviderIds, "Pre-apply dirty provider IDs must be a dense array")
+
+				if #dirtyProviderIds > 0 then
+					assert(
+						typeof(self._storage.Refresh) == "function",
+						"Storage must support lock refresh for a persistent pre-apply transform"
+					)
+					local refreshResult = self._storage:Refresh(key)
+					local refreshError = if typeof(refreshResult) == "table"
+						then refreshResult.Error or refreshResult.Code or "unknown"
+						else "invalid refresh result"
+					assert(
+						typeof(refreshResult) == "table" and refreshResult.Ok == true,
+						`Session lock could not be confirmed after pre-apply transform: {refreshError}`
+					)
+					runtime.LastLockRefreshAt = os.clock()
+				end
+			end
 		end
 		self:ApplyMemento(player, document)
+		for _, providerId in dirtyProviderIds or {} do
+			self:MarkDirty(player, providerId)
+		end
 	end, debug.traceback)
 	if not ok then
 		runtime.State = "LoadFailed"
-		self._storage:Release(key)
-		self.PlayerLoadFailed:Fire(player, {
+		local releaseResult = releaseAfterFailedLoad(self._storage, key)
+		local errorMessage = tostring(applyError)
+		if not releaseResult.Ok then
+			self._logger:Error("load_failure_lock_release_failed", {
+				UserId = player.UserId,
+				Key = key,
+				Code = releaseResult.Code,
+				Error = releaseResult.Error,
+			})
+			errorMessage ..= `\nSession lock release also failed: {releaseResult.Error or releaseResult.Code or "unknown"}`
+		end
+		local failure = {
 			Ok = false,
 			Code = "ApplyFailed",
-			Error = tostring(applyError),
-		})
-		return {
-			Ok = false,
-			Code = "ApplyFailed",
-			Error = tostring(applyError),
+			Error = errorMessage,
+			LockReleaseOk = releaseResult.Ok == true,
+			LockReleaseCode = releaseResult.Code,
 		}
+		self.PlayerLoadFailed:Fire(player, failure)
+		return failure
 	end
 	if runtime.CloseRequested then
 		return {

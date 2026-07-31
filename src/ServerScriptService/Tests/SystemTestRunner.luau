@@ -16,9 +16,13 @@ local MemoryStorage = require(ServerScriptService.Modules.Storage.MemoryStorage)
 local SessionLockingStorage = require(ServerScriptService.Modules.Storage.SessionLockingStorage)
 local ServerSaveController = require(ServerScriptService.Modules.Save.ServerSaveController)
 local MigrationModule = require(ServerScriptService.Modules.Migration.MigrationModule)
+local GlobalSaveInitializationCommand = require(
+	ServerScriptService.Initialization.Commands.GlobalSaveInitializationCommand
+)
 local PlayersModule = require(ServerScriptService.Modules.Players.PlayersModule)
 local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
 local WalletConfig = require(ReplicatedStorage.Shared.Wallet.WalletConfig)
+local VersionConfig = require(ReplicatedStorage.Shared.Version.VersionConfig)
 local ServerManifest = require(ServerScriptService.Initialization.ServerManifest)
 local TestHarness = require(script.Parent.TestHarness)
 
@@ -451,15 +455,43 @@ function SystemTestRunner.runAll()
 		assertEqual(command.DependsOn[1], "Communication")
 	end)
 
+	test("server manifest initializes migrations before domain data and global save", function()
+		local migration = getManifestCommand("Migration")
+		local domainData = getManifestCommand("DomainData")
+		local globalSave = getManifestCommand("GlobalSave")
+		assertEqual(migration.DependsOn[1], "Save")
+		assertEqual(domainData.DependsOn[1], "Migration")
+		assertEqual(globalSave.DependsOn[1], "DomainData")
+	end)
+
+	test("global save production composition keeps Version as the final provider", function()
+		local providers = GlobalSaveInitializationCommand.GetOrderedProviders(
+			ServerManifest.Services.Wallet,
+			ServerManifest.Services.Version
+		)
+		assertEqual(#providers, 2, "unexpected template global-save provider count")
+		assertEqual(providers[1].Id, WalletConfig.ProviderId)
+		assertEqual(providers[#providers].Id, VersionConfig.ProviderId)
+	end)
+
 	test("session lock blocks a second live owner", function()
 		local memory = MemoryStorage.new()
 		local config = { StaleLockSeconds = 1_800 }
 		local first = SessionLockingStorage.new(memory, config)
 		local second = SessionLockingStorage.new(memory, config)
-		assertTrue(first:Load("User_1").Ok, "first owner did not acquire lock")
+		local firstLoad = first:Load("User_1")
+		assertTrue(firstLoad.Ok, "first owner did not acquire lock")
+		assertEqual(firstLoad.Created, true, "new storage document was not identified")
 		assertEqual(second:Load("User_1").Code, "SessionLocked")
 		assertTrue(first:Release("User_1").Ok, "release failed")
-		assertTrue(second:Load("User_1").Ok, "second owner did not acquire released lock")
+		local secondLoad = second:Load("User_1")
+		assertTrue(secondLoad.Ok, "second owner did not acquire released lock")
+		assertEqual(
+			secondLoad.Created,
+			true,
+			"released but never-saved profile lost its new-profile classification"
+		)
+		assertEqual(secondLoad.StaleTakeover, false, "a cleanly released marker was reported as stale")
 		assertTrue(second:Release("User_1").Ok, "second release failed")
 	end)
 
@@ -478,7 +510,12 @@ function SystemTestRunner.runAll()
 		})
 		local player = { UserId = 5 } :: any
 
-		assertTrue(controller:Load(player).Ok, "load failed")
+		local observedCreated = false
+		assertTrue(controller:Load(player, function(document, loadContext)
+			observedCreated = loadContext.Created
+			return document
+		end).Ok, "load failed")
+		assertEqual(observedCreated, true, "pre-apply transform did not receive storage creation state")
 		provider:SetValue(player, 7)
 		assertTrue(controller:ForceSave(player, "Test").Ok, "force save failed")
 		assertEqual(memory:Read("User_5").Providers.Test.Data.Value, 7)
@@ -574,11 +611,14 @@ function SystemTestRunner.runAll()
 
 	test("empty migration registry preserves current document", function()
 		local migrations = MigrationModule.new()
+		migrations:Initialize()
 		local document = {
 			Providers = {},
 			Revision = 9,
 		}
-		local migrated = migrations:Migrate(document)
+		local migrated = migrations:Migrate(document, {
+			IsNewProfile = true,
+		})
 		assertEqual(migrated.Revision, 9)
 		assertTrue(migrated ~= document, "migration result must be an isolated copy")
 	end)

@@ -19,8 +19,8 @@ A command taking longer than 30 seconds emits a watchdog error but is not cancel
 Server order:
 
 ```text
-Assets → Pooling → Players → Communication → Config → Save → DomainData
-       → GlobalSave → PersistenceSchedule
+Assets → Pooling → Players → Communication → Config → Save → Migration
+       → DomainData → GlobalSave → PersistenceSchedule
 ```
 
 Client order:
@@ -70,8 +70,13 @@ To add a system, create a side-specific command, declare its dependency, and pla
 The current `global_save` controller is created by
 `GlobalSaveInitializationCommand` and registers, in order:
 
-1. Version
-2. Wallet
+1. Wallet
+2. Version
+
+Projects insert additional ordinary domain providers before Version on both
+server and client. Version remains last because its `Run` is the commit point
+that advances the persisted game-version checkpoint only after every other
+provider has installed and started successfully.
 
 `wallet_config` supplies the one-time starting balances for a newly created
 Wallet provider. Wallet memento version 2 persists `IsInitialized`; version 1
@@ -107,6 +112,12 @@ Validate/reconcile all target mementos
 
 Target mementos are reconciled and validated before runtime mutation. Current mementos are then captured before `Stop`. If any target `SetMemento` or `Run` fails, all partially installed providers are stopped and the complete previous memento set is restored before any provider is run again. A controller remains `Loaded` only when rollback fully succeeds; a cleanup or rollback failure moves it to `ApplyFailed`. Provider `Stop` must therefore be idempotent and safe after `SetMemento`, even if `Run` did not complete.
 
+After reconciliation and default creation, the server validates and measures
+the complete prepared persistence document before `Stop`, `SetMemento`, or
+`Run`. Unsafe or oversized prepared state therefore aborts initial load and
+releases its lock, or leaves an already loaded runtime unchanged; the game
+never publishes a snapshot that is already impossible to persist.
+
 `MementoChanged` only marks a provider dirty. The controller captures dirty mementos on Heartbeat, but it does not write to DataStore every frame.
 
 ## Persistence
@@ -139,7 +150,15 @@ Overlapping player-removal and shutdown closes share one result and emit one
 Session-lock ownership is verified from the final document returned by
 `UpdateAsync`. This matters because Roblox may invoke the transform repeatedly
 after concurrent writes; an earlier candidate can never establish local
-ownership by itself.
+ownership by itself. New-profile and stale-takeover classification is also
+carried by the owned `Session` document. If an attempt commits but loses its
+response, a retry of the complete `UpdateAsync` operation with the same lock
+therefore preserves the final `Created`/takeover result instead of
+misclassifying the profile from callback-local state. A stale takeover also
+preserves `Created` when the previous owner crashed before the new profile's
+first provider save. Lock refresh preserves the marker, and an early release
+removes active ownership while leaving the pending profile immediately
+reacquirable. The first successful provider save replaces the transient marker.
 
 A stored value whose root is not a table is treated as corruption. Lock
 acquisition fails without replacing it with an empty profile, preserving the
@@ -156,7 +175,87 @@ Shutdown uses a shared 20-second deadline and at most four concurrent close work
 
 Studio uses the same controller and locking behavior over `MemoryStorage`.
 
-Old saves were test data, so no legacy migration is registered. `MigrationModule` remains an empty extension point for a future version that actually needs a migration.
+## Raw-document migrations
+
+`MigrationModule` is a server-only ordered raw-document transformer. It is
+initialized after the generic `SaveModule` registry and before domain
+providers and `GlobalSave`. A player's migration runs later, inside
+`ServerSaveController:Load`, after `SessionLockingStorage` has acquired the
+profile lock and before provider reconciliation or `SetMemento`.
+
+This placement is the Roblox equivalent of running a local-game migration
+module before the save module consumes data. It prevents two servers from
+migrating one profile and preserves the existing atomic snapshot boundary.
+Provider `ReconcileMemento` remains the right tool for a local provider-schema
+upgrade; `MigrationModule` handles game-version transitions that may rename,
+split, combine, or otherwise coordinate any number of raw provider envelopes.
+
+Concrete controllers are registered explicitly in
+`ServerScriptService/Modules/Migration/MigrationManifest`. Each controller
+declares:
+
+```lua
+{
+  Id = "WalletCurrencySplitV2",
+  TargetVersion = "2.0.0",
+  Order = 10,
+  Migrate = function(self, document, context)
+    -- Mutate the isolated document copy, or return a replacement document.
+  end,
+}
+```
+
+For a stored checkpoint `S` and current game version `C`, every registered
+controller in `(S, C]` executes. Target versions are ascending; controllers
+for one target execute by `Order`, then stable `Id`. The context reports the
+preceding applied target as `SourceVersion`, so a user moving from `1.0.0` to
+`4.0.0` receives the complete `2.0.0`, `3.0.0`, then `4.0.0` chain.
+
+The module deep-copies the loaded document before the first controller,
+rejects malformed or newer-than-server checkpoints, prevents controllers from
+editing `Version.PreviousVersion` or the storage-owned `Session` lock, and
+validates the final DataStore shape and encoded-size limit. An existing
+profile without a Version provider fails closed unless
+`MigrationManifest.LegacyBaselineVersion` explicitly identifies a real
+pre-checkpoint schema. With that baseline, early controllers may normalize a
+legacy document that has no current `Providers` root, but the final chain must
+produce a string-keyed provider dictionary before application. Only a profile
+explicitly reported as newly created by lock storage starts at the current
+version with no providers; an existing empty provider table is not treated as
+proof of newness.
+
+An exception aborts the load before runtime mutation and the controller
+attempts to release its session lock, surfacing a release failure separately.
+The release boundary also contains storage exceptions and malformed release
+results. During a load/close race it publishes the cancelled state even when
+that first release fails, allowing the coordinated close operation to retry
+release instead of waiting forever on a stuck `Loading` runtime.
+For an older checkpoint, the controller also refreshes the lock after the raw
+chain and before provider application, so a server that lost ownership during
+a yielding transform cannot start runtime state. `VersionModule:Run` advances
+the checkpoint only after the full chain and atomic provider application
+succeed. The load path then queues Version synchronously for dirty capture
+before publishing success, ensuring that no save can persist transformed
+provider data with the old checkpoint. Until that atomic save succeeds, a
+later join safely retries the chain from the stored checkpoint.
+
+Controllers may perform arbitrarily complex cross-provider table
+transformations and may receive dependencies through constructors, but they
+must be deterministic, bounded, retry-safe, stateless, and reentrant because
+one controller may migrate several players concurrently. No irreversible
+external side effects should be coupled to a transform that can be replayed.
+Registration snapshots the scheduling metadata and callable so later external
+table mutation cannot change the active plan.
+
+A controller-returned replacement is validated as a complete DataStore-safe
+document before it is deep-copied for isolation. This makes cycles and other
+unsafe table shapes a bounded, migration-attributed failure rather than an
+uncontrolled recursive copy.
+
+The template registers no concrete migration because its old saves were test
+data. Add one only for a real released transition. The controller contract,
+legacy-baseline policy, deployment checklist, and example are documented in
+[UserDataMigrations.md](UserDataMigrations.md).
 
 ## Client synchronization
 

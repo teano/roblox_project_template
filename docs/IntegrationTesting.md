@@ -66,13 +66,29 @@ and published with the correct native types.
 Only after the configs are published, attach or publish the integration
 project's canonical `place.rbxl` to the dedicated test Experience.
 
+If the integration repository was created from this template, remove the
+template validation `placeId`, `gameId`, and `servePlaceIds` before its first
+Rojo preflight or Studio connection. Those inherited values never identify the
+integration project.
+
 Then:
 
-1. Record and verify the resulting `game.PlaceId` and `game.GameId`, or
-   configure `servePlaceIds`.
-2. Run the Rojo preflight from the integration project.
-3. Explicitly select the Studio instance with those stable IDs.
-4. Confirm Rojo is serving `{project_folder}_IntegrationTest`, not the source
+1. Read the exact nonzero `game.PlaceId` and `game.GameId` from the selected
+   post-attachment DataModel, then record and verify them. Do not infer or
+   copy newly assigned IDs from the destination name, URL, process command
+   line, or prior expectation.
+2. Configure the integration project's top-level `placeId`, `gameId`, and
+   `servePlaceIds` in `default.project.json`; the allowlist contains only the
+   dedicated integration place.
+3. Create or update the owning project ADR for the attachment identity and
+   `default.project.json` divergence.
+4. Run the Rojo preflight from the integration project.
+5. Open the dedicated cloud place through My Experiences/`EditPlace`, or open
+   the canonical local file and connect verified Rojo before any Play or
+   cloud-dependent operation.
+6. Explicitly select the Studio instance with those stable nonzero IDs and
+   re-read both IDs to verify them against the recorded values.
+7. Confirm Rojo is serving `{project_folder}_IntegrationTest`, not the source
    or production project.
 
 Never publish the source project's production place into the test Experience,

@@ -65,8 +65,8 @@ function Command:Initialize(context: any)
 	local deps = self._deps
 	self._config = deps.Config:GetRequired("GlobalSave")
 	local controller = deps.SaveModule:BuildSaveController(SaveProtocol.GlobalControllerId)
-		:WithSaveProvider(deps.Version)
 		:WithSaveProvider(deps.Wallet)
+		:WithSaveProvider(deps.Version)
 		:Build()
 	self._controller = controller
 	context.Services.GlobalSaveController = controller

@@ -290,6 +290,11 @@ function ProductionIntegrationTestRunner.runAll()
 		end)
 		local takeover = second:Load("Shared")
 		assertTrue(takeover.Ok and takeover.StaleTakeover, "stale takeover failed")
+		assertEqual(
+			takeover.Created,
+			true,
+			"stale takeover forgot that the abandoned lock had created an unsaved profile"
+		)
 		assertEqual(first:Save("Shared", takeover.Document).Code, "LockLost")
 		assertTrue(second:Release("Shared").Ok, "takeover release failed")
 	end)
@@ -337,6 +342,117 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(blocked:Load("Replay").Code, "SessionLocked")
 		assertEqual(blocked:HasLock("Replay"), false)
 
+		local replayExistingBase = {
+			FirstUpdate = true,
+			Stored = nil,
+		}
+		function replayExistingBase:Update(_key, transform)
+			if self.FirstUpdate then
+				self.FirstUpdate = false
+				transform(nil)
+				self.Stored = transform({
+					FormatVersion = 1,
+					Revision = 0,
+					Providers = {},
+					Metadata = {},
+					Session = nil,
+				})
+			else
+				local candidate = transform(self.Stored)
+				if candidate ~= nil then
+					self.Stored = candidate
+				end
+			end
+			return {
+				Ok = true,
+				Value = self.Stored,
+			}
+		end
+		local replayExisting = SessionLockingStorage.new(replayExistingBase, {
+			StaleLockSeconds = 1_800,
+		})
+		local replayExistingLoad = replayExisting:Load("ReplayExisting")
+		assertTrue(replayExistingLoad.Ok, "final existing candidate did not acquire its lock")
+		assertEqual(
+			replayExistingLoad.Created,
+			false,
+			"an earlier nil callback misclassified the final existing document as new"
+		)
+		assertTrue(replayExisting:Release("ReplayExisting").Ok, "replayed existing lock release failed")
+
+		local retryCreatedBase = {
+			ReplayNextUpdate = true,
+			Stored = nil,
+		}
+		function retryCreatedBase:Update(_key, transform)
+			local candidate = transform(self.Stored)
+			if self.ReplayNextUpdate then
+				self.ReplayNextUpdate = false
+				-- Simulate an UpdateAsync attempt that committed but lost its
+				-- response, followed by a whole-operation retry with the same lock.
+				self.Stored = candidate
+				candidate = transform(self.Stored)
+			end
+			if candidate ~= nil then
+				self.Stored = candidate
+			end
+			return {
+				Ok = true,
+				Value = candidate,
+			}
+		end
+		local retryCreated = SessionLockingStorage.new(retryCreatedBase, {
+			StaleLockSeconds = 1_800,
+		})
+		local retryCreatedLoad = retryCreated:Load("RetryCreated")
+		assertTrue(retryCreatedLoad.Ok, "retried new-profile lock acquisition failed")
+		assertEqual(
+			retryCreatedLoad.Created,
+			true,
+			"a whole-operation retry forgot that this lock created the profile"
+		)
+		assertTrue(retryCreated:Release("RetryCreated").Ok, "retried new-profile lock release failed")
+
+		local retryTakeoverBase = {
+			ReplayNextUpdate = true,
+			Stored = {
+				FormatVersion = 1,
+				Revision = 0,
+				Providers = {},
+				Metadata = {},
+				Session = {
+					LockId = "stale-foreign-lock",
+					LastHeartbeatAt = os.time() - 1_801,
+				},
+			},
+		}
+		function retryTakeoverBase:Update(_key, transform)
+			local candidate = transform(self.Stored)
+			if self.ReplayNextUpdate then
+				self.ReplayNextUpdate = false
+				self.Stored = candidate
+				candidate = transform(self.Stored)
+			end
+			if candidate ~= nil then
+				self.Stored = candidate
+			end
+			return {
+				Ok = true,
+				Value = candidate,
+			}
+		end
+		local retryTakeover = SessionLockingStorage.new(retryTakeoverBase, {
+			StaleLockSeconds = 1_800,
+		})
+		local retryTakeoverLoad = retryTakeover:Load("RetryTakeover")
+		assertTrue(retryTakeoverLoad.Ok, "retried stale takeover failed")
+		assertEqual(
+			retryTakeoverLoad.StaleTakeover,
+			true,
+			"a whole-operation retry forgot the stale takeover classification"
+		)
+		assertTrue(retryTakeover:Release("RetryTakeover").Ok, "retried stale takeover release failed")
+
 		local saveBase = makeReplayBase(false)
 		local saveOwner = SessionLockingStorage.new(saveBase, { StaleLockSeconds = 1_800 })
 		local loaded = saveOwner:Load("Replay")
@@ -351,6 +467,71 @@ function ProductionIntegrationTestRunner.runAll()
 		refreshBase.ReplayConflict = true
 		assertEqual(refreshOwner:Refresh("Replay").Code, "LockLost")
 		assertEqual(refreshOwner:HasLock("Replay"), false)
+	end)
+
+	test("lock refresh preserves new-profile classification until first save", function()
+		local memory = MemoryStorage.new()
+		local firstOwner = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 0,
+		})
+		local secondOwner = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 0,
+		})
+
+		local firstLoad = firstOwner:Load("RefreshBeforeFirstSave")
+		assertTrue(firstLoad.Ok, "first owner did not acquire the new profile")
+		assertEqual(firstLoad.Created, true)
+		assertTrue(firstOwner:Refresh("RefreshBeforeFirstSave").Ok, "new-profile refresh failed")
+		assertEqual(
+			memory:Read("RefreshBeforeFirstSave").Session.AcquiredFromNewProfile,
+			true,
+			"refresh discarded the authoritative new-profile marker"
+		)
+
+		local takeover = secondOwner:Load("RefreshBeforeFirstSave")
+		assertTrue(takeover.Ok, "stale takeover after refresh failed")
+		assertEqual(takeover.StaleTakeover, true)
+		assertEqual(
+			takeover.Created,
+			true,
+			"takeover misclassified a refreshed but never-saved new profile"
+		)
+
+		assertTrue(firstOwner:Release("RefreshBeforeFirstSave").Ok, "old owner cleanup failed")
+		assertTrue(
+			secondOwner:Save("RefreshBeforeFirstSave", takeover.Document).Ok,
+			"takeover owner could not complete the first profile save"
+		)
+		local savedSession = memory:Read("RefreshBeforeFirstSave").Session
+		assertEqual(savedSession.AcquiredFromNewProfile, nil, "first save retained the new-profile marker")
+		assertEqual(savedSession.AcquiredByStaleTakeover, nil, "first save retained the takeover marker")
+		assertTrue(secondOwner:Release("RefreshBeforeFirstSave").Ok, "takeover owner cleanup failed")
+	end)
+
+	test("lock release preserves never-saved new-profile classification", function()
+		local memory = MemoryStorage.new()
+		local firstOwner = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 1_800,
+		})
+		local secondOwner = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 1_800,
+		})
+
+		assertEqual(firstOwner:Load("ReleaseBeforeFirstSave").Created, true)
+		assertTrue(firstOwner:Release("ReleaseBeforeFirstSave").Ok, "new-profile release failed")
+		local releasedSession = memory:Read("ReleaseBeforeFirstSave").Session
+		assertEqual(releasedSession.LockId, nil, "release retained active lock ownership")
+		assertEqual(
+			releasedSession.AcquiredFromNewProfile,
+			true,
+			"release discarded the never-saved profile marker"
+		)
+
+		local reacquired = secondOwner:Load("ReleaseBeforeFirstSave")
+		assertTrue(reacquired.Ok, "released new profile could not be reacquired immediately")
+		assertEqual(reacquired.Created, true)
+		assertEqual(reacquired.StaleTakeover, false)
+		assertTrue(secondOwner:Release("ReleaseBeforeFirstSave").Ok, "reacquired profile cleanup failed")
 	end)
 
 	test("session locking rejects a corrupted document root without replacing it", function()
@@ -512,6 +693,82 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(loadResult.Code, "LoadCancelled")
 		assertTrue(closeResult.Ok, "close failed after cancelling an in-flight load")
 		assertTrue(releaseCalls >= 1, "cancelled load did not release its acquired lock")
+		assertEqual(provider:GetValue(player), nil, "cancelled load applied provider runtime state")
+		assertEqual(controller:GetState(player), "NotLoaded")
+		controller:Destroy(false)
+	end)
+
+	test("cancelled load surfaces a throwing lock release and lets close retry", function()
+		local loadStarted = false
+		local releaseLoad = false
+		local releaseCalls = 0
+		local storage = {
+			Load = function()
+				loadStarted = true
+				while not releaseLoad do
+					task.wait()
+				end
+				return {
+					Ok = true,
+					Document = {
+						FormatVersion = 1,
+						Revision = 0,
+						Providers = {},
+						Metadata = {
+							CreatedAt = os.time(),
+							UpdatedAt = os.time(),
+						},
+					},
+				}
+			end,
+			Save = function()
+				error("a cancelled load must not save")
+			end,
+			Release = function()
+				releaseCalls += 1
+				if releaseCalls == 1 then
+					error("injected cancelled-load release failure")
+				end
+				return { Ok = true }
+			end,
+		}
+		local provider = makeServerProvider("LoadCloseReleaseRetry", nil)
+		local controller = ServerSaveController.new({
+			Id = "load_close_release_retry",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function()
+				return "LoadCloseReleaseRetry"
+			end,
+		})
+		local player = { UserId = 4_215 } :: any
+		local loadResult = nil
+		local closeResult = nil
+		task.spawn(function()
+			loadResult = controller:Load(player)
+		end)
+		while not loadStarted do
+			task.wait()
+		end
+		task.spawn(function()
+			closeResult = controller:Close(player, true)
+		end)
+		task.wait()
+
+		releaseLoad = true
+		while loadResult == nil or closeResult == nil do
+			task.wait()
+		end
+		assertEqual(loadResult.Ok, false)
+		assertEqual(loadResult.Code, "LoadCancelled")
+		assertEqual(loadResult.LockReleaseOk, false)
+		assertEqual(loadResult.LockReleaseCode, "ReleaseFailed")
+		assertTrue(
+			string.find(loadResult.Error, "injected cancelled-load release failure", 1, true) ~= nil,
+			"cancelled-load release exception was not surfaced"
+		)
+		assertTrue(closeResult.Ok, "close did not retry lock release after cancellation failure")
+		assertEqual(releaseCalls, 2)
 		assertEqual(provider:GetValue(player), nil, "cancelled load applied provider runtime state")
 		assertEqual(controller:GetState(player), "NotLoaded")
 		controller:Destroy(false)

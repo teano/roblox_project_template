@@ -71,6 +71,13 @@ function Command.new(deps: {
 	}, Command)
 end
 
+function Command.GetOrderedProviders(walletModule: any, versionModule: any): { any }
+	return {
+		walletModule,
+		versionModule,
+	}
+end
+
 function Command:_waitUntilLoaded(controller: any, player: Player, timeout: number): boolean
 	local deadline = os.clock() + timeout
 	while os.clock() < deadline do
@@ -164,15 +171,16 @@ end
 function Command:Initialize(context: any)
 	local deps = self._deps
 	local globalSaveConfig = deps.Config:GetRequired("GlobalSave")
-	local controller = deps.SaveModule:BuildSaveController(SaveProtocol.GlobalControllerId)
+	local builder = deps.SaveModule:BuildSaveController(SaveProtocol.GlobalControllerId)
 		:WithStorage(deps.Storage)
 		:WithKeyResolver(function(player)
 			return `{deps.StorageConfig.KeyPrefix}{player.UserId}`
 		end)
 		:WithSoftSerializedBytesLimit(deps.StorageConfig.SoftSerializedBytesLimit)
-		:WithSaveProvider(deps.VersionModule)
-		:WithSaveProvider(deps.WalletModule)
-		:Build()
+	for _, provider in Command.GetOrderedProviders(deps.WalletModule, deps.VersionModule) do
+		builder:WithSaveProvider(provider)
+	end
+	local controller = builder:Build()
 
 	context.Services.GlobalSaveController = controller
 	deps.AutoSaveModule:RegisterController(controller, {
@@ -233,8 +241,13 @@ function Command:Initialize(context: any)
 
 	deps.PlayersModule:ObservePlayers(function(player)
 		task.spawn(function()
-			local result = controller:Load(player, function(document)
-				return deps.MigrationModule:Migrate(document)
+			local result = controller:Load(player, function(document, loadContext)
+				local migratedDocument, checkpointCommitRequired = deps.MigrationModule:Migrate(document, {
+					Player = player,
+					ControllerId = controller.Id,
+					IsNewProfile = loadContext.Created,
+				})
+				return migratedDocument, if checkpointCommitRequired then { deps.VersionModule.Id } else nil
 			end)
 			if not result.Ok and player.Parent ~= nil then
 				self._logger:Error("player_load_failed", {

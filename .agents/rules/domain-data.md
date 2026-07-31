@@ -47,6 +47,9 @@ runtime models, and domain change messages.
   runtime behavior differs.
 - Register providers explicitly and in the same intentional order in the
   server and client global-save commands.
+- Register ordinary domain providers before Version. Version is the final
+  commit-provider so its `Run` advances the game-version checkpoint only after
+  every other provider has installed and started successfully.
 - Add the client provider to `GameDataClient` only when client code may read it.
 - Create runtime controllers only in `Run`, after every memento in the
   controller has been installed.
