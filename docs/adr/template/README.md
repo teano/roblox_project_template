@@ -30,7 +30,15 @@ Repositories derived from the template receive these records from their
 | [ADR-0020](0020-shape-communication-traffic-and-bound-snapshots.md) | Shape communication traffic and bound network snapshots | Accepted |
 | [ADR-0021](0021-migrate-locked-raw-save-documents-iteratively.md) | Migrate locked raw save documents through ordered version steps | Accepted |
 | [ADR-0022](0022-launch-published-projects-with-stable-cloud-identity.md) | Launch published projects with stable cloud identity | Superseded by ADR-0023 |
-| [ADR-0023](0023-publish-template-with-non-inheritable-cloud-identity.md) | Publish the template with non-inheritable cloud identity | Accepted |
+| [ADR-0023](0023-publish-template-with-non-inheritable-cloud-identity.md) | Publish the template with non-inheritable cloud identity | Superseded by ADR-0028 |
+| [ADR-0024](0024-server-owned-teleport-session-continuity.md) | Keep teleport session continuity server-owned | Accepted |
+| [ADR-0025](0025-include-teleport-in-communication-snapshot-generations.md) | Include Teleport projection in communication snapshot generations | Accepted |
+| [ADR-0026](0026-observe-teleport-reconciliation-at-player-capacity.md) | Observe Teleport snapshot reconciliation at configured player capacity | Accepted |
+| [ADR-0027](0027-serialize-pre-return-teleport-failures.md) | Serialize teleport failures that arrive before platform return | Accepted |
+| [ADR-0028](0028-authorize-two-place-template-validation.md) | Authorize two-place template validation within one Experience | Accepted |
+| [ADR-0029](0029-runtime-only-two-place-teleport-validation-pad.md) | Use a runtime-only two-place teleport validation pad | Superseded by ADR-0031 |
+| [ADR-0030](0030-retry-session-lock-handoff-after-teleport.md) | Retry session-lock handoff after teleport | Accepted |
+| [ADR-0031](0031-disable-teleport-validation-pad-by-default.md) | Disable the teleport validation pad by default | Accepted |
 
 ## Ownership and numbering
 

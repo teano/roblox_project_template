@@ -38,7 +38,7 @@ clean server/client bootstrap succeeds.
 | Wallet and base provider rules | initial value and persisted reload | unknown currency, invalid amounts/balances | zero no-op, safe-integer, NaN/fractional limits | `SystemTestRunner`, `ProductionIntegrationTestRunner` |
 | Save transaction | load/apply/run/save and revision updates | capture, set, run, persistence, rollback-cleanup, unsafe prepared document, prepared size-limit, and cancelled-load release failures | complete reverse/forward ordering, pre-mutation persistence gate, concurrent save/close, throwing release retry after cancellation | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
 | Client-authority patch | accepted provider update | server-authority, unknown, malformed and invalid patch | lost acknowledgement retired by replacement snapshot | `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
-| Storage and session locks | owner refresh/release and stale takeover | contention, corrupt document, lost ownership | final `UpdateAsync` transform, same-lock whole-operation retry classification, new-profile marker preservation across refresh, release, and abandoned takeover, retry/deadline limits | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
+| Storage and session locks | owner refresh/release, stale takeover, and bounded teleport handoff acquisition | contention exhaustion, cancellable handoff wait, negative/zero/fractional/NaN/infinite/string/over-cap handoff retry counts, corrupt document, lost ownership | minimum and maximum supported retry counts, final `UpdateAsync` transform, same-lock whole-operation retry classification, new-profile marker preservation across refresh, release, and abandoned takeover, retry/deadline limits | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
 | Autosave and shutdown | due dirty save, bounded concurrent close | persistence failure and expired deadline | not-due/clean exclusion, stop during worker cycle | `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
 | Migrations | complete skipped-version chain plus immediate load/save/reload checkpoint | invalid controller/checkpoint, missing legacy baseline, existing empty pre-checkpoint profile, invalid provider dictionary, post-transform lock loss/release failure, unsafe or oversized output, cyclic replacement | same-version order, raw legacy root reconstruction, synchronous checkpoint capture, registration/replacement isolation, immutable checkpoint, future-version exclusion, oversized empty transition | `ProductionReadinessTestRunner`, `SystemTestRunner` |
 | Communication serialization | supported DTO and Roblox value shapes | malformed, cyclic, unsafe, oversized payloads | work/byte/depth caps and Vector3 batch preservation | `ProductionIntegrationTestRunner` |
@@ -47,6 +47,7 @@ clean server/client bootstrap succeeds.
 | Version provider | valid snapshot and actual upgrade | malformed semantic version and place version | equal/older version does not emit dirty | `ProductionReadinessTestRunner` |
 | GameData client | ready, provider forwarding, lookup | timeout and duplicate provider | nil payload fields, destroy and singleton cleanup | `ProductionReadinessTestRunner` |
 | Players lifecycle | existing/join/leave/character/lookup | removed membership and repeated cleanup | existing character plus respawn; idempotent stop | `ProductionReadinessTestRunner`, `SystemTestRunner` |
+| Teleport lifecycle | external/continued arrival, public/reserved requests, client bootstrap/events, two-client transport, exact two-place template policy, unpublished zero-identity inert bootstrap, explicit opt-in runtime validation pad and configured routing | untrusted envelope, invalid group/destination, synchronous/late/queue failure, private-field rejection, post-Stop delivery, unrecorded place in the template Experience, unpublished destination rejection, default-disabled validation, malformed/mismatched/metatable-bearing validation GameId/routes/tester allowlist, unknown validation-config fields, unauthorized touch | unique sessions, three-visit continuity, GameId-gated derived current-place-only policy, immutable yielding group success/failure, pre-return init-failure ordering and exception/removal/Stop/retry retirement, per-player partial failure, stale result correlation, validation-pad touch re-entry/removal/recreation/deterministic lowest-present tester selection/idempotent Stop, repeated cleanup, observable snapshot reconciliation for every lost lifecycle/presentation transition, maximum configured player capacity, initial queue clearing, handler-failure and backpressure resync | `TeleportModuleTestRunner`, `ProductionIntegrationTestRunner` |
 | Save registries | registered controller construction | duplicate/unknown/malformed registration | removal and independent server/client registries | `ProductionReadinessTestRunner` |
 
 ## Deterministic Studio gate
@@ -64,9 +65,10 @@ require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 3. `AssetRegistryTestRunner`
 4. `ContentPreloaderTestRunner`
 5. `ConfigCatalogTestRunner`
-6. `SystemTestRunner`
-7. `ProductionIntegrationTestRunner`
-8. `ProductionReadinessTestRunner`
+6. `TeleportModuleTestRunner`
+7. `SystemTestRunner`
+8. `ProductionIntegrationTestRunner`
+9. `ProductionReadinessTestRunner`
 
 The aggregate and every suite must report `failed = 0`. Before release, also
 run:
@@ -79,6 +81,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-
 Then start one additional clean Play session without manually requiring test
 modules. Verify the server and client bootstraps complete and the client
 publishes `ClientInitialized=true`.
+
+The layout validator also runs adversarial parser fixtures. Block comments,
+comment-based token splicing, executable long/quoted strings, nested
+reassignment, or return-field replacement cannot spoof the exact closed
+default-disabled `TeleportValidationConfig`. Derived cloud identity is either
+fully absent or a complete independent positive identity with a non-empty
+duplicate-free `servePlaceIds` array; partial, scalar, duplicate, or
+template-identity fixtures are rejected. Precision-losing fractional JSON
+numbers above the exact IEEE-754 integer range, decimal/exponent numeric forms,
+unsupported CLR numeric representations, and integers outside `1..2^53-1` are
+rejected instead of being normalized into apparently valid place or Experience
+IDs.
 
 A clean or fresh Play session is a stop/start cycle inside the same explicitly
 selected Studio instance when a matching project session is already open. A
@@ -123,6 +137,11 @@ Record this evidence in the release task or pull request:
 - source commit SHA and UTC timestamp;
 - selected Studio instance, canonical place identity, stable
   `PlaceId`/`GameId` when published, and Rojo project identity;
+- for the template multi-place gate, both exact PlaceIds, their shared GameId,
+  the same session GUID across visits, and the supported terminal-failure recovery;
+- for an enabled validation harness, the exact temporary config revision,
+  tester allowlist, forward/return and rapid-repeat evidence, followed by a
+  fresh-server check after restoring and publishing `Enabled=false`;
 - Rojo build and repository-layout results;
 - aggregate suite count, test count, passed count, and failed count;
 - clean bootstrap result and server/client output inspection;

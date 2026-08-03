@@ -10,6 +10,49 @@ local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 local SessionLockingStorage = {}
 SessionLockingStorage.__index = SessionLockingStorage
 
+local MAX_LOCK_ACQUISITION_ATTEMPTS = 64
+
+local function isFiniteNonNegative(value: any): boolean
+	return typeof(value) == "number"
+		and value == value
+		and value ~= math.huge
+		and value ~= -math.huge
+		and value >= 0
+end
+
+local function isCancelled(options: any?): boolean
+	return options ~= nil
+		and typeof(options.IsCancelled) == "function"
+		and options.IsCancelled()
+end
+
+local function readAcquisitionRetry(config: any): (number, number, number)
+	local retry = config.LockAcquisitionRetry
+	if retry == nil then
+		return 1, 0, 0
+	end
+	assert(typeof(retry) == "table", "LockAcquisitionRetry must be a table")
+	assert(
+		typeof(retry.MaxAttempts) == "number"
+			and retry.MaxAttempts == retry.MaxAttempts
+			and retry.MaxAttempts ~= math.huge
+			and retry.MaxAttempts ~= -math.huge
+			and retry.MaxAttempts >= 1
+			and retry.MaxAttempts == math.floor(retry.MaxAttempts)
+			and retry.MaxAttempts <= MAX_LOCK_ACQUISITION_ATTEMPTS,
+		`LockAcquisitionRetry.MaxAttempts must be an integer from 1 to {MAX_LOCK_ACQUISITION_ATTEMPTS}`
+	)
+	assert(
+		isFiniteNonNegative(retry.BaseDelaySeconds),
+		"LockAcquisitionRetry.BaseDelaySeconds must be non-negative"
+	)
+	assert(
+		isFiniteNonNegative(retry.MaxDelaySeconds) and retry.MaxDelaySeconds >= retry.BaseDelaySeconds,
+		"LockAcquisitionRetry.MaxDelaySeconds must be at least BaseDelaySeconds"
+	)
+	return retry.MaxAttempts, retry.BaseDelaySeconds, retry.MaxDelaySeconds
+end
+
 local function createEmptyDocument(): any
 	local timestamp = os.time()
 	return {
@@ -24,12 +67,17 @@ local function createEmptyDocument(): any
 	}
 end
 
-function SessionLockingStorage.new(baseStorage: any, config: any, logger: any?)
+function SessionLockingStorage.new(baseStorage: any, config: any, logger: any?, runtime: any?)
+	local maxAttempts, baseDelaySeconds, maxDelaySeconds = readAcquisitionRetry(config)
 	return setmetatable({
 		_base = baseStorage,
 		_config = config,
 		_logger = logger or Logger.new("Storage.SessionLock", "info"),
 		_locks = {} :: { [string]: string },
+		_lockAcquisitionMaxAttempts = maxAttempts,
+		_lockAcquisitionBaseDelaySeconds = baseDelaySeconds,
+		_lockAcquisitionMaxDelaySeconds = maxDelaySeconds,
+		_wait = if runtime and runtime.Wait then runtime.Wait else task.wait,
 	}, SessionLockingStorage)
 end
 
@@ -49,7 +97,7 @@ function SessionLockingStorage:_makeSession(lockId: string, acquisition: any?)
 	return session
 end
 
-function SessionLockingStorage:Load(key: string, options: any?)
+function SessionLockingStorage:_loadOnce(key: string, options: any?)
 	local lockId = HttpService:GenerateGUID(false)
 
 	local result = self._base:Update(key, function(raw)
@@ -126,6 +174,41 @@ function SessionLockingStorage:Load(key: string, options: any?)
 		Created = finalSession.AcquiredFromNewProfile == true,
 		StaleTakeover = finalSession.AcquiredByStaleTakeover == true,
 	}
+end
+
+function SessionLockingStorage:Load(key: string, options: any?)
+	local lastResult = nil
+	for attempt = 1, self._lockAcquisitionMaxAttempts do
+		if isCancelled(options) then
+			return {
+				Ok = false,
+				Code = "LoadCancelled",
+				Error = "Session lock acquisition was cancelled",
+			}
+		end
+
+		local result = self:_loadOnce(key, options)
+		lastResult = result
+		if not result.Ok and isCancelled(options) then
+			return {
+				Ok = false,
+				Code = "LoadCancelled",
+				Error = "Session lock acquisition was cancelled",
+			}
+		end
+		if result.Ok or result.Code ~= "SessionLocked" then
+			return result
+		end
+		if attempt < self._lockAcquisitionMaxAttempts then
+			local delaySeconds = math.min(
+				self._lockAcquisitionMaxDelaySeconds,
+				self._lockAcquisitionBaseDelaySeconds * (2 ^ (attempt - 1))
+			)
+			self._wait(delaySeconds)
+		end
+	end
+
+	return lastResult
 end
 
 function SessionLockingStorage:Save(key: string, document: any, options: any?)

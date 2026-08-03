@@ -19,7 +19,7 @@ A command taking longer than 30 seconds emits a watchdog error but is not cancel
 Server order:
 
 ```text
-Assets → Pooling → Players → Communication → Config → Save → Migration
+Assets → Pooling → Players → Communication → Teleport → TeleportValidationPad → Config → Save → Migration
        → DomainData → GlobalSave → PersistenceSchedule
 ```
 
@@ -27,7 +27,7 @@ Client order:
 
 ```text
 Assets → StartupContentPreload → Pooling → Players → Communication
-       → Config → Save → DomainData → GlobalSave
+       → Teleport → Config → Save → DomainData → GlobalSave
 ```
 
 `Config` loads one server-owned Experience Config snapshot, decodes every
@@ -57,6 +57,34 @@ and every client therefore own separate pool state while sharing the same
 side-neutral algorithm. See [ResourceManagement.md](ResourceManagement.md).
 
 To add a system, create a side-specific command, declare its dependency, and place it in that side's manifest. Modules expose `Initialize`; they do not decide their global launch order.
+
+`Teleport` establishes server-owned per-player session continuity and the
+client read-only lifecycle projection after `Players` and `Communication` are
+ready. Its client handlers are registered during manifest construction before
+the bounded bootstrap request. Platform acceptance and source removal never
+stand in for target arrival. See [Teleport.md](Teleport.md).
+
+`TeleportValidationPad` is a server-only, runtime-created operator surface
+after `Teleport`. `TeleportValidationConfig` is injected by the server manifest
+and is disabled by default. A disabled, invalid, incomplete, inherited, or
+current-DataModel-mismatched configuration returns from initialization before
+it observes players or mutates `Workspace`. When explicitly enabled with one
+exact GameId, directed PlaceId routes, and a tester allowlist, it observes
+players through `PlayersModule`, batches the initial enumeration, and assigns
+the single runtime pad to the lowest present allowlisted UserId independently
+of observer order. The outer config must be an exact plain four-field
+dictionary. The controller calls only the public Teleport service; it does not
+widen `TeleportPolicy` and adds no startup Script, RemoteEvent, or canonical
+scene object. The complete temporary enable/publish/E2E/disable procedure is
+in [TeleportTesting.md](TeleportTesting.md).
+
+`GlobalSave` captures the complete Teleport client projection in the same
+communication snapshot generation as provider state. The client validates the
+Teleport baseline before mutating provider state, applies providers
+transactionally, installs the prepared Teleport projection, and resumes the
+epoch only after both have succeeded. Each successful Teleport installation
+publishes `ProjectionReconciled` after the atomic replacement so subscribers
+can re-read the complete projection. Runtime resync repeats this path.
 
 ## Save controllers and layers
 
@@ -146,6 +174,15 @@ under the active operation. If the player leaves while storage load is still
 in flight, the acquired lock is released without applying provider state.
 Overlapping player-removal and shutdown closes share one result and emit one
 `PlayerClosed` notification.
+
+Lock acquisition treats a live `SessionLocked` result as a possible
+cross-server teleport handoff. Production retries it with bounded exponential
+delays for up to eight attempts (9.75 seconds of configured delay) while the
+source server completes close, save, and release. Player removal cancels the
+wait; confirmed cancellation never applies provider state, and a lock acquired
+concurrently with cancellation is released by the existing load/close
+coordination. Exhaustion still fails closed and never weakens the 30-minute
+stale-lock takeover threshold.
 
 Session-lock ownership is verified from the final document returned by
 `UpdateAsync`. This matters because Roblox may invoke the transform repeatedly

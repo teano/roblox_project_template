@@ -348,7 +348,11 @@ function ServerSaveController:Load(
 	}
 	self._runtimes[player] = runtime
 
-	local loaded = self._storage:Load(key)
+	local loaded = self._storage:Load(key, {
+		IsCancelled = function()
+			return runtime.CloseRequested
+		end,
+	})
 	if not loaded.Ok then
 		runtime.State = "LoadFailed"
 		self.PlayerLoadFailed:Fire(player, loaded)

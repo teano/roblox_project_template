@@ -37,6 +37,7 @@ affects save-provider and communication contracts.
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
 | `src/**/Save/**`, storage, autosave, session locks, migration, version persistence | `architecture.md`, `save-system.md`, `testing.md` |
 | Communication, RemoteEvent, RemoteFunction, DTO, protocol, serialization, rate limit, resync | `architecture.md`, `communication.md`, `testing.md` |
+| `TeleportModule`, `TeleportClient`, `TeleportService`, teleport session/attempt/envelope/destination, or teleport lifecycle DTO | `teleport.md`, `architecture.md`, `initialization.md`, `players.md`, `signals.md`, `communication.md`, `testing.md` |
 | `ConfigService`, Experience Configs, config codecs/catalogs, client config bundles or projections | `configuration.md`, `architecture.md`, `initialization.md`, `communication.md`, `testing.md` |
 | Server or client Players modules, player/character lifecycle | `architecture.md`, `players.md`, `testing.md` |
 | Wallet, Version, GameData, a save provider, or an authority change | `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
@@ -74,6 +75,8 @@ affects save-provider and communication contracts.
 - `resource-management.md`: pooling ownership, adapters, leases, budgets, and cleanup.
 - `signals.md`: side-local dispatch, connection lifecycle, yielding, errors,
   waiting, and destruction.
+- `teleport.md`: server-authoritative session continuity, per-player attempts,
+  trusted arrival origin, client projection, and safe presentation.
 
 ## Architecture decision records
 

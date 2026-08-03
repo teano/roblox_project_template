@@ -55,6 +55,7 @@ function Command.new(deps: {
 	Config: any,
 	PlayersModule: any,
 	Communication: any,
+	Teleport: any,
 	MigrationModule: any,
 	AutoSaveModule: any,
 	SessionLockModule: any,
@@ -65,7 +66,7 @@ function Command.new(deps: {
 })
 	return setmetatable({
 		Id = "GlobalSave",
-		DependsOn = { "DomainData" },
+		DependsOn = { "DomainData", "Teleport" },
 		_deps = deps,
 		_logger = deps.Logger or Logger.new("GlobalSave", "info"),
 	}, Command)
@@ -117,11 +118,19 @@ function Command:HandleSnapshotRequest(controller: any, player: Player, loadTime
 				Code = "SnapshotFailed",
 			}
 		end
+		local teleportSnapshot = self._deps.Teleport:BuildClientSnapshot(player)
+		if teleportSnapshot == nil then
+			return {
+				Ok = false,
+				Code = "SnapshotFailed",
+			}
+		end
 
 		local nextEpoch = communication:GetNextSnapshotEpoch(player)
 		local successResponse = {
 			Ok = true,
 			Snapshot = snapshot,
+			TeleportSnapshot = teleportSnapshot,
 			CommunicationEpoch = nextEpoch,
 		}
 		local responseValid, issues, estimatedBytes = CommunicationSerialize.inspect(successResponse, {

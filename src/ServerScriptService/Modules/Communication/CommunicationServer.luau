@@ -542,6 +542,11 @@ function CommunicationServer:BeginSnapshot(player: Player)
 	return self._outgoingEpoch[player]
 end
 
+function CommunicationServer:RequireResync(player: Player, reason: string)
+	assert(typeof(reason) == "string" and reason ~= "", "Resync reason required")
+	self:_setResyncRequired(player, reason)
+end
+
 function CommunicationServer:GetNextSnapshotEpoch(player: Player): number
 	return (self._outgoingEpoch[player] or 0) + 1
 end

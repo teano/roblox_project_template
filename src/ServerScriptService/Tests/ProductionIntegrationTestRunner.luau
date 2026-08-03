@@ -13,15 +13,19 @@ local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 local CommunicationProtocol = require(ReplicatedStorage.Shared.Communication.CommunicationProtocol)
 local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.CommunicationConfig)
 local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
+local TeleportProtocol = require(ReplicatedStorage.Shared.Teleport.TeleportProtocol)
 local SaveSerialize = require(ReplicatedStorage.Shared.Save.SaveSerialize)
 local TokenBucket = require(ReplicatedStorage.Shared.Communication.TokenBucket)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
+local TeleportClient = require(ReplicatedStorage.Client.Teleport.TeleportClient)
 local ClientSaveController = require(ReplicatedStorage.Client.Save.ClientSaveController)
 local WalletClient = require(ReplicatedStorage.Client.Wallet.WalletClient)
 
 local GlobalSaveInitializationCommand =
 	require(ServerScriptService.Initialization.Commands.GlobalSaveInitializationCommand)
 local CommunicationServer = require(ServerScriptService.Modules.Communication.CommunicationServer)
+local TeleportModule = require(ServerScriptService.Modules.Teleport.TeleportModule)
+local TeleportPolicy = require(ServerScriptService.Modules.Teleport.TeleportPolicy)
 local DataStoreStorage = require(ServerScriptService.Modules.Storage.DataStoreStorage)
 local MemoryStorage = require(ServerScriptService.Modules.Storage.MemoryStorage)
 local SessionLockingStorage = require(ServerScriptService.Modules.Storage.SessionLockingStorage)
@@ -297,6 +301,123 @@ function ProductionIntegrationTestRunner.runAll()
 		)
 		assertEqual(first:Save("Shared", takeover.Document).Code, "LockLost")
 		assertTrue(second:Release("Shared").Ok, "takeover release failed")
+	end)
+
+	test("session lock acquisition waits for a teleport handoff release", function(scope)
+		local memory = MemoryStorage.new()
+		local config = {
+			StaleLockSeconds = 1_800,
+			LockAcquisitionRetry = {
+				MaxAttempts = 4,
+				BaseDelaySeconds = 0.25,
+				MaxDelaySeconds = 1,
+			},
+		}
+		local source = SessionLockingStorage.new(memory, config)
+		assertTrue(source:Load("TeleportHandoff").Ok, "source lock acquisition failed")
+		scope:Defer(function()
+			source:Release("TeleportHandoff")
+		end)
+
+		local waits = {}
+		local target = SessionLockingStorage.new(memory, config, nil, {
+			Wait = function(delaySeconds)
+				table.insert(waits, delaySeconds)
+				assertTrue(source:Release("TeleportHandoff").Ok, "source handoff release failed")
+			end,
+		})
+		scope:Defer(function()
+			target:Release("TeleportHandoff")
+		end)
+
+		local result = target:Load("TeleportHandoff")
+		assertTrue(result.Ok, "target did not acquire the released teleport handoff")
+		assertEqual(#waits, 1, "target did not stop retrying after acquisition")
+		assertEqual(waits[1], 0.25, "target used the wrong first handoff delay")
+		assertEqual(result.StaleTakeover, false, "clean handoff was classified as stale takeover")
+	end)
+
+	test("session lock handoff retry is bounded and cancellable", function(scope)
+		local memory = MemoryStorage.new()
+		local source = SessionLockingStorage.new(memory, { StaleLockSeconds = 1_800 })
+		assertTrue(source:Load("BoundedHandoff").Ok, "source lock acquisition failed")
+		scope:Defer(function()
+			source:Release("BoundedHandoff")
+		end)
+
+		local waits = {}
+		local blocked = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 1_800,
+			LockAcquisitionRetry = {
+				MaxAttempts = 3,
+				BaseDelaySeconds = 0.1,
+				MaxDelaySeconds = 0.15,
+			},
+		}, nil, {
+			Wait = function(delaySeconds)
+				table.insert(waits, delaySeconds)
+			end,
+		})
+		local exhausted = blocked:Load("BoundedHandoff")
+		assertEqual(exhausted.Code, "SessionLocked", "live lock exhaustion did not fail closed")
+		assertEqual(#waits, 2, "handoff retry exceeded its configured attempts")
+		assertEqual(waits[1], 0.1)
+		assertEqual(waits[2], 0.15)
+
+		local cancelled = false
+		local cancelWaits = 0
+		local cancelling = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 1_800,
+			LockAcquisitionRetry = {
+				MaxAttempts = 4,
+				BaseDelaySeconds = 0.1,
+				MaxDelaySeconds = 0.2,
+			},
+		}, nil, {
+			Wait = function()
+				cancelWaits += 1
+				cancelled = true
+			end,
+		})
+		local cancelledResult = cancelling:Load("BoundedHandoff", {
+			IsCancelled = function()
+				return cancelled
+			end,
+		})
+		assertEqual(cancelledResult.Code, "LoadCancelled")
+		assertEqual(cancelWaits, 1, "cancelled handoff performed another retry delay")
+		assertEqual(cancelling:HasLock("BoundedHandoff"), false)
+		assertEqual(source:HasLock("BoundedHandoff"), true, "cancellation disturbed the source lock")
+	end)
+
+	test("session lock handoff accepts only finite integer retry counts from 1 through 64", function()
+		for _, maxAttempts in { -1, 0, 1.5, math.huge, -math.huge, 0 / 0, 65, "8" } do
+			local ok = pcall(function()
+				SessionLockingStorage.new(MemoryStorage.new(), {
+					StaleLockSeconds = 1_800,
+					LockAcquisitionRetry = {
+						MaxAttempts = maxAttempts,
+						BaseDelaySeconds = 0.1,
+						MaxDelaySeconds = 0.2,
+					},
+				})
+			end)
+			assertEqual(ok, false, `invalid MaxAttempts {tostring(maxAttempts)} was accepted`)
+		end
+
+		for _, maxAttempts in { 1, 64 } do
+			local boundaryOk = pcall(function()
+				SessionLockingStorage.new(MemoryStorage.new(), {
+					StaleLockSeconds = 1_800,
+					LockAcquisitionRetry = {
+						MaxAttempts = maxAttempts,
+						BaseDelaySeconds = 0,
+						MaxDelaySeconds = 0,
+					},
+				})
+			end)
+			assertEqual(boundaryOk, true, `supported MaxAttempts {maxAttempts} was rejected`)
+		end
 	end)
 
 	test("session ownership follows only the final UpdateAsync transform", function()
@@ -694,6 +815,65 @@ function ProductionIntegrationTestRunner.runAll()
 		assertTrue(closeResult.Ok, "close failed after cancelling an in-flight load")
 		assertTrue(releaseCalls >= 1, "cancelled load did not release its acquired lock")
 		assertEqual(provider:GetValue(player), nil, "cancelled load applied provider runtime state")
+		assertEqual(controller:GetState(player), "NotLoaded")
+		controller:Destroy(false)
+	end)
+
+	test("player close cancels a session lock handoff wait", function()
+		local loadStarted = false
+		local cancellationObserved = false
+		local releaseCalls = 0
+		local storage = {
+			Load = function(_self, _key, options)
+				loadStarted = true
+				while not options.IsCancelled() do
+					task.wait()
+				end
+				cancellationObserved = true
+				return {
+					Ok = false,
+					Code = "LoadCancelled",
+					Error = "expected cancellation",
+				}
+			end,
+			Save = function()
+				error("a cancelled handoff must not save")
+			end,
+			Release = function()
+				releaseCalls += 1
+				return { Ok = true }
+			end,
+		}
+		local provider = makeServerProvider("HandoffClose", nil)
+		local controller = ServerSaveController.new({
+			Id = "handoff_close",
+			Providers = { provider },
+			Storage = storage,
+			KeyResolver = function()
+				return "HandoffClose"
+			end,
+		})
+		local player = { UserId = 4_216 } :: any
+		local loadResult = nil
+		local closeResult = nil
+		task.spawn(function()
+			loadResult = controller:Load(player)
+		end)
+		while not loadStarted do
+			task.wait()
+		end
+		task.spawn(function()
+			closeResult = controller:Close(player, true)
+		end)
+		while loadResult == nil or closeResult == nil do
+			task.wait()
+		end
+
+		assertEqual(loadResult.Code, "LoadCancelled")
+		assertTrue(cancellationObserved, "controller did not cancel the handoff wait")
+		assertTrue(closeResult.Ok, "close failed after cancelling handoff acquisition")
+		assertEqual(releaseCalls, 1, "close did not perform idempotent storage cleanup")
+		assertEqual(provider:GetValue(player), nil, "cancelled handoff applied provider runtime state")
 		assertEqual(controller:GetState(player), "NotLoaded")
 		controller:Destroy(false)
 	end)
@@ -1535,6 +1715,15 @@ function ProductionIntegrationTestRunner.runAll()
 		}
 		local command = GlobalSaveInitializationCommand.new({
 			Communication = communication,
+			Teleport = {
+				BuildClientSnapshot = function()
+					return {
+						Arrival = { SessionId = "00000000-0000-4000-8000-000000000001", EntryKind = "External" },
+						Attempt = nil,
+						PresentPlayers = {},
+					}
+				end,
+			},
 			Logger = logger,
 		} :: any)
 		local player = { UserId = 3983 } :: any
@@ -2065,6 +2254,298 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(queued, 2, "changes after resync must be sendable")
 		controller:Destroy()
 		changed:Destroy()
+	end)
+
+	test("teleport projection survives snapshot clearing recovery backpressure and stopped delivery", function(scope)
+		local placeId = 91045933836846
+		local now = 0
+		local nextGuid = 0
+		local function guid(): string
+			nextGuid += 1
+			return string.format("00000000-0000-4000-8000-%012d", nextGuid)
+		end
+		local function newPlayer(userId: number)
+			local player = {
+				UserId = userId,
+				Parent = {},
+				_IsTeleportIntegrationPlayer = true,
+			}
+			function player:GetJoinData()
+				return nil
+			end
+			return player
+		end
+
+		local players = {}
+		local onAdded = nil
+		local onRemoving = nil
+		local playersModule = {
+			PlayerRemoving = Signal.new(),
+		}
+		function playersModule:ObservePlayers(added, removing)
+			onAdded = added
+			onRemoving = removing
+			for _, player in players do
+				added(player)
+			end
+			return function()
+				onAdded = nil
+				onRemoving = nil
+			end
+		end
+		function playersModule:GetPlayers()
+			return table.clone(players)
+		end
+		function playersModule:Add(player)
+			table.insert(players, player)
+			if onAdded then
+				onAdded(player)
+			end
+		end
+
+		local clients = {}
+		local communicationServer = CommunicationServer.new({
+			PlayersModule = playersModule,
+			Clock = function()
+				return now
+			end,
+			Transport = {
+				ClientToServer = {},
+				Request = {},
+				ServerToClient = {
+					FireClient = function(_self, player, batch)
+						clients[player]:ReceiveBatch(batch)
+					end,
+				},
+			},
+			Logger = makeLogger(),
+		})
+		scope:Defer(function()
+			communicationServer:Stop()
+			playersModule.PlayerRemoving:Destroy()
+		end)
+
+		local teleportInitFailed = Signal.new()
+		local teleportCalls = {}
+		local teleportService = {
+			TeleportInitFailed = teleportInitFailed,
+		}
+		function teleportService:TeleportAsync(callPlaceId, callPlayers, options)
+			table.insert(teleportCalls, {
+				PlaceId = callPlaceId,
+				Players = callPlayers,
+				Options = options,
+			})
+			return {}
+		end
+		local function newOptions()
+			local options = {}
+			function options:SetTeleportData(value)
+				self.TeleportData = value
+			end
+			function options:GetTeleportData()
+				return self.TeleportData
+			end
+			return options
+		end
+		local teleportServer = TeleportModule.new({
+			TeleportService = teleportService,
+			HttpService = {
+				GenerateGUID = function()
+					return guid()
+				end,
+			},
+			PlayersModule = playersModule,
+			Communication = communicationServer,
+			Policy = TeleportPolicy.new({
+				AllowedPlaceIds = { [placeId] = true },
+				MaxGroupSize = 50,
+				MaxSessionIdLength = 36,
+				MaxAttemptIdLength = 36,
+			}),
+			PlaceId = placeId,
+			TeleportOptionsFactory = newOptions,
+			IsPlayer = function(value)
+				return typeof(value) == "table" and value._IsTeleportIntegrationPlayer == true
+			end,
+			Logger = makeLogger(),
+		})
+		scope:Defer(function()
+			teleportServer:Stop()
+			teleportInitFailed:Destroy()
+		end)
+		teleportServer:Initialize()
+
+		local snapshotController = {
+			IsLoaded = function()
+				return true
+			end,
+			GetState = function()
+				return "Loaded"
+			end,
+			BuildSnapshot = function()
+				return { ControllerId = "integration", Revision = 1, Providers = {} }
+			end,
+		}
+		local snapshotCommand = GlobalSaveInitializationCommand.new({
+			Communication = communicationServer,
+			Teleport = teleportServer,
+			Logger = makeLogger(),
+		} :: any)
+
+		local function newClient(player)
+			local requestTransport = {}
+			function requestTransport:InvokeServer(request)
+				return communicationServer:HandleRequest(player, request)
+			end
+			local communicationClient = CommunicationClient.new(makeLogger(), function()
+				return now
+			end, nil, {
+				ClientToServer = {},
+				Request = requestTransport,
+			})
+			local teleportClient = TeleportClient.new({
+				Communication = communicationClient,
+				PlayersModule = {
+					GetLocalPlayer = function()
+						return player
+					end,
+				},
+				MaxPlayers = 2,
+			})
+			clients[player] = communicationClient
+			scope:Defer(function()
+				teleportClient:Stop()
+				communicationClient:Stop()
+			end)
+			teleportClient:Initialize()
+			return communicationClient, teleportClient
+		end
+
+		local function applySnapshot(player, communicationClient, teleportClient)
+			now += CommunicationConfig.SnapshotRequestCooldownSeconds
+			local response = snapshotCommand:HandleSnapshotRequest(snapshotController, player, 1)
+			assertEqual(response.Ok, true, "coherent snapshot failed")
+			local prepared = teleportClient:PrepareSnapshot(response.TeleportSnapshot)
+			teleportClient:ApplyPreparedSnapshot(prepared)
+			communicationClient:ResumeAfterSnapshot(response.CommunicationEpoch)
+			assertEqual(communicationServer:SetClientReady(player, response.CommunicationEpoch), true)
+		end
+
+		local first = newPlayer(4201)
+		playersModule:Add(first)
+		local firstCommunication, firstTeleport = newClient(first)
+		local firstReconciliations = 0
+		local firstReconciledAttemptId = nil
+		firstTeleport.ProjectionReconciled:Connect(function()
+			firstReconciliations += 1
+			local attempt = firstTeleport:GetLocalAttempt()
+			firstReconciledAttemptId = if attempt then attempt.AttemptId else nil
+		end)
+		local firstRequest = teleportServer:Teleport({ first }, { Kind = "Public", PlaceId = placeId })
+		assertEqual(firstRequest.Ok, true)
+		assertTrue(
+			communicationServer:GetQueueStats(first).Messages >= 3,
+			"arrival and attempt messages must exist before initial snapshot"
+		)
+		applySnapshot(first, firstCommunication, firstTeleport)
+		task.wait()
+		assertEqual(communicationServer:GetQueueStats(first).Messages, 0, "BeginSnapshot must clear old queue")
+		assertEqual(firstTeleport:GetLocalAttempt().State, "Accepted")
+		assertEqual(firstTeleport:GetLocalAttempt().AttemptId, firstRequest.AttemptId)
+		assertEqual(firstReconciliations, 1, "initial coherent replacement was not observable")
+		assertEqual(firstReconciledAttemptId, firstRequest.AttemptId)
+
+		local appearedSignals = 0
+		firstTeleport.PlayerAppeared:Connect(function()
+			appearedSignals += 1
+		end)
+		local second = newPlayer(4202)
+		playersModule:Add(second)
+		local secondCommunication, secondTeleport = newClient(second)
+		applySnapshot(second, secondCommunication, secondTeleport)
+		communicationServer:Flush()
+		task.wait()
+		assertEqual(appearedSignals, 1, "subscribed client missed appearance")
+		assertEqual(firstTeleport:GetPresentPlayers()[second.UserId].EntryKind, "External")
+		assertEqual(secondTeleport:GetPresentPlayers()[first.UserId].EntryKind, "External")
+
+		teleportInitFailed:Fire(first, "Failure", "first request stayed", placeId, teleportCalls[1].Options)
+		task.wait()
+		communicationServer:Flush()
+		local groupRequest = teleportServer:Teleport({ first, second }, { Kind = "Public", PlaceId = placeId })
+		assertEqual(groupRequest.Ok, true)
+		communicationServer:Flush()
+		assertEqual(firstTeleport:GetLocalAttempt().AttemptId, groupRequest.AttemptId)
+		assertEqual(secondTeleport:GetLocalAttempt().AttemptId, groupRequest.AttemptId)
+		assertEqual(firstTeleport:GetLocalAttempt().State, secondTeleport:GetLocalAttempt().State)
+
+		secondTeleport:Stop()
+		assertEqual(communicationServer:Queue(
+			second,
+			TeleportProtocol.MessageTypes.LocalAttemptFailed,
+			{ AttemptId = groupRequest.AttemptId, Code = "Failure", Error = "post-stop" },
+			nil,
+			{ Priority = CommunicationProtocol.Priorities.State }
+		), true)
+		communicationServer:Flush()
+		assertEqual(secondTeleport:GetLocalAttempt(), nil, "post-Stop delivery repopulated projection")
+
+		firstCommunication:SetResyncHandler(function()
+			applySnapshot(first, firstCommunication, firstTeleport)
+		end)
+		local reconciliationBeforeHandlerFailure = firstReconciliations
+		assertEqual(communicationServer:Queue(
+			first,
+			TeleportProtocol.MessageTypes.LocalAttemptAccepted,
+			{
+				AttemptId = "00000000-0000-4000-8000-999999999999",
+				State = "Accepted",
+				DestinationKind = "Public",
+				PlaceId = placeId,
+			},
+			nil,
+			{ Priority = CommunicationProtocol.Priorities.State }
+		), true)
+		communicationServer:Flush()
+		local deadline = os.clock() + 2
+		while firstCommunication:GetQueueStats().PausedForResync and os.clock() < deadline do
+			task.wait()
+		end
+		task.wait()
+		assertEqual(firstCommunication:GetQueueStats().PausedForResync, false, "handler failure did not recover")
+		assertEqual(firstTeleport:GetLocalAttempt().AttemptId, groupRequest.AttemptId)
+		assertTrue(
+			firstReconciliations > reconciliationBeforeHandlerFailure,
+			"handler-failure snapshot recovery was invisible to subscribers"
+		)
+		assertEqual(firstReconciledAttemptId, groupRequest.AttemptId)
+
+		teleportInitFailed:Fire(first, "Failure", "group request stayed", placeId, teleportCalls[2].Options)
+		task.wait()
+		for index = 1, CommunicationConfig.MaxQueuedMessagesPerPeer + 1 do
+			communicationServer:Queue(first, "Integration.TeleportPressure", { Index = index }, nil, {
+				Priority = CommunicationProtocol.Priorities.State,
+			})
+		end
+		assertEqual(communicationServer:GetQueueStats(first).ResyncRequired, true)
+		local replacement = teleportServer:Teleport({ first }, { Kind = "Public", PlaceId = placeId })
+		assertEqual(replacement.Ok, true)
+		local reconciliationBeforeBackpressure = firstReconciliations
+		communicationServer:Flush()
+		deadline = os.clock() + 2
+		while firstCommunication:GetQueueStats().PausedForResync and os.clock() < deadline do
+			task.wait()
+		end
+		task.wait()
+		assertEqual(firstCommunication:GetQueueStats().PausedForResync, false, "backpressure recovery did not resume")
+		assertEqual(firstTeleport:GetLocalAttempt().AttemptId, replacement.AttemptId)
+		assertEqual(firstTeleport:GetLocalAttempt().State, "Accepted")
+		assertTrue(
+			firstReconciliations > reconciliationBeforeBackpressure,
+			"backpressure snapshot recovery was invisible to subscribers"
+		)
+		assertEqual(firstReconciledAttemptId, replacement.AttemptId)
 	end)
 
 	test("server backpressure drops presentation before state", function()

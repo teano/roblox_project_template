@@ -20,6 +20,11 @@ Domain modules register message or request handlers with the communication
 service instead of creating their own remotes. This keeps validation, ordering,
 rate limiting, backpressure, recovery, and lifecycle cleanup at one boundary.
 
+`TeleportModule` uses this same boundary for compact own-player lifecycle
+state and safe other-player presentation. `Teleport.Bootstrap` is a bounded
+server-read startup request; attempts and appearances remain ordinary batched
+messages. See [Teleport.md](Teleport.md).
+
 ## Runtime message flow
 
 ```text
@@ -111,8 +116,9 @@ Initial state and resync use this handshake:
 ```text
 client registers handlers
   → client invokes RequestGlobalSnapshot
+  → server captures save and Teleport state
   → server begins a new communication epoch and buffers output
-  → client atomically applies the snapshot
+  → client validates and atomically applies the complete baseline
   → client sends ClientReady with that exact epoch
   → server resumes and flushes buffered messages in order
 ```
@@ -148,6 +154,19 @@ Applying a replacement snapshot retires any pending client-authority patch and
 marks the new snapshot as the synchronization baseline. Later local changes can
 then create a new patch instead of waiting forever for an acknowledgement that
 belonged to the old epoch.
+
+Teleport projection participates in the same initial and recovery generation.
+Its complete local arrival, active attempt, and safe present-player view are
+captured before `BeginSnapshot` and installed before `ResumeAfterSnapshot`.
+After installation, `TeleportClient.ProjectionReconciled` tells subscribers to
+re-read the complete projection; lost domain messages are not synthesized as
+historical event callbacks. Present-player validation uses the configured
+`Players.MaxPlayers` capacity rather than the separate 50-player teleport
+request cap, while the complete response remains subject to the communication
+snapshot byte and node limits.
+Teleport State queue failure calls the communication recovery boundary
+explicitly; backpressure collapse and client handler failure use the same
+replacement path.
 
 ## Lifecycle
 

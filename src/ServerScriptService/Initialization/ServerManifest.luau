@@ -3,6 +3,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local ConfigService = game:GetService("ConfigService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local Workspace = game:GetService("Workspace")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
@@ -11,6 +14,10 @@ local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 local Modules = script.Parent.Parent.Modules
 local PlayersModule = require(Modules.Players.PlayersModule)
 local CommunicationServer = require(Modules.Communication.CommunicationServer)
+local TeleportModule = require(Modules.Teleport.TeleportModule)
+local TeleportPolicy = require(Modules.Teleport.TeleportPolicy)
+local TeleportValidationConfig = require(Modules.Teleport.TeleportValidationConfig)
+local TeleportValidationPad = require(Modules.Teleport.TeleportValidationPad)
 local ExperienceConfigCatalog = require(Modules.Config.ExperienceConfigCatalog)
 local ServerConfigManifest = require(Modules.Config.ServerConfigManifest)
 local SaveModule = require(Modules.Save.SaveModule)
@@ -31,6 +38,8 @@ local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitial
 local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
+local TeleportInitializationCommand = require(Commands.TeleportInitializationCommand)
+local TeleportValidationPadInitializationCommand = require(Commands.TeleportValidationPadInitializationCommand)
 local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand)
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
 local MigrationInitializationCommand = require(Commands.MigrationInitializationCommand)
@@ -59,6 +68,21 @@ local poolModule = PoolModule.new()
 local playersModule = PlayersModule.new()
 local communication = CommunicationServer.new({
 	PlayersModule = playersModule,
+})
+local teleportModule = TeleportModule.new({
+	TeleportService = TeleportService,
+	HttpService = HttpService,
+	PlayersModule = playersModule,
+	Communication = communication,
+	Policy = TeleportPolicy.Template(game.PlaceId, game.GameId),
+})
+local teleportValidationPad = TeleportValidationPad.new({
+	PlayersModule = playersModule,
+	Teleport = teleportModule,
+	Workspace = Workspace,
+	CurrentPlaceId = game.PlaceId,
+	CurrentGameId = game.GameId,
+	Config = TeleportValidationConfig,
 })
 local configCatalog = ExperienceConfigCatalog.new({
 	ConfigService = ConfigService,
@@ -89,6 +113,8 @@ local services = {
 	Pooling = poolModule,
 	Players = playersModule,
 	Communication = communication,
+	Teleport = teleportModule,
+	TeleportValidationPad = teleportValidationPad,
 	Config = configCatalog,
 	Save = saveModule,
 	Storage = storage,
@@ -105,6 +131,8 @@ local commands = {
 	PoolingInitializationCommand.new(poolModule),
 	PlayersInitializationCommand.new(playersModule),
 	CommunicationInitializationCommand.new(communication),
+	TeleportInitializationCommand.new(teleportModule),
+	TeleportValidationPadInitializationCommand.new(teleportValidationPad),
 	ConfigInitializationCommand.new(configCatalog),
 	SaveInitializationCommand.new(saveModule),
 	MigrationInitializationCommand.new(migrationModule),
@@ -116,6 +144,7 @@ local commands = {
 		Config = configCatalog,
 		PlayersModule = playersModule,
 		Communication = communication,
+		Teleport = teleportModule,
 		MigrationModule = migrationModule,
 		AutoSaveModule = autoSaveModule,
 		SessionLockModule = sessionLockModule,

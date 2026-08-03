@@ -4,7 +4,7 @@
 - Date: 2026-07-31
 - Deciders: Project maintainers
 - Supersedes: ADR-0022
-- Superseded by: None
+- Superseded by: ADR-0028
 
 ## Context
 

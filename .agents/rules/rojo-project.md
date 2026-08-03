@@ -45,10 +45,15 @@ else in the scene is preserved by saving and committing
   `game.Name`.
 - Every published repository MUST configure top-level `placeId`, `gameId`, and
   `servePlaceIds` in `default.project.json`. `placeId` and `gameId` MUST match
-  the recorded cloud place and Experience, and `servePlaceIds` MUST contain
-  every approved live-sync destination and no unrelated place.
+  the recorded cloud place and Experience, and `servePlaceIds` MUST be a
+  non-empty duplicate-free array that contains `placeId`, every approved
+  live-sync destination, and no unrelated place. Every JSON identity value MUST
+  be a bare decimal integer token in Roblox's exact safe-integer range
+  `1..2^53-1`; fractional, exponent, floating-point, decimal-normalized, and
+  out-of-range values fail closed.
 - The reusable template's configured IDs identify only its dedicated validation
-  place. A derived checkout MUST remove all inherited `placeId`, `gameId`, and
+  Experience and its two explicitly approved places. A derived checkout MUST
+  remove all inherited `placeId`, `gameId`, and
   `servePlaceIds` fields before its first Rojo preflight, Studio connection, or
   Studio operation, then leave them absent or replace them with that derived
   project's independently verified identity. Never connect a derived project

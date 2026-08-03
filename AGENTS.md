@@ -111,7 +111,8 @@ project ADR owns the attachment decision. This is mandatory setup work and
 does not require the user to repeat these instructions.
 
 The reusable template's `placeId`, `gameId`, and `servePlaceIds` identify only
-its dedicated validation place and are never inherited as a derived game's
+its two dedicated validation places in one Experience and are never inherited
+as a derived game's
 identity. Immediately after creating a derived checkout, remove those inherited
 fields before the first Rojo preflight, Studio connection, or Studio operation.
 Then either leave them absent while the derived cloud identity is unresolved or
@@ -195,6 +196,9 @@ available and the project has been initialized:
 - Roblox `Players` lifecycle events are consumed through the project `PlayersModule`.
 - Snapshot replacement follows validate/reconcile, capture, reverse Stop,
   forward SetMemento, forward Run, with complete rollback on failure.
+- Teleport session continuity is server-owned; platform acceptance and source
+  removal never prove target arrival, and shared presentation never exposes
+  another player's session or attempt details.
 - Critical architectural guarantees must be backed by tests, not prose alone.
 
 ## Change discipline

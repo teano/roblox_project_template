@@ -14,12 +14,13 @@ function Command.new(deps: {
 	SaveModule: any,
 	Communication: any,
 	Config: any,
+	Teleport: any,
 	Version: any,
 	Wallet: any,
 })
 	return setmetatable({
 		Id = "GlobalSave",
-		DependsOn = { "DomainData" },
+		DependsOn = { "DomainData", "Teleport" },
 		_deps = deps,
 		_logger = Logger.new("GlobalSave.Client", "info"),
 		_controller = nil,
@@ -39,6 +40,7 @@ function Command:_requestSnapshot()
 			and typeof(result) == "table"
 			and result.Ok == true
 			and result.Snapshot ~= nil
+			and result.TeleportSnapshot ~= nil
 			and typeof(result.CommunicationEpoch) == "number"
 		then
 			response = result
@@ -52,7 +54,9 @@ function Command:_requestSnapshot()
 	end
 	assert(response ~= nil, "Global save snapshot could not be loaded")
 
+	local preparedTeleportSnapshot = self._deps.Teleport:PrepareSnapshot(response.TeleportSnapshot)
 	self._controller:ApplySnapshot(response.Snapshot)
+	self._deps.Teleport:ApplyPreparedSnapshot(preparedTeleportSnapshot)
 	self._deps.Communication:ResumeAfterSnapshot(response.CommunicationEpoch)
 	self._deps.Communication:Queue(CommunicationProtocol.SystemMessages.ClientReady, {
 		Epoch = response.CommunicationEpoch,

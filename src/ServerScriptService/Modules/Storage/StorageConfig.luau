@@ -9,6 +9,11 @@ return table.freeze({
 	UseMemoryStorage = RunService:IsStudio(),
 	StaleLockSeconds = 30 * 60,
 	LockRefreshIntervalSeconds = 5 * 60,
+	LockAcquisitionRetry = table.freeze({
+		MaxAttempts = 8,
+		BaseDelaySeconds = 0.25,
+		MaxDelaySeconds = 2,
+	}),
 	SoftSerializedBytesLimit = 3_500_000,
 	Retry = table.freeze({
 		MaxAttempts = 5,

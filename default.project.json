@@ -3,7 +3,8 @@
   "placeId": 91045933836846,
   "gameId": 10596427617,
   "servePlaceIds": [
-    91045933836846
+    91045933836846,
+    101736951773632
   ],
   "tree": {
     "$className": "DataModel",

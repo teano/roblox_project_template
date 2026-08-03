@@ -67,7 +67,7 @@ Only after the configs are published, attach or publish the integration
 project's canonical `place.rbxl` to the dedicated test Experience.
 
 If the integration repository was created from this template, remove the
-template validation `placeId`, `gameId`, and `servePlaceIds` before its first
+template validation `placeId`, `gameId`, and two-place `servePlaceIds` before its first
 Rojo preflight or Studio connection. Those inherited values never identify the
 integration project.
 

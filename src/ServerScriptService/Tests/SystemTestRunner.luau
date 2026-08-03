@@ -462,6 +462,7 @@ function SystemTestRunner.runAll()
 		assertEqual(migration.DependsOn[1], "Save")
 		assertEqual(domainData.DependsOn[1], "Migration")
 		assertEqual(globalSave.DependsOn[1], "DomainData")
+		assertEqual(globalSave.DependsOn[2], "Teleport")
 	end)
 
 	test("global save production composition keeps Version as the final provider", function()

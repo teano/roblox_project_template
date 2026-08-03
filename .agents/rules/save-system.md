@@ -46,6 +46,11 @@ A controller MUST remain `Loaded` only after full success or full rollback. Fail
 - Close MUST coordinate with in-flight load or snapshot application; it MUST NOT remove a runtime while lock acquisition or provider application is still active.
 - Concurrent close callers for one player MUST share one close operation and one `PlayerClosed` notification.
 - A load cancelled by player close after acquiring a session lock MUST release that lock without applying provider runtime state.
+- Production session-lock acquisition MUST retry a live-lock conflict for a
+  bounded handoff window so a teleport target can wait for the source server's
+  normal close/save/release path. The wait MUST be cancellable by player close,
+  MUST NOT shorten stale-lock takeover policy, and MUST fail closed after the
+  configured attempts are exhausted.
 - Production persistence MUST use `UpdateAsync`, bounded retry, validation, actual JSON-encoded byte limits, and session locking.
 - A session-lock transform may be invoked more than once by `UpdateAsync`; ownership MUST be derived from the final returned document, never from sticky callback side effects.
 - A non-table stored document root MUST fail closed and remain unchanged; it

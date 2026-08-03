@@ -59,7 +59,8 @@ Use this procedure:
 Before running the first Rojo preflight or connecting Studio in a newly derived
 checkout, remove the reusable template's inherited top-level `placeId`,
 `gameId`, and `servePlaceIds` from `default.project.json`. This identity belongs
-only to the template validation place and is never evidence about the derived
+only to the template validation Experience and its two recorded places and is
+never evidence about the derived
 game. This safety normalization is part of initialization and precedes the
 otherwise mandatory Rojo preflight.
 
@@ -80,9 +81,16 @@ otherwise mandatory Rojo preflight.
      identity as unresolved, and use the unpublished local-file launch flow.
    - If an existing published destination is supplied and verified, set
      top-level `placeId` to its numeric Place ID, `gameId` to its numeric
-     Universe/Experience ID, and `servePlaceIds` to an array containing every
-     approved sync target. Never invent IDs, create or attach a place, or
-     publish merely to complete initialization.
+     Universe/Experience ID, and `servePlaceIds` to a non-empty duplicate-free
+     array containing every approved sync target, including `placeId`. These
+     three fields are either all absent or all present as one complete positive
+     integer identity. Each JSON identity value must be a bare decimal integer
+     token in Roblox's exact safe-integer range `1..2^53-1`; fractional,
+     exponent, floating-point, decimal-normalized, and out-of-range values fail
+     closed. `placeId` and `servePlaceIds` may not reuse either
+     template validation PlaceId, and `gameId` may not reuse the template
+     validation GameId. Never invent IDs, create or attach a place, or publish
+     merely to complete initialization.
    - Never reuse the template validation IDs as the derived project's supplied
      or verified destination, even if they are still visible in Git history.
    - Once a previously unpublished initialized project is attached with user
