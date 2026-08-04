@@ -15,6 +15,6 @@ description: Start or explicitly reopen tracked feature work in this repository.
    ```
 
    For a new feature, pass `-Title` and an ASCII `-Slug` when its requested name cannot produce one. The command creates it only in the repository's owning namespace (`TF-####` for the template, `PF-####` for a derived game). For ready work, pass `-ReopenReason` only after explicit user authorization. A derived repository must never reopen or mutate an inherited template feature.
-5. Let the trusted `PreToolUse` hook inject the current task ID. Never invent or manually pass `-SessionId`. If the command reports missing hook context, stop and ask the user to review/trust the repository hooks.
+5. Let the lifecycle script read the current task ID directly from the app-provided `CODEX_THREAD_ID`. Never invent, override, or manually pass a task ID. Repository hooks are not part of this workflow. If Codex does not provide the variable, stop without mutating feature state and report the missing app context.
 6. If product requirements or a technical specification are missing, record that gap and use the applicable approved requirements/specification workflow before implementation. Do not treat generated service artifacts as product approval.
 7. Confirm the namespace, assigned ID, branch, base commit, task link, blockers, and next allowed step before editing source.

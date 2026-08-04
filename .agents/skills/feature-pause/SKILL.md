@@ -13,6 +13,6 @@ description: Checkpoint and pause the current root writer session for an unfinis
    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/feature-workflow.ps1 -Action Pause -Feature "<name-or-id>" -Summary "<summary>" -NextStep "<next-step>"
    ```
 
-4. Let the trusted hook inject the current task ID. Never pass `-SessionId`.
+4. Let the lifecycle script read the current task ID directly from the app-provided `CODEX_THREAD_ID`. Never invent, override, or manually pass a task ID; repository hooks are not part of this workflow.
 5. Verify that the manifest is `in_progress/paused`, `activeSessionId` is null, the worklog and handoff contain the checkpoint, the writer lease is gone, and only the owning namespace dashboard was synchronized.
 6. Report that the branch remains reserved by the paused feature. Do not start another feature on it.

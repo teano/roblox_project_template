@@ -15,9 +15,9 @@
   legal state combinations, branch reservations, and dashboard equality.
 - `.agents/skills/feature-*` are explicit orchestration commands over the
   deterministic scripts.
-- `scripts/codex-feature-hook.ps1` injects verified `session_id` into exact
-  feature state-transition tool calls and supplies branch context at session
-  start.
+- `scripts/feature-workflow.ps1` resolves the current task UUID directly from
+  the app-provided `CODEX_THREAD_ID` for every state-changing action. The
+  lifecycle interface has no public task-ID argument and no repository hook.
 - `$feature-finish` explicitly runs deterministic repository, documentation,
   test, Git, Rojo, and required runtime gates from chat. Git commit and push do
   not trigger feature automation.
@@ -60,5 +60,5 @@ authority.
 Invalid state, detached HEAD, dirty new start, branch mismatch, non-ancestor
 base, namespace/prefix mismatch, foreign-namespace mutation, duplicate ID or
 same-namespace slug, dashboard drift, another feature reservation, another
-writer, remaining blockers, or missing completion summaries fail closed
-without advancing the feature state.
+writer, absent or malformed app task identity, remaining blockers, or missing
+completion summaries fail closed without advancing the feature state.

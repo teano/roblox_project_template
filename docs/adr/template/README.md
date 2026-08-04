@@ -40,7 +40,8 @@ Repositories derived from the template receive these records from their
 | [ADR-0030](0030-retry-session-lock-handoff-after-teleport.md) | Retry session-lock handoff after teleport | Accepted |
 | [ADR-0031](0031-disable-teleport-validation-pad-by-default.md) | Disable the teleport validation pad by default | Accepted |
 | [ADR-0032](0032-track-feature-work-with-manifests.md) | Track feature work with canonical manifests and explicit lifecycle commands | Superseded by ADR-0033 |
-| [ADR-0033](0033-separate-template-and-project-feature-registries.md) | Separate template and project feature registries | Accepted |
+| [ADR-0033](0033-separate-template-and-project-feature-registries.md) | Separate template and project feature registries | Superseded by ADR-0034 |
+| [ADR-0034](0034-resolve-feature-task-identity-without-hooks.md) | Resolve feature task identity without repository hooks | Accepted |
 
 ## Ownership and numbering
 

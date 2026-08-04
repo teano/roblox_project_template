@@ -8,7 +8,6 @@ param(
 
 	[string]$Title,
 	[string]$Slug,
-	[string]$SessionId,
 	[string]$Summary,
 	[string]$NextStep,
 	[string]$VerificationSummary,
@@ -20,18 +19,20 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Import-Module (Join-Path $PSScriptRoot "FeatureWorkflow.psm1") -Force -DisableNameChecking
 
-function Require-SessionId {
-	if ([string]::IsNullOrWhiteSpace($SessionId)) {
-		throw (
-			"The current Codex task id is required. Trust the repository " +
-			"PreToolUse hook or pass -SessionId from verified hook input."
-		)
+function Get-CurrentCodexThreadId {
+	$threadId = [string]$env:CODEX_THREAD_ID
+	if ([string]::IsNullOrWhiteSpace($threadId)) {
+		throw "The current Codex task id is unavailable. Run this lifecycle command from an active Codex task that provides CODEX_THREAD_ID."
 	}
+	$parsed = [Guid]::Empty
+	if (-not [Guid]::TryParse($threadId, [ref]$parsed)) {
+		throw "CODEX_THREAD_ID must be a valid UUID supplied by Codex."
+	}
+	return $parsed.ToString()
 }
 
 function Assert-CurrentOwner {
 	param($Manifest)
-	Require-SessionId
 	if ($Manifest.status -ne "in_progress" -or $Manifest.activity -ne "active") {
 		throw "Feature '$($Manifest.id)' is not active."
 	}
@@ -73,10 +74,10 @@ $repositoryRoot = Get-FeatureRepositoryRoot
 $branch = Get-CurrentFeatureBranch -RepositoryRoot $repositoryRoot
 $head = Get-FeatureHead -RepositoryRoot $repositoryRoot
 $record = Resolve-FeatureRecord -RepositoryRoot $repositoryRoot -Feature $Feature
+$SessionId = if ($Action -eq "Context") { $null } else { Get-CurrentCodexThreadId }
 
 switch ($Action) {
 	"Start" {
-		Require-SessionId
 		$workingTree = (Invoke-FeatureGit -RepositoryRoot $repositoryRoot -Arguments @("status", "--porcelain", "--untracked-files=all")).Output
 		if ($workingTree.Count -gt 0 -and -not $AdoptChanges) {
 			throw "Starting a feature requires a clean worktree. Use -AdoptChanges only after explicit user authorization."
@@ -165,7 +166,6 @@ switch ($Action) {
 	}
 
 	"Continue" {
-		Require-SessionId
 		if ($null -eq $record) { throw "Unknown feature '$Feature'." }
 		Assert-FeatureRecordWritable -RepositoryRoot $repositoryRoot -Record $record
 		$manifest = $record.Manifest

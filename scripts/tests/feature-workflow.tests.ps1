@@ -5,6 +5,12 @@ $sourceRoot = (& git -C $PSScriptRoot rev-parse --show-toplevel).Trim()
 if ($LASTEXITCODE -ne 0) { throw "Source repository root is unavailable." }
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("feature-workflow-tests-{0}" -f [Guid]::NewGuid().ToString("N"))
 $powershell = (Get-Command powershell -ErrorAction Stop).Source
+$sessionA = "00000000-0000-4000-8000-00000000000a"
+$sessionB = "00000000-0000-4000-8000-00000000000b"
+$sessionC = "00000000-0000-4000-8000-00000000000c"
+$sessionX = "00000000-0000-4000-8000-00000000000d"
+$projectSession = "00000000-0000-4000-8000-00000000000e"
+$foreignSession = "00000000-0000-4000-8000-00000000000f"
 
 function Assert-True {
 	param([Parameter(Mandatory = $true)][bool]$Condition, [Parameter(Mandatory = $true)][string]$Message)
@@ -21,14 +27,27 @@ function Invoke-TestGit {
 function Invoke-Workflow {
 	param(
 		[Parameter(Mandatory = $true)][string[]]$Arguments,
-		[Parameter(Mandatory = $true)][int]$ExpectedExitCode
+		[Parameter(Mandatory = $true)][int]$ExpectedExitCode,
+		[Parameter(Mandatory = $true)][AllowEmptyString()][string]$ThreadId
 	)
 	$previousPreference = $ErrorActionPreference
+	$hadThreadId = Test-Path Env:CODEX_THREAD_ID
+	$previousThreadId = $env:CODEX_THREAD_ID
 	try {
+		if ([string]::IsNullOrWhiteSpace($ThreadId)) {
+			Remove-Item Env:CODEX_THREAD_ID -ErrorAction SilentlyContinue
+		} else {
+			$env:CODEX_THREAD_ID = $ThreadId
+		}
 		$ErrorActionPreference = "Continue"
 		$output = @(& $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $testRoot "scripts\feature-workflow.ps1") @Arguments 2>&1)
 		$exitCode = $LASTEXITCODE
 	} finally {
+		if ($hadThreadId) {
+			$env:CODEX_THREAD_ID = $previousThreadId
+		} else {
+			Remove-Item Env:CODEX_THREAD_ID -ErrorAction SilentlyContinue
+		}
 		$ErrorActionPreference = $previousPreference
 	}
 	if ($exitCode -ne $ExpectedExitCode) {
@@ -83,8 +102,7 @@ try {
 		"FeatureWorkflow.psm1",
 		"feature-workflow.ps1",
 		"sync-feature-index.ps1",
-		"validate-feature-workflow.ps1",
-		"codex-feature-hook.ps1"
+		"validate-feature-workflow.ps1"
 	)) {
 		Copy-Item -LiteralPath (Join-Path $sourceRoot "scripts\$name") -Destination (Join-Path $testRoot "scripts\$name")
 	}
@@ -111,33 +129,48 @@ try {
 
 	Invoke-Workflow -Arguments @(
 		"-Action", "Start",
+		"-Feature", "Missing Task Context",
+		"-Title", "Missing Task Context",
+		"-Slug", "missing-task-context"
+	) -ExpectedExitCode 1 -ThreadId "" | Out-Null
+	Assert-True (-not (Test-Path -LiteralPath (Join-Path $testRoot "docs\Features\template\missing-task-context"))) "missing app task identity must fail before mutation"
+
+	Invoke-Workflow -Arguments @(
+		"-Action", "Start",
+		"-Feature", "Manual Task Argument",
+		"-Title", "Manual Task Argument",
+		"-Slug", "manual-task-argument",
+		"-SessionId", $sessionA
+	) -ExpectedExitCode 1 -ThreadId $sessionA | Out-Null
+	Assert-True (-not (Test-Path -LiteralPath (Join-Path $testRoot "docs\Features\template\manual-task-argument"))) "public SessionId argument must be rejected before mutation"
+
+	Invoke-Workflow -Arguments @(
+		"-Action", "Start",
 		"-Feature", "Adopt Existing",
 		"-Title", "Adopt Existing",
-		"-Slug", "existing-folder",
-		"-SessionId", "session-a"
-	) -ExpectedExitCode 0 | Out-Null
+		"-Slug", "existing-folder"
+	) -ExpectedExitCode 0 -ThreadId $sessionA | Out-Null
 	$firstPath = Join-Path $testRoot "docs\Features\template\existing-folder\feature.json"
 	$first = Get-Content -LiteralPath $firstPath -Raw | ConvertFrom-Json
 	Assert-True ($first.id -ceq "TF-0001") "first template feature ID must be TF-0001"
 	Assert-True ($first.baseCommit -ceq $baseCommit) "start must freeze the exact base commit"
 	Assert-True ($first.activity -ceq "active") "new feature must be active"
+	Assert-True ($first.activeSessionId -ceq $sessionA) "start must bind the app-provided task ID"
 
 	Invoke-Workflow -Arguments @(
 		"-Action", "Start",
 		"-Feature", "Second Feature",
 		"-Title", "Second Feature",
 		"-Slug", "second-feature",
-		"-AdoptChanges",
-		"-SessionId", "session-x"
-	) -ExpectedExitCode 1 | Out-Null
+		"-AdoptChanges"
+	) -ExpectedExitCode 1 -ThreadId $sessionX | Out-Null
 
 	Invoke-Workflow -Arguments @(
 		"-Action", "Pause",
 		"-Feature", "TF-0001",
 		"-Summary", "Checkpoint after initial implementation.",
-		"-NextStep", "Resume and verify completion.",
-		"-SessionId", "session-a"
-	) -ExpectedExitCode 0 | Out-Null
+		"-NextStep", "Resume and verify completion."
+	) -ExpectedExitCode 0 -ThreadId $sessionA | Out-Null
 	$first = Get-Content -LiteralPath $firstPath -Raw | ConvertFrom-Json
 	Assert-True ($first.status -ceq "in_progress" -and $first.activity -ceq "paused") "pause must retain branch reservation"
 	Assert-True ($null -eq $first.activeSessionId) "pause must clear activeSessionId"
@@ -147,17 +180,15 @@ try {
 		"-Feature", "Second Feature",
 		"-Title", "Second Feature",
 		"-Slug", "second-feature",
-		"-AdoptChanges",
-		"-SessionId", "session-x"
-	) -ExpectedExitCode 1 | Out-Null
+		"-AdoptChanges"
+	) -ExpectedExitCode 1 -ThreadId $sessionX | Out-Null
 
 	Invoke-Workflow -Arguments @(
 		"-Action", "Continue",
-		"-Feature", "TF-0001",
-		"-SessionId", "session-b"
-	) -ExpectedExitCode 0 | Out-Null
+		"-Feature", "TF-0001"
+	) -ExpectedExitCode 0 -ThreadId $sessionB | Out-Null
 	$first = Get-Content -LiteralPath $firstPath -Raw | ConvertFrom-Json
-	Assert-True ($first.activity -ceq "active" -and $first.activeSessionId -ceq "session-b") "continue must transfer sequential ownership"
+	Assert-True ($first.activity -ceq "active" -and $first.activeSessionId -ceq $sessionB) "continue must transfer sequential ownership"
 	Assert-True (@($first.sessions).Count -eq 2) "continue must retain both linked sessions"
 
 	$first.blockers = @("missing evidence")
@@ -166,9 +197,8 @@ try {
 		"-Action", "Finish",
 		"-Feature", "TF-0001",
 		"-Summary", "Complete.",
-		"-VerificationSummary", "All fixture checks passed.",
-		"-SessionId", "session-b"
-	) -ExpectedExitCode 1 | Out-Null
+		"-VerificationSummary", "All fixture checks passed."
+	) -ExpectedExitCode 1 -ThreadId $sessionB | Out-Null
 	$first = Get-Content -LiteralPath $firstPath -Raw | ConvertFrom-Json
 	Assert-True ($first.status -ceq "in_progress") "blocked finish must not advance state"
 
@@ -178,9 +208,8 @@ try {
 		"-Action", "Finish",
 		"-Feature", "TF-0001",
 		"-Summary", "Complete.",
-		"-VerificationSummary", "All fixture checks passed.",
-		"-SessionId", "session-b"
-	) -ExpectedExitCode 0 | Out-Null
+		"-VerificationSummary", "All fixture checks passed."
+	) -ExpectedExitCode 0 -ThreadId $sessionB | Out-Null
 	$first = Get-Content -LiteralPath $firstPath -Raw | ConvertFrom-Json
 	Assert-True ($first.status -ceq "ready" -and $first.activity -ceq "none") "finish must produce ready/none"
 	$firstHandoff = Get-Content -LiteralPath (Join-Path $testRoot "docs\Features\template\existing-folder\handoff.md") -Raw
@@ -194,40 +223,18 @@ try {
 		"-Action", "Start",
 		"-Feature", "Second Feature",
 		"-Title", "Second Feature",
-		"-Slug", "second-feature",
-		"-SessionId", "session-c"
-	) -ExpectedExitCode 1 | Out-Null
+		"-Slug", "second-feature"
+	) -ExpectedExitCode 1 -ThreadId $sessionC | Out-Null
 	Invoke-Workflow -Arguments @(
 		"-Action", "Start",
 		"-Feature", "Second Feature",
 		"-Title", "Second Feature",
 		"-Slug", "second-feature",
-		"-AdoptChanges",
-		"-SessionId", "session-c"
-	) -ExpectedExitCode 0 | Out-Null
+		"-AdoptChanges"
+	) -ExpectedExitCode 0 -ThreadId $sessionC | Out-Null
 	$secondPath = Join-Path $testRoot "docs\Features\template\second-feature\feature.json"
 	$second = Get-Content -LiteralPath $secondPath -Raw | ConvertFrom-Json
 	Assert-True ($second.id -ceq "TF-0002") "second template feature ID must be TF-0002"
-
-	$sessionHookInput = [ordered]@{
-		hook_event_name = "SessionStart"
-		cwd = $testRoot
-		session_id = "hook-session"
-	} | ConvertTo-Json -Compress
-	$sessionHookOutput = $sessionHookInput | & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $testRoot "scripts\codex-feature-hook.ps1")
-	$sessionHook = $sessionHookOutput | ConvertFrom-Json
-	Assert-True ($sessionHook.hookSpecificOutput.additionalContext -match "template/TF-0002") "SessionStart hook must expose namespaced branch feature context"
-
-	$toolHookInput = [ordered]@{
-		hook_event_name = "PreToolUse"
-		tool_name = "Bash"
-		cwd = $testRoot
-		session_id = "hook-session"
-		tool_input = [ordered]@{ command = "powershell -File scripts/feature-workflow.ps1 -Action Context -Feature TF-0002" }
-	} | ConvertTo-Json -Depth 5 -Compress
-	$toolHookOutput = $toolHookInput | & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $testRoot "scripts\codex-feature-hook.ps1")
-	$toolHook = $toolHookOutput | ConvertFrom-Json
-	Assert-True ($toolHook.hookSpecificOutput.updatedInput.command -match "-SessionId 'hook-session'$") "PreToolUse hook must inject verified task ID"
 
 	$duplicateDirectory = Join-Path $testRoot "docs\Features\template\duplicate"
 	New-Item -ItemType Directory -Path $duplicateDirectory | Out-Null
@@ -250,9 +257,8 @@ try {
 		"-Action", "Finish",
 		"-Feature", "TF-0002",
 		"-Summary", "Second template feature complete.",
-		"-VerificationSummary", "Fixture verification passed.",
-		"-SessionId", "session-c"
-	) -ExpectedExitCode 0 | Out-Null
+		"-VerificationSummary", "Fixture verification passed."
+	) -ExpectedExitCode 0 -ThreadId $sessionC | Out-Null
 	Invoke-TestGit -Arguments @("add", ".") | Out-Null
 	Invoke-TestGit -Arguments @("commit", "-m", "finish template feature fixtures") | Out-Null
 
@@ -267,9 +273,8 @@ try {
 		"-Action", "Start",
 		"-Feature", "Project Feature",
 		"-Title", "Project Feature",
-		"-Slug", "existing-folder",
-		"-SessionId", "project-session"
-	) -ExpectedExitCode 0 | Out-Null
+		"-Slug", "existing-folder"
+	) -ExpectedExitCode 0 -ThreadId $projectSession | Out-Null
 	$projectFeaturePath = Join-Path $testRoot "docs\Features\project\existing-folder\feature.json"
 	$projectFeature = Get-Content -LiteralPath $projectFeaturePath -Raw | ConvertFrom-Json
 	Assert-True ($projectFeature.id -ceq "PF-0001") "first derived-project feature ID must be PF-0001"
@@ -284,18 +289,8 @@ try {
 		"-Action", "Start",
 		"-Feature", "TF-0001",
 		"-ReopenReason", "Forbidden foreign mutation fixture.",
-		"-AdoptChanges",
-		"-SessionId", "foreign-session"
-	) -ExpectedExitCode 1 | Out-Null
-
-	$projectHookInput = [ordered]@{
-		hook_event_name = "SessionStart"
-		cwd = $testRoot
-		session_id = "project-hook-session"
-	} | ConvertTo-Json -Compress
-	$projectHookOutput = $projectHookInput | & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $testRoot "scripts\codex-feature-hook.ps1")
-	$projectHook = $projectHookOutput | ConvertFrom-Json
-	Assert-True ($projectHook.hookSpecificOutput.additionalContext -match "project/PF-0001") "derived SessionStart hook must expose project namespace context"
+		"-AdoptChanges"
+	) -ExpectedExitCode 1 -ThreadId $foreignSession | Out-Null
 
 	$corruptTemplateIndex = $templateIndexBefore.Replace("Всего: 2", "Всего: 999")
 	[IO.File]::WriteAllText($indexPath, $corruptTemplateIndex, [Text.UTF8Encoding]::new($false))
@@ -310,9 +305,8 @@ try {
 		"-Action", "Finish",
 		"-Feature", "PF-0001",
 		"-Summary", "Derived project namespace fixture complete.",
-		"-VerificationSummary", "Namespace isolation checks passed.",
-		"-SessionId", "project-session"
-	) -ExpectedExitCode 0 | Out-Null
+		"-VerificationSummary", "Namespace isolation checks passed."
+	) -ExpectedExitCode 0 -ThreadId $projectSession | Out-Null
 	Invoke-FeatureValidator -ExpectedExitCode 0 -TestName "completed project namespace" | Out-Null
 
 	Write-Output "Feature workflow tests passed."

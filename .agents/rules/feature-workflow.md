@@ -4,7 +4,7 @@
 
 Apply when starting, continuing, pausing, finishing, indexing, or validating
 feature work, and when changing files under `docs/Features/`, `.agents/skills/`,
-`.codex/` lifecycle hooks, or the feature-workflow scripts.
+`.codex/`, or the feature-workflow scripts.
 
 Required context: `architecture.md`, `architecture-decisions.md`, `testing.md`,
 `docs/adr/README.md`, template/ADR-0033, and every subsystem rule selected by
@@ -69,7 +69,13 @@ feature is paused, never marked ready to release a branch reservation.
 
 ## Context and task links
 
-- Codex task IDs come from lifecycle-hook input or verified app/task APIs.
+- Lifecycle scripts read the current Codex task ID directly from the
+  app-provided `CODEX_THREAD_ID`. Agents MUST NOT invent, override, or pass a
+  task ID manually. Repository hooks are not part of task identity or startup
+  context.
+- A state-changing lifecycle command MUST fail closed before mutation when the
+  app-provided task ID is absent or malformed. Read-only context inspection
+  remains available.
 - Continue context is loaded in this order: manifest, `handoff.md`, approved
   PRD and specification when present, `worklog.md`, Git changes from
   `baseCommit`, matched rules and ADRs, then targeted linked-task history only
@@ -91,6 +97,8 @@ feature is paused, never marked ready to release a branch reservation.
 - Create missing service artifacts and acquire the writer lease before source
   edits. Missing product requirements or specification remains a documented
   blocker until the applicable requirements/specification workflow resolves it.
+- Resolve ownership from the app-provided current task ID without hook
+  installation, trust prompts, or a public `-SessionId` argument.
 
 ### Continue
 
@@ -119,6 +127,8 @@ feature is paused, never marked ready to release a branch reservation.
 - Git hooks are not part of this workflow. The agent runs all finish gates
   explicitly from the chat command; commit and push do not mutate or validate
   feature state automatically.
+- Codex repository hooks are also absent. The lifecycle command consumes the
+  app-provided task environment directly.
 
 ## Verification
 

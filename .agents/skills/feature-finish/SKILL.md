@@ -16,5 +16,5 @@ description: Perform the complete documentation, ADR, test, evidence, and Git au
    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/feature-workflow.ps1 -Action Finish -Feature "<name-or-id>" -Summary "<delivered-outcome>" -VerificationSummary "<commands-and-results>"
    ```
 
-7. Let the trusted hook inject the current task ID. Never pass `-SessionId`.
+7. Let the lifecycle script read the current task ID directly from the app-provided `CODEX_THREAD_ID`. Never invent, override, or manually pass a task ID; repository hooks are not part of this workflow.
 8. Verify `ready/none`, closed task history, released writer lease, updated handoff/worklog, and synchronized visible dashboards. Report every check not run and its concrete reason.

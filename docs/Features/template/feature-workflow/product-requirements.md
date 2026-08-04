@@ -31,8 +31,9 @@ writer exclusion still apply across the complete repository.
 - Pause closes the writer task but retains the branch reservation.
 - Finish performs the documentation, ADR, test, runtime-evidence, and Git gates
   and cannot mark blocked work ready.
-- Codex hooks supply verified task identity and startup context. Git hooks are
-  not installed; the explicit finish chat command owns all completion gates.
+- Lifecycle commands resolve verified task identity directly from the
+  app-provided `CODEX_THREAD_ID`. Codex and Git hooks are not installed; the
+  explicit skills own context recovery and all completion gates.
 - Raw transcripts and local locks are never committed.
 
 ## Acceptance
@@ -42,7 +43,8 @@ writer exclusion still apply across the complete repository.
 - A derived-repository fixture allocates `PF-0001` under the project namespace,
   leaves the template dashboard byte-identical, rejects mutation of `TF-####`,
   and detects foreign-dashboard drift without rewriting it.
-- All four skills validate and require explicit invocation.
+- All four skills validate, require explicit invocation, and work without
+  repository hook trust or installation.
 - Existing Teleport and Players work plus planned Statistic Collection appear
   only in the generated template dashboard with verified task IDs and no
   invented data.
