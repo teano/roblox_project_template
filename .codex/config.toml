@@ -4,3 +4,24 @@ args = ["serve", "--mcp"]
 
 [mcp_servers.codegraph.env]
 CODEGRAPH_TELEMETRY = "0"
+
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear|compact"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = 'pwsh -NoProfile -File "$(git rev-parse --show-toplevel)/scripts/codex-feature-hook.ps1"'
+command_windows = '''powershell -NoProfile -ExecutionPolicy Bypass -Command "& (Join-Path (git rev-parse --show-toplevel) 'scripts\codex-feature-hook.ps1')"'''
+timeout = 30
+statusMessage = "Loading feature state"
+additionalContextLimit = 2500
+
+[[hooks.PreToolUse]]
+matcher = "^Bash$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = 'pwsh -NoProfile -File "$(git rev-parse --show-toplevel)/scripts/codex-feature-hook.ps1"'
+command_windows = '''powershell -NoProfile -ExecutionPolicy Bypass -Command "& (Join-Path (git rev-parse --show-toplevel) 'scripts\codex-feature-hook.ps1')"'''
+timeout = 30
+statusMessage = "Binding feature command to this task"

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/roblox-template/feature-manifest.schema.json",
+  "title": "Repository feature manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "slug",
+    "title",
+    "status",
+    "activity",
+    "branch",
+    "baseCommit",
+    "startedAt",
+    "completedAt",
+    "updatedAt",
+    "activeSessionId",
+    "sessions",
+    "blockers",
+    "artifacts",
+    "verification",
+    "recoveryLog"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^(TF|PF)-[0-9]{4}$" },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["planned", "in_progress", "ready"] },
+    "activity": { "enum": ["none", "active", "paused"] },
+    "branch": { "type": ["string", "null"] },
+    "baseCommit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+    "startedAt": { "type": ["string", "null"], "format": "date-time" },
+    "completedAt": { "type": ["string", "null"], "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "activeSessionId": { "type": ["string", "null"] },
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["threadId", "hostId", "role", "startedAt", "endedAt", "startCommit", "endCommit", "outcome", "summary"],
+        "properties": {
+          "threadId": { "type": "string", "minLength": 1 },
+          "hostId": { "type": ["string", "null"] },
+          "role": { "type": "string", "minLength": 1 },
+          "startedAt": { "type": ["string", "null"], "format": "date-time" },
+          "endedAt": { "type": ["string", "null"], "format": "date-time" },
+          "startCommit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+          "endCommit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+          "outcome": { "enum": ["active", "paused", "completed", "interrupted", "historical"] },
+          "summary": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "verification": { "type": ["object", "null"] },
+    "recoveryLog": { "type": "array", "items": { "type": "object" } }
+  },
+  "additionalProperties": false
+}

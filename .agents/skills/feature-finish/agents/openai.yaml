@@ -1,0 +1,7 @@
+interface:
+  display_name: "Finish Feature"
+  short_description: "Audit, verify, and finish a project feature"
+  default_prompt: "Use $feature-finish to audit, verify, and finish the active project feature."
+
+policy:
+  allow_implicit_invocation: false

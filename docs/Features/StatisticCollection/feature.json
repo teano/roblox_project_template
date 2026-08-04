@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "TF-0003",
+  "slug": "statistic-collection",
+  "title": "Statistic Collection",
+  "status": "planned",
+  "activity": "none",
+  "branch": null,
+  "baseCommit": null,
+  "startedAt": null,
+  "completedAt": null,
+  "updatedAt": "2026-08-03T09:27:54Z",
+  "activeSessionId": null,
+  "sessions": [
+    {
+      "threadId": "019fc6b9-64b0-70b0-9fb1-b3f1767cea01",
+      "hostId": "local",
+      "role": "requirements-discovery",
+      "startedAt": "2026-08-03T08:24:26Z",
+      "endedAt": "2026-08-03T09:27:54Z",
+      "startCommit": null,
+      "endCommit": null,
+      "outcome": "historical",
+      "summary": "Initial requirements discovery task; its generated working document was intentionally removed."
+    }
+  ],
+  "blockers": [
+    "Product requirements must be regenerated and approved before implementation.",
+    "Technical specification is not available."
+  ],
+  "artifacts": [],
+  "verification": null,
+  "recoveryLog": []
+}

@@ -160,6 +160,22 @@ Every completed template merge must explicitly report the upstream range,
 applied template changes, preserved project files, ADR-guided resolutions,
 conflicts, and verification results.
 
+## Feature work lifecycle
+
+Feature implementation work is tracked through the repository feature
+workflow documented in `.agents/rules/feature-workflow.md`. Before changing
+source for a feature, explicitly invoke `$feature-start` for planned work or
+`$feature-continue` for paused work. Use `$feature-pause` to checkpoint an
+unfinished session and `$feature-finish` only after the complete feature audit,
+documentation cascade, and verification gates pass.
+
+`docs/Features/*/feature.json` files are the canonical durable feature state;
+`docs/Features/README.md` is generated from them. One `in_progress` feature
+reserves its named branch even while paused. Do not start or continue a
+different feature on that branch, bypass a live writer lease, hand-edit the
+generated feature-index block, invent Codex task identifiers, or mark a
+feature ready while required evidence or blockers remain.
+
 ## Code intelligence
 
 CodeGraph is the preferred source-code exploration tool when its MCP tools are

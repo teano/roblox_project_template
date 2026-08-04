@@ -25,6 +25,7 @@ affects save-provider and communication contracts.
 
 | Trigger | Required rules |
 |---|---|
+| Starting, continuing, pausing, finishing, indexing, or validating feature work under `docs/Features/` | `feature-workflow.md`, `architecture.md`, `architecture-decisions.md`, `testing.md`, plus every affected subsystem rule |
 | Request to create or initialize a project from a target repository URL | `project-initialization.md`, then every rule required by its initialization checklist |
 | First source change in a derived repository without `docs/adr/project/README.md` | `project-initialization.md`, `architecture-decisions.md`, `rojo-project.md`, `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
 | Fetching, merging, reviewing, or resolving changes from template `upstream` | `template-updates.md`, `architecture-decisions.md`, `rojo-project.md`, `testing.md`, plus every affected subsystem rule |
@@ -77,6 +78,8 @@ affects save-provider and communication contracts.
   waiting, and destruction.
 - `teleport.md`: server-authoritative session continuity, per-player attempts,
   trusted arrival origin, client projection, and safe presentation.
+- `feature-workflow.md`: feature manifests, generated dashboard, branch and
+  writer exclusion, linked Codex tasks, handoff context, and completion gates.
 
 ## Architecture decision records
 

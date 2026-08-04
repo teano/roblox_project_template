@@ -827,6 +827,16 @@ foreach ($teleportFile in $teleportProductionFiles) {
 	}
 }
 
+$featureWorkflowValidator = Join-Path $repositoryRoot "scripts\validate-feature-workflow.ps1"
+if (-not (Test-Path -LiteralPath $featureWorkflowValidator -PathType Leaf)) {
+	Add-Failure "scripts/validate-feature-workflow.ps1 is missing."
+} else {
+	& $featureWorkflowValidator
+	if ($LASTEXITCODE -ne 0) {
+		Add-Failure "Feature manifests or the generated feature dashboard are invalid."
+	}
+}
+
 if ($failures.Count -gt 0) {
 	foreach ($failure in $failures) {
 		Write-Error -Message $failure -ErrorAction Continue

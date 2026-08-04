@@ -152,8 +152,13 @@ otherwise mandatory Rojo preflight.
    template behavior, record the unresolved decision in project ADR-0001, and
    ask one focused user question before production-dependent work.
 11. Initialize local CodeGraph according to `docs/CodeGraphSetup.md` when the
-   tool is available. Generated index files remain untracked.
-12. Read `template-updates.md` so future upstream merges preserve documented
+    tool is available. Generated index files remain untracked.
+12. Validate the inherited feature manifests and regenerate
+    `docs/Features/README.md`. New game-owned features use `PF-####`;
+    template-owned historical features retain their immutable `TF-####`
+    identifiers. Do not install Git hooks; lifecycle checks are invoked through
+    the explicit feature chat commands.
+13. Read `template-updates.md` so future upstream merges preserve documented
     project decisions.
 
 ## Required verification
@@ -162,6 +167,7 @@ Run:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-layout.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-feature-workflow.ps1
 rojo build default.project.json --output $env:TEMP\project-validation.rbxlx
 ```
 

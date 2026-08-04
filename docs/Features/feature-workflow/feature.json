@@ -1,0 +1,42 @@
+{
+    "schemaVersion":  1,
+    "id":  "TF-0004",
+    "slug":  "feature-workflow",
+    "title":  "Feature Work Management",
+    "status":  "ready",
+    "activity":  "none",
+    "branch":  "main",
+    "baseCommit":  "94b21023f4006fc7d841605fbcb6c793ba08d00b",
+    "startedAt":  "2026-08-04T17:53:23.0299924+00:00",
+    "completedAt":  "2026-08-04T18:07:04.7129704+00:00",
+    "updatedAt":  "2026-08-04T18:07:04.7129704+00:00",
+    "activeSessionId":  null,
+    "sessions":  [
+                     {
+                         "threadId":  "019fcdbe-a7b7-7840-ad97-4574e314b10b",
+                         "hostId":  "local",
+                         "role":  "implementation",
+                         "startedAt":  "2026-08-04T17:53:23.0372244+00:00",
+                         "endedAt":  "2026-08-04T18:07:04.7079287+00:00",
+                         "startCommit":  "94b21023f4006fc7d841605fbcb6c793ba08d00b",
+                         "endCommit":  "94b21023f4006fc7d841605fbcb6c793ba08d00b",
+                         "outcome":  "completed",
+                         "summary":  "Implemented explicit start, continue, pause, and finish chat workflows with canonical manifests, synchronized dashboard, branch and writer exclusion, bounded context recovery, Codex task identity hooks, historical feature backfill, and no Git hooks."
+                     }
+                 ],
+    "blockers":  [
+
+                 ],
+    "artifacts":  [
+                      "product-requirements.md",
+                      "technical-specification.md"
+                  ],
+    "verification":  {
+                         "completedAt":  "2026-08-04T18:07:04.7129704+00:00",
+                         "head":  "94b21023f4006fc7d841605fbcb6c793ba08d00b",
+                         "summary":  "Passed isolated positive/negative/boundary/recovery/state-transition tests; manifest and dashboard validation; repository layout; four skill validations; TOML and JSON parsing; git diff --check; temporary Rojo build. Git hooks confirmed absent. Studio not required because runtime source, Rojo mapping, and DataModel were unchanged."
+                     },
+    "recoveryLog":  [
+
+                    ]
+}

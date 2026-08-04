@@ -1,0 +1,7 @@
+interface:
+  display_name: "Pause Feature"
+  short_description: "Checkpoint and pause active feature work"
+  default_prompt: "Use $feature-pause to checkpoint and pause the active feature session."
+
+policy:
+  allow_implicit_invocation: false
