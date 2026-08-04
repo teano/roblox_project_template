@@ -1,17 +1,14 @@
-# Реестр фичей
+# Реестры фичей
 
-Этот dashboard генерируется из docs/Features/*/feature.json. Манифесты —
-единственный источник состояния; generated-блок не редактируется вручную.
+Жизненный цикл фичей общий для шаблона и созданных из него игр, но канонические
+манифесты и генерируемые таблицы принадлежат разным namespace.
 
-<!-- feature-index:begin -->
+| Namespace | Реестр | Владелец |
+|---|---|---|
+| Template | [template/README.md](template/README.md) | Переиспользуемый шаблон |
+| Project | `project/README.md` | Конкретная derived-игра |
 
-Всего: 4 | Готово: 3 | В работе: 0 | В плане: 1 | С блокерами: 1
-
-| ID | Фича | Состояние | Активность | Ветка | Базовый commit | Сессии | Блокеры | Обновлено |
-|---|---|---|---|---|---|---|---|---|
-| TF-0003 | [Statistic Collection](./StatisticCollection/) | 🟦 В плане | — | — | — | [1](./StatisticCollection/worklog.md) | Product requirements must be regenerated and approved before implementation.; Technical specification is not available. | 2026-08-03 |
-| TF-0001 | [Teleport Module](./TeleportModule/) | 🟩 Готова | — | `main` | `0297a229` | [2](./TeleportModule/worklog.md) | — | 2026-08-03 |
-| TF-0002 | [Players Module Production Readiness](./players-module/) | 🟩 Готова | — | `main` | `051674b9` | [2](./players-module/worklog.md) | — | 2026-08-04 |
-| TF-0004 | [Feature Work Management](./feature-workflow/) | 🟩 Готова | — | `main` | `94b21023` | [1](./feature-workflow/worklog.md) | — | 2026-08-04 |
-
-<!-- feature-index:end -->
+Шаблон отслеживает только `docs/Features/template/`. Derived-проект создаёт и
+полностью владеет `docs/Features/project/` во время обязательной инициализации.
+Обе таблицы генерируются из манифестов своего namespace и никогда не содержат
+строк другого владельца.

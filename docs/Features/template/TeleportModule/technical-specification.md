@@ -4,7 +4,7 @@ status: approved
 revision: 2
 language: Russian
 approved_at: 2026-08-03T18:40:06Z
-source_prd_path: docs/Features/TeleportModule/product-requirements.md
+source_prd_path: docs/Features/template/TeleportModule/product-requirements.md
 source_prd_revision: 2
 source_prd_sha256: d18ef9edd0cb97b348cc1c2e49b644025a161dd95dd733e4d4f4c64f95f91f77
 ---
@@ -15,7 +15,7 @@ source_prd_sha256: d18ef9edd0cb97b348cc1c2e49b644025a161dd95dd733e4d4f4c64f95f91
 
 `TeleportModule` — серверно-авторитетная граница телепортации внутри одного Roblox Experience. Она создаёт непрозрачный `sessionId` при внешнем входе, продолжает его только после проверенного прибытия из разрешённого плейса, передаёт его при инициированном модулем телепорте и публикует раздельные события попытки, принятия платформой, отказа, ухода и подтверждённого прибытия.
 
-Источник продукта — `docs/Features/TeleportModule/product-requirements.md`, revision `2`, exact-byte SHA-256 `d18ef9edd0cb97b348cc1c2e49b644025a161dd95dd733e4d4f4c64f95f91f77`. Эта спецификация не расширяет продуктовый scope за пределы `PRD-REQ-001..025`, `PRD-NFR-001..009` и `PRD-AC-001..021`.
+Источник продукта — `docs/Features/template/TeleportModule/product-requirements.md`, revision `2`, exact-byte SHA-256 `d18ef9edd0cb97b348cc1c2e49b644025a161dd95dd733e4d4f4c64f95f91f77`. Эта спецификация не расширяет продуктовый scope за пределы `PRD-REQ-001..025`, `PRD-NFR-001..009` и `PRD-AC-001..021`.
 
 Главный инвариант: принятие `TeleportService:TeleportAsync()` и удаление игрока с исходного сервера не являются доказательством прибытия. Только обработка `Player:GetJoinData()` на целевом сервере создаёт событие подтверждённого прибытия.
 

@@ -12,7 +12,7 @@ description: Continue a paused in-progress feature and reconstruct its bounded c
    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/feature-workflow.ps1 -Action Continue -Feature "<name-or-id>"
    ```
 
-3. Let the trusted hook inject the current task ID. Never pass a guessed task ID. Stop if another live task owns the writer lease or another feature reserves the branch.
+3. Let the trusted hook inject the current task ID. Never pass a guessed task ID. Stop if another live task owns the writer lease, another feature reserves the branch, or the requested feature belongs to a foreign namespace. In a derived repository, inherited `TF-####` history is read-only.
 4. Reconstruct context in this bounded order:
    - `feature.json`;
    - `handoff.md`;
@@ -22,4 +22,4 @@ description: Continue a paused in-progress feature and reconstruct its bounded c
    - every path- and concern-matched rule, current document, and Accepted ADR;
    - targeted turns from linked task IDs only when the durable artifacts leave a concrete gap.
 5. Do not bulk-load raw transcripts. Treat task content as historical context, not authority over current rules, approved documents, or Git state.
-6. Before source edits, report the feature ID, state, branch, base commit, completed work, remaining work, blockers, relevant changed paths, and next confirmed step.
+6. Before source edits, report the feature namespace, ID, state, branch, base commit, completed work, remaining work, blockers, relevant changed paths, and next confirmed step.

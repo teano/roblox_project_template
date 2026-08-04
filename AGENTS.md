@@ -169,12 +169,15 @@ source for a feature, explicitly invoke `$feature-start` for planned work or
 unfinished session and `$feature-finish` only after the complete feature audit,
 documentation cascade, and verification gates pass.
 
-`docs/Features/*/feature.json` files are the canonical durable feature state;
-`docs/Features/README.md` is generated from them. One `in_progress` feature
-reserves its named branch even while paused. Do not start or continue a
-different feature on that branch, bypass a live writer lease, hand-edit the
-generated feature-index block, invent Codex task identifiers, or mark a
-feature ready while required evidence or blockers remain.
+Template feature state lives only under `docs/Features/template/`; a derived
+game creates and owns its separate state under `docs/Features/project/`.
+Each namespace has its own generated `README.md`, while
+`docs/Features/README.md` is a template-owned router. One `in_progress`
+feature across both visible namespaces reserves its named branch even while
+paused. Do not start or continue a different feature on that branch, mutate a
+foreign feature namespace, bypass a live writer lease, hand-edit a generated
+feature-index block, invent Codex task identifiers, or mark a feature ready
+while required evidence or blockers remain.
 
 ## Code intelligence
 

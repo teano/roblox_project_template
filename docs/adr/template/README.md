@@ -39,7 +39,8 @@ Repositories derived from the template receive these records from their
 | [ADR-0029](0029-runtime-only-two-place-teleport-validation-pad.md) | Use a runtime-only two-place teleport validation pad | Superseded by ADR-0031 |
 | [ADR-0030](0030-retry-session-lock-handoff-after-teleport.md) | Retry session-lock handoff after teleport | Accepted |
 | [ADR-0031](0031-disable-teleport-validation-pad-by-default.md) | Disable the teleport validation pad by default | Accepted |
-| [ADR-0032](0032-track-feature-work-with-manifests.md) | Track feature work with canonical manifests and explicit lifecycle commands | Accepted |
+| [ADR-0032](0032-track-feature-work-with-manifests.md) | Track feature work with canonical manifests and explicit lifecycle commands | Superseded by ADR-0033 |
+| [ADR-0033](0033-separate-template-and-project-feature-registries.md) | Separate template and project feature registries | Accepted |
 
 ## Ownership and numbering
 

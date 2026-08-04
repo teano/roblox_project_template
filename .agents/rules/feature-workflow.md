@@ -7,17 +7,26 @@ feature work, and when changing files under `docs/Features/`, `.agents/skills/`,
 `.codex/` lifecycle hooks, or the feature-workflow scripts.
 
 Required context: `architecture.md`, `architecture-decisions.md`, `testing.md`,
-`docs/adr/README.md`, template/ADR-0032, and every subsystem rule selected by
+`docs/adr/README.md`, template/ADR-0033, and every subsystem rule selected by
 the feature's affected paths and architectural concerns.
 
 ## Canonical state
 
-- Every tracked feature MUST own exactly one
-  `docs/Features/<feature-folder>/feature.json` manifest.
-- A manifest ID is immutable and unique. The reusable template allocates
-  `TF-####`; a derived repository allocates `PF-####`.
-- `docs/Features/README.md` is a human dashboard generated only from manifests.
-  Its generated block MUST NOT be edited by hand.
+- Every tracked template feature MUST own exactly one
+  `docs/Features/template/<feature-folder>/feature.json` manifest. Every
+  tracked derived-game feature MUST own exactly one
+  `docs/Features/project/<feature-folder>/feature.json` manifest.
+- The reusable template allocates immutable `TF-####` IDs only in its
+  `template` namespace. A derived repository independently allocates immutable
+  `PF-####` IDs only in its `project` namespace.
+- `docs/Features/README.md` is a template-owned namespace router. The
+  `template/README.md` and `project/README.md` dashboards are generated only
+  from manifests in their own namespace; their generated blocks MUST NOT be
+  edited by hand.
+- The reusable template MUST NOT contain `docs/Features/project/`. Derived
+  repositories MUST NOT mutate `docs/Features/template/`, including its
+  dashboard and manifests. Template updates MUST preserve the complete
+  project namespace without treating it as a template divergence.
 - Durable state, linked task IDs, handoff, worklog, blockers, artifacts, and
   verification summaries live under the feature folder. Raw Codex transcripts,
   secrets, process IDs, and ephemeral locks MUST NOT be committed.
@@ -41,7 +50,8 @@ feature is paused, never marked ready to release a branch reservation.
 ## Branch and writer exclusion
 
 - A named branch may have at most one manifest with status `in_progress`,
-  including a paused feature.
+  including a paused feature, across both namespaces visible in a derived
+  repository.
 - Starting or continuing another feature on that branch MUST fail closed.
 - An active feature has one root writer task. Review, requirements, QA, and
   subagent tasks may be linked, but they do not acquire a second writer lease.
@@ -75,6 +85,8 @@ feature is paused, never marked ready to release a branch reservation.
 ### Start
 
 - Reject `ready` work unless a reopen reason is explicit.
+- Reject any attempt to start or reopen a feature outside the repository's
+  owning namespace. New work is created only in that namespace.
 - Reject a different `in_progress` feature on the branch.
 - Create missing service artifacts and acquire the writer lease before source
   edits. Missing product requirements or specification remains a documented
@@ -111,7 +123,7 @@ feature is paused, never marked ready to release a branch reservation.
 ## Verification
 
 - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-feature-workflow.ps1`
-- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-feature-index.ps1 -Check`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-feature-index.ps1 -Check -Scope All`
 - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-layout.ps1`
 - `git diff --check`
 - Rojo build and every suite selected by affected subsystem rules.

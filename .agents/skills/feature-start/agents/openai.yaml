@@ -1,7 +1,7 @@
 interface:
   display_name: "Start Feature"
   short_description: "Start tracked work on a planned feature"
-  default_prompt: "Use $feature-start to start tracked work on a planned project feature."
+  default_prompt: "Use $feature-start to start tracked work on a planned repository-owned feature."
 
 policy:
   allow_implicit_invocation: false

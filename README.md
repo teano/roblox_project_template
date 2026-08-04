@@ -100,11 +100,18 @@ Codex запускает сервис CodeGraph по необходимости;
 
 ## Работа над фичами
 
-Текущее состояние проекта видно в
-[реестре фичей](docs/Features/README.md). Таблица генерируется из отдельных
-`docs/Features/<feature>/feature.json`, поэтому идентификатор, состояние,
-ветка, базовый commit, связанные задачи и блокеры имеют один канонический
-источник.
+Точка входа — [реестры фичей](docs/Features/README.md). Общий lifecycle и
+валидаторы обслуживают два независимых namespace:
+
+- шаблон владеет `docs/Features/template/`, `TF-####` и своей генерируемой
+  таблицей;
+- derived-игра владеет `docs/Features/project/`, `PF-####` и отдельной
+  генерируемой таблицей.
+
+Манифест каждой фичи остаётся единственным источником идентификатора,
+состояния, ветки, базового commit, связанных задач и блокеров. Derived-проект
+видит шаблонную историю, но не изменяет её; обновление upstream не
+перегенерирует и не заменяет project feature set.
 
 Жизненный цикл разделён на четыре явные команды Codex:
 
@@ -144,11 +151,13 @@ https://github.com/OWNER/PROJECT.git
 3. переименовать remote шаблона в `upstream`;
 4. добавить переданный URL как `origin`;
 5. создать собственные project ADR index и ADR-0001;
-6. назначить Rojo connection имя каталога проекта;
-7. оставить `servePort` отсутствующим и проверить активный проект командой
+6. создать пустой `docs/Features/project/README.md`, не изменяя inherited
+   template feature registry;
+7. назначить Rojo connection имя каталога проекта;
+8. оставить `servePort` отсутствующим и проверить активный проект командой
    `scripts/ensure-rojo-server.ps1`;
-8. проверить Version, DataStore, Wallet, README и `place.rbxl`;
-9. выполнить проверки, создать initialization commit и отправить его в
+9. проверить Version, DataStore, Wallet, README и `place.rbxl`;
+10. выполнить проверки, создать initialization commit и отправить его в
    `origin/main`.
 
 Эквивалентная ручная настройка для пустого target-репозитория:
@@ -205,7 +214,9 @@ merge.
 неё. Выбор места не отменяет проверок, ADR-политики и правил разрешения
 конфликтов. Push и pull request выполняются только по отдельному указанию.
 Project ADR находятся только в `docs/adr/project/`, поэтому upstream их не
-изменяет и не обновляет их индекс.
+изменяет и не обновляет их индекс. По той же границе project feature set
+находится только в `docs/Features/project/`; upstream обновляет лишь
+`docs/Features/template/`.
 
 При обновлении агент обязан следовать
 [template-updates.md](.agents/rules/template-updates.md):
@@ -459,6 +470,9 @@ default.project.json                  Rojo mappings, включая три asset
 docs/
 ├── adr/
 │   └── template/                    решения, принадлежащие шаблону
+├── Features/
+│   ├── README.md                    router независимых feature namespace
+│   └── template/                    TF-манифесты и dashboard шаблона
 ├── CodeGraphSetup.md                 настройка CodeGraph на чистом компьютере
 ├── AssetRegistry.md                  папки, пути, ключи и запросы ассетов
 ├── Communication.md                  транспорт, лимиты и восстановление
@@ -676,11 +690,12 @@ require(game.ServerScriptService.Tests.RealDataStoreSmokeTest).run()
 - [docs/adr/README.md](docs/adr/README.md) направляет к независимым индексам
   решений шаблона и конкретной игры.
 
-Шаблон не содержит проектных ADR. В репозитории, созданном из шаблона, агент
-обязан до первого изменения исходников выполнить
+Шаблон не содержит проектных ADR и `docs/Features/project/`. В репозитории,
+созданном из шаблона, агент обязан до первого изменения исходников выполнить
 [project-initialization.md](.agents/rules/project-initialization.md): создать
-собственный ADR index и ADR-0001, назначить Rojo-подключению имя корневого
-каталога и проверить настройки версии, DataStore и Wallet.
+собственный ADR index и ADR-0001, создать project feature registry, назначить
+Rojo-подключению имя корневого каталога и проверить настройки версии,
+DataStore и Wallet.
 
 Правила описывают, как следует изменять проект. ADR сохраняют причины принятых
 долгосрочных решений. Текущее runtime-поведение должно быть отражено в

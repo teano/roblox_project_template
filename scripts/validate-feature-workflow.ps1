@@ -11,7 +11,9 @@ if (-not $validation.Ok) {
 }
 
 try {
-	Sync-FeatureIndex -RepositoryRoot $root -Check | Out-Null
+	foreach ($namespaceRole in Get-FeatureNamespaceRoles -RepositoryRoot $root) {
+		Sync-FeatureIndex -RepositoryRoot $root -NamespaceRole $namespaceRole -Check | Out-Null
+	}
 } catch {
 	Write-Error $_.Exception.Message
 	exit 1

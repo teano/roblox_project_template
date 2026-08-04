@@ -5,17 +5,26 @@
 
 ## Outcome
 
-Give maintainers a visible, synchronized feature dashboard and four explicit
-commands that start, continue, pause, and finish feature work without allowing
-two in-progress features or two root writers on one branch.
+Give template maintainers and derived-game teams one shared feature lifecycle
+with separately owned, synchronized feature registries, so upstream template
+updates cannot rewrite or conflict with a game's feature set while branch and
+writer exclusion still apply across the complete repository.
 
 ## Requirements
 
 - Each feature has one stable manifest ID, state, activity, branch, base
   commit, linked tasks, blockers, artifacts, handoff, and worklog.
-- The dashboard is generated from manifests and fails validation on drift.
+- Template manifests and artifacts live only under `docs/Features/template/`;
+  derived-game manifests and artifacts live only under
+  `docs/Features/project/`.
+- Each namespace has its own generated dashboard and fails validation on drift.
+  The root `docs/Features/README.md` is a stable namespace router.
 - Template and derived project IDs use independent `TF-####` and `PF-####`
-  sequences.
+  sequences. Lifecycle mutations write only the repository's owning namespace.
+- A derived repository can read template feature history but cannot start,
+  reopen, continue, pause, finish, or regenerate a template feature.
+- Upstream merge handling preserves the complete project feature namespace and
+  does not classify it as template divergence.
 - Start rejects dirty or already-reserved branches unless existing changes are
   explicitly adopted.
 - Continue restores bounded durable context before targeted task history.
@@ -30,8 +39,12 @@ two in-progress features or two root writers on one branch.
 
 - Positive, negative, boundary, recovery, and state-transition script tests
   pass in isolated temporary repositories.
+- A derived-repository fixture allocates `PF-0001` under the project namespace,
+  leaves the template dashboard byte-identical, rejects mutation of `TF-####`,
+  and detects foreign-dashboard drift without rewriting it.
 - All four skills validate and require explicit invocation.
 - Existing Teleport and Players work plus planned Statistic Collection appear
-  in the generated dashboard with verified task IDs and no invented data.
+  only in the generated template dashboard with verified task IDs and no
+  invented data.
 - Repository layout, dashboard synchronization, Git whitespace, and Rojo build
   gates pass.

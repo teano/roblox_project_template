@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 
 $script:SchemaVersion = 1
 $script:FeatureRootRelative = "docs/Features"
+$script:FeatureNamespaceRoles = @("template", "project")
 $script:IndexBegin = "<!-- feature-index:begin -->"
 $script:IndexEnd = "<!-- feature-index:end -->"
 
@@ -52,33 +53,56 @@ function Write-Utf8NoBom {
 	}
 }
 
+function Get-FeatureNamespaceRoot {
+	param(
+		[Parameter(Mandatory = $true)][string]$RepositoryRoot,
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$NamespaceRole
+	)
+	return Join-Path (Join-Path $RepositoryRoot $script:FeatureRootRelative) $NamespaceRole
+}
+
 function Get-FeatureRoot {
 	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
-	return Join-Path $RepositoryRoot $script:FeatureRootRelative
+	$role = Get-RepositoryRole -RepositoryRoot $RepositoryRoot
+	return Get-FeatureNamespaceRoot -RepositoryRoot $RepositoryRoot -NamespaceRole $role
+}
+
+function Get-FeatureNamespaceRoles {
+	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+	$roles = @("template")
+	if ((Get-RepositoryRole -RepositoryRoot $RepositoryRoot) -eq "project") {
+		$roles += "project"
+	}
+	return @($roles)
 }
 
 function Get-FeatureManifests {
 	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
 
-	$featureRoot = Get-FeatureRoot -RepositoryRoot $RepositoryRoot
-	if (-not (Test-Path -LiteralPath $featureRoot -PathType Container)) {
-		return @()
-	}
-
 	return @(
-		Get-ChildItem -LiteralPath $featureRoot -Directory |
-			ForEach-Object {
-				$manifestPath = Join-Path $_.FullName "feature.json"
-				if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-					$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-					[PSCustomObject]@{
-						Directory = $_.FullName
-						Folder = $_.Name
-						Path = $manifestPath
-						Manifest = $manifest
+		foreach ($namespaceRole in $script:FeatureNamespaceRoles) {
+			$namespaceRoot = Get-FeatureNamespaceRoot `
+				-RepositoryRoot $RepositoryRoot `
+				-NamespaceRole $namespaceRole
+			if (-not (Test-Path -LiteralPath $namespaceRoot -PathType Container)) {
+				continue
+			}
+			Get-ChildItem -LiteralPath $namespaceRoot -Directory |
+				ForEach-Object {
+					$manifestPath = Join-Path $_.FullName "feature.json"
+					if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+						$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+						[PSCustomObject]@{
+							Namespace = $namespaceRole
+							NamespaceRoot = $namespaceRoot
+							Directory = $_.FullName
+							Folder = $_.Name
+							Path = $manifestPath
+							Manifest = $manifest
+						}
 					}
 				}
-			}
+		}
 	)
 }
 
@@ -121,6 +145,7 @@ function Get-NextFeatureId {
 	$prefix = if ($Role -eq "template") { "TF" } else { "PF" }
 	$maximum = 0
 	foreach ($record in Get-FeatureManifests -RepositoryRoot $RepositoryRoot) {
+		if ($record.Namespace -ne $Role) { continue }
 		$id = [string]$record.Manifest.id
 		if ($id -match ("^{0}-(\d{{4}})$" -f $prefix)) {
 			$number = [int]$Matches[1]
@@ -128,6 +153,21 @@ function Get-NextFeatureId {
 		}
 	}
 	return ("{0}-{1:D4}" -f $prefix, ($maximum + 1))
+}
+
+function Assert-FeatureRecordWritable {
+	param(
+		[Parameter(Mandatory = $true)][string]$RepositoryRoot,
+		[Parameter(Mandatory = $true)]$Record
+	)
+	$repositoryRole = Get-RepositoryRole -RepositoryRoot $RepositoryRoot
+	if ($Record.Namespace -ne $repositoryRole) {
+		throw (
+			"Feature '$($Record.Manifest.id)' belongs to the '$($Record.Namespace)' " +
+			"namespace. A '$repositoryRole' repository may mutate only its own " +
+			"feature namespace."
+		)
+	}
 }
 
 function Resolve-FeatureRecord {
@@ -338,13 +378,14 @@ function Write-FeatureHandoff {
 		[Parameter(Mandatory = $true)][string]$Summary,
 		[Parameter(Mandatory = $true)][AllowEmptyString()][string]$NextStep
 	)
+	$featureLabel = "$($Manifest.id) $($Manifest.title)"
 	$content = @"
 # Feature handoff
 
-- Feature: `$($Manifest.id) $($Manifest.title)`
-- Status: `$($Manifest.status) / $($Manifest.activity)`
-- Session: `$SessionId`
-- Head: `$Head`
+- Feature: $featureLabel
+- Status: $($Manifest.status) / $($Manifest.activity)
+- Session: $SessionId
+- Head: $Head
 - Updated: $([DateTimeOffset]::UtcNow.ToString("o"))
 
 ## Summary
@@ -377,9 +418,9 @@ function Append-FeatureWorklog {
 
 ## $([DateTimeOffset]::UtcNow.ToString("o")) — $Action
 
-- Feature: `$($Manifest.id)`
-- Session: `$SessionId`
-- Head: `$Head`
+- Feature: $($Manifest.id)
+- Session: $SessionId
+- Head: $Head
 
 $Summary
 "@
@@ -391,6 +432,27 @@ function Test-FeatureManifestSet {
 
 	$errors = [Collections.Generic.List[string]]::new()
 	$records = @(Get-FeatureManifests -RepositoryRoot $RepositoryRoot)
+	$repositoryRole = Get-RepositoryRole -RepositoryRoot $RepositoryRoot
+	$featureRoot = Join-Path $RepositoryRoot $script:FeatureRootRelative
+	$templateRoot = Get-FeatureNamespaceRoot -RepositoryRoot $RepositoryRoot -NamespaceRole "template"
+	$projectRoot = Get-FeatureNamespaceRoot -RepositoryRoot $RepositoryRoot -NamespaceRole "project"
+	if (-not (Test-Path -LiteralPath $templateRoot -PathType Container)) {
+		$errors.Add("Template feature namespace is missing: $templateRoot")
+	}
+	if ($repositoryRole -eq "template" -and (Test-Path -LiteralPath $projectRoot)) {
+		$errors.Add("The template repository must not contain docs/Features/project.")
+	}
+	if ($repositoryRole -eq "project" -and -not (Test-Path -LiteralPath $projectRoot -PathType Container)) {
+		$errors.Add("Derived repositories must initialize docs/Features/project before feature work.")
+	}
+	if (Test-Path -LiteralPath $featureRoot -PathType Container) {
+		foreach ($legacyDirectory in Get-ChildItem -LiteralPath $featureRoot -Directory) {
+			if ($legacyDirectory.Name -in @("template", "project", "_schema")) { continue }
+			if (Test-Path -LiteralPath (Join-Path $legacyDirectory.FullName "feature.json") -PathType Leaf) {
+				$errors.Add("Feature manifests must live under docs/Features/template or docs/Features/project: $($legacyDirectory.FullName)")
+			}
+		}
+	}
 	$ids = @{}
 	$slugs = @{}
 	$branches = @{}
@@ -398,13 +460,17 @@ function Test-FeatureManifestSet {
 		$m = $record.Manifest
 		$label = $record.Path
 		if ($m.schemaVersion -ne $script:SchemaVersion) { $errors.Add("$label has unsupported schemaVersion.") }
-		if (-not ([string]$m.id -match '^(TF|PF)-\d{4}$')) { $errors.Add("$label has invalid id.") }
+		$expectedPrefix = if ($record.Namespace -eq "template") { "TF" } else { "PF" }
+		if (-not ([string]$m.id -match ("^{0}-\d{{4}}$" -f $expectedPrefix))) {
+			$errors.Add("$label must use the $expectedPrefix prefix for the '$($record.Namespace)' namespace.")
+		}
 		if ([string]::IsNullOrWhiteSpace([string]$m.title)) { $errors.Add("$label has empty title.") }
 		if (-not ([string]$m.slug -match '^[a-z0-9]+(?:-[a-z0-9]+)*$')) { $errors.Add("$label has invalid slug.") }
 		if ([string]$m.status -notin @("planned", "in_progress", "ready")) { $errors.Add("$label has invalid status.") }
 		if ([string]$m.activity -notin @("none", "active", "paused")) { $errors.Add("$label has invalid activity.") }
 		if ($ids.ContainsKey([string]$m.id)) { $errors.Add("Duplicate feature id '$($m.id)'.") } else { $ids[[string]$m.id] = $true }
-		if ($slugs.ContainsKey([string]$m.slug)) { $errors.Add("Duplicate feature slug '$($m.slug)'.") } else { $slugs[[string]$m.slug] = $true }
+		$slugKey = "$($record.Namespace)/$($m.slug)"
+		if ($slugs.ContainsKey($slugKey)) { $errors.Add("Duplicate feature slug '$slugKey'.") } else { $slugs[$slugKey] = $true }
 
 		if ($m.status -eq "planned") {
 			if ($m.activity -ne "none") { $errors.Add("Planned feature '$($m.id)' must have activity none.") }
@@ -445,7 +511,7 @@ function Escape-MarkdownCell {
 }
 
 function Get-FeatureIndexBlock {
-	param([Parameter(Mandatory = $true)][object[]]$Records)
+	param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Records)
 
 	$planned = @($Records | Where-Object { $_.Manifest.status -eq "planned" }).Count
 	$working = @($Records | Where-Object { $_.Manifest.status -eq "in_progress" }).Count
@@ -481,16 +547,28 @@ function Get-FeatureIndexBlock {
 function Sync-FeatureIndex {
 	param(
 		[Parameter(Mandatory = $true)][string]$RepositoryRoot,
+		[ValidateSet("template", "project")][string]$NamespaceRole,
 		[switch]$Check
 	)
+	if ([string]::IsNullOrWhiteSpace($NamespaceRole)) {
+		$NamespaceRole = Get-RepositoryRole -RepositoryRoot $RepositoryRoot
+	}
+	$repositoryRole = Get-RepositoryRole -RepositoryRoot $RepositoryRoot
+	if (-not $Check -and $repositoryRole -eq "project" -and $NamespaceRole -eq "template") {
+		throw "A derived repository must not rewrite the template feature dashboard."
+	}
+	if ($repositoryRole -eq "template" -and $NamespaceRole -eq "project") {
+		throw "The reusable template must not create a project feature namespace."
+	}
 
 	$validation = Test-FeatureManifestSet -RepositoryRoot $RepositoryRoot
 	if (-not $validation.Ok) {
 		throw "Feature manifest validation failed:`n$($validation.Errors -join [Environment]::NewLine)"
 	}
-	$featureRoot = Get-FeatureRoot -RepositoryRoot $RepositoryRoot
+	$featureRoot = Get-FeatureNamespaceRoot -RepositoryRoot $RepositoryRoot -NamespaceRole $NamespaceRole
 	$indexPath = Join-Path $featureRoot "README.md"
-	$generated = Get-FeatureIndexBlock -Records @($validation.Records)
+	$namespaceRecords = @($validation.Records | Where-Object { $_.Namespace -eq $NamespaceRole })
+	$generated = Get-FeatureIndexBlock -Records $namespaceRecords
 	if (Test-Path -LiteralPath $indexPath -PathType Leaf) {
 		$current = Get-Content -LiteralPath $indexPath -Raw
 		$pattern = '(?s)' + [regex]::Escape($script:IndexBegin) + '.*?' + [regex]::Escape($script:IndexEnd)
@@ -500,10 +578,12 @@ function Sync-FeatureIndex {
 			$desired = $current.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine + $generated + [Environment]::NewLine
 		}
 	} else {
+		$manifestPattern = "docs/Features/$NamespaceRole/*/feature.json"
+		$title = if ($NamespaceRole -eq "template") { "Фичи шаблона" } else { "Фичи проекта" }
 		$desired = @"
-# Реестр фичей
+# $title
 
-Этот dashboard генерируется из `docs/Features/*/feature.json`. Манифесты —
+Этот dashboard генерируется из $manifestPattern. Манифесты —
 единственный источник состояния; generated-блок не редактируется вручную.
 
 $generated
@@ -511,7 +591,7 @@ $generated
 	}
 	if ($Check) {
 		if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf) -or $current -cne $desired) {
-			throw "Feature dashboard is out of sync. Run scripts/sync-feature-index.ps1."
+			throw "The '$NamespaceRole' feature dashboard is out of sync. Run scripts/sync-feature-index.ps1 for its owning namespace."
 		}
 		return $indexPath
 	}
@@ -524,11 +604,14 @@ Export-ModuleMember -Function @(
 	"Add-FeatureSession",
 	"Append-FeatureWorklog",
 	"Assert-NoOtherFeatureOnBranch",
+	"Assert-FeatureRecordWritable",
 	"Close-FeatureSession",
 	"ConvertTo-FeatureSlug",
 	"Get-CurrentFeatureBranch",
 	"Get-FeatureHead",
 	"Get-FeatureManifests",
+	"Get-FeatureNamespaceRoles",
+	"Get-FeatureNamespaceRoot",
 	"Get-FeatureRepositoryRoot",
 	"Get-FeatureRoot",
 	"Get-NextFeatureId",

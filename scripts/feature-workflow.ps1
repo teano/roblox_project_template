@@ -47,11 +47,12 @@ function New-ServiceArtifacts {
 	)
 	$handoff = Join-Path $Directory "handoff.md"
 	if (-not (Test-Path -LiteralPath $handoff -PathType Leaf)) {
+		$featureLabel = "$($Manifest.id) $($Manifest.title)"
 		Write-Utf8NoBom -Path $handoff -Content @"
 # Feature handoff
 
-- Feature: `$($Manifest.id) $($Manifest.title)`
-- Status: `$($Manifest.status) / $($Manifest.activity)`
+- Feature: $featureLabel
+- Status: $($Manifest.status) / $($Manifest.activity)
 
 ## Summary
 
@@ -115,8 +116,16 @@ switch ($Action) {
 				recoveryLog = @()
 			}
 			Add-FeatureSession -Manifest $manifest -SessionId $SessionId -Role "implementation" -Head $head
-			$record = [PSCustomObject]@{ Directory = $directory; Folder = (Split-Path -Leaf $directory); Path = (Join-Path $directory "feature.json"); Manifest = $manifest }
+			$record = [PSCustomObject]@{
+				Namespace = $role
+				NamespaceRoot = Get-FeatureNamespaceRoot -RepositoryRoot $repositoryRoot -NamespaceRole $role
+				Directory = $directory
+				Folder = (Split-Path -Leaf $directory)
+				Path = (Join-Path $directory "feature.json")
+				Manifest = $manifest
+			}
 		} else {
+			Assert-FeatureRecordWritable -RepositoryRoot $repositoryRoot -Record $record
 			$manifest = $record.Manifest
 			if ($manifest.status -eq "ready") {
 				if ([string]::IsNullOrWhiteSpace($ReopenReason)) {
@@ -151,13 +160,14 @@ switch ($Action) {
 		Acquire-FeatureWriterLease -RepositoryRoot $repositoryRoot -Branch $branch -FeatureId $record.Manifest.id -SessionId $SessionId | Out-Null
 		New-ServiceArtifacts -Directory $record.Directory -Manifest $record.Manifest
 		Write-FeatureManifest -Path $record.Path -Manifest $record.Manifest
-		Sync-FeatureIndex -RepositoryRoot $repositoryRoot | Out-Null
+		Sync-FeatureIndex -RepositoryRoot $repositoryRoot -NamespaceRole $record.Namespace | Out-Null
 		Write-Output "Started $($record.Manifest.id) '$($record.Manifest.title)' on '$branch' at $head."
 	}
 
 	"Continue" {
 		Require-SessionId
 		if ($null -eq $record) { throw "Unknown feature '$Feature'." }
+		Assert-FeatureRecordWritable -RepositoryRoot $repositoryRoot -Record $record
 		$manifest = $record.Manifest
 		if ($manifest.status -eq "planned") { throw "Feature '$($manifest.id)' is planned. Use `$feature-start." }
 		if ($manifest.status -eq "ready") { throw "Feature '$($manifest.id)' is ready. Reopen it explicitly with `$feature-start." }
@@ -176,7 +186,7 @@ switch ($Action) {
 		$manifest.updatedAt = [DateTimeOffset]::UtcNow.ToString("o")
 		Add-FeatureSession -Manifest $manifest -SessionId $SessionId -Role "continuation" -Head $head
 		Write-FeatureManifest -Path $record.Path -Manifest $manifest
-		Sync-FeatureIndex -RepositoryRoot $repositoryRoot | Out-Null
+		Sync-FeatureIndex -RepositoryRoot $repositoryRoot -NamespaceRole $record.Namespace | Out-Null
 		Write-Output "Continuing $($manifest.id) '$($manifest.title)'."
 		Write-Output "Manifest: $($record.Path)"
 		Write-Output "Handoff: $(Join-Path $record.Directory 'handoff.md')"
@@ -186,6 +196,7 @@ switch ($Action) {
 
 	"Pause" {
 		if ($null -eq $record) { throw "Unknown feature '$Feature'." }
+		Assert-FeatureRecordWritable -RepositoryRoot $repositoryRoot -Record $record
 		Assert-CurrentOwner -Manifest $record.Manifest
 		if ([string]::IsNullOrWhiteSpace($Summary)) { throw "Pausing requires -Summary for the durable handoff." }
 		if ([string]::IsNullOrWhiteSpace($NextStep)) { throw "Pausing requires -NextStep." }
@@ -196,13 +207,14 @@ switch ($Action) {
 		Write-FeatureHandoff -Directory $record.Directory -Manifest $record.Manifest -SessionId $SessionId -Head $head -Summary $Summary -NextStep $NextStep
 		Append-FeatureWorklog -Directory $record.Directory -Manifest $record.Manifest -SessionId $SessionId -Action "paused" -Head $head -Summary $Summary
 		Write-FeatureManifest -Path $record.Path -Manifest $record.Manifest
-		Sync-FeatureIndex -RepositoryRoot $repositoryRoot | Out-Null
+		Sync-FeatureIndex -RepositoryRoot $repositoryRoot -NamespaceRole $record.Namespace | Out-Null
 		Release-FeatureWriterLease -RepositoryRoot $repositoryRoot -Branch $branch -FeatureId $record.Manifest.id -SessionId $SessionId
 		Write-Output "Paused $($record.Manifest.id) '$($record.Manifest.title)'."
 	}
 
 	"Finish" {
 		if ($null -eq $record) { throw "Unknown feature '$Feature'." }
+		Assert-FeatureRecordWritable -RepositoryRoot $repositoryRoot -Record $record
 		Assert-CurrentOwner -Manifest $record.Manifest
 		if ([string]::IsNullOrWhiteSpace($Summary)) { throw "Finishing requires -Summary." }
 		if ([string]::IsNullOrWhiteSpace($VerificationSummary)) { throw "Finishing requires -VerificationSummary." }
@@ -221,7 +233,7 @@ switch ($Action) {
 		Write-FeatureHandoff -Directory $record.Directory -Manifest $record.Manifest -SessionId $SessionId -Head $head -Summary $Summary -NextStep "None; feature is ready."
 		Append-FeatureWorklog -Directory $record.Directory -Manifest $record.Manifest -SessionId $SessionId -Action "finished" -Head $head -Summary $Summary
 		Write-FeatureManifest -Path $record.Path -Manifest $record.Manifest
-		Sync-FeatureIndex -RepositoryRoot $repositoryRoot | Out-Null
+		Sync-FeatureIndex -RepositoryRoot $repositoryRoot -NamespaceRole $record.Namespace | Out-Null
 		Release-FeatureWriterLease -RepositoryRoot $repositoryRoot -Branch $branch -FeatureId $record.Manifest.id -SessionId $SessionId
 		Write-Output "Finished $($record.Manifest.id) '$($record.Manifest.title)'."
 	}
@@ -230,6 +242,7 @@ switch ($Action) {
 		if ($null -eq $record) { throw "Unknown feature '$Feature'." }
 		$m = $record.Manifest
 		Write-Output "Feature: $($m.id) $($m.title)"
+		Write-Output "Namespace: $($record.Namespace)"
 		Write-Output "State: $($m.status) / $($m.activity)"
 		Write-Output "Branch: $($m.branch)"
 		Write-Output "Base: $($m.baseCommit)"

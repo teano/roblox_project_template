@@ -28,9 +28,11 @@ try {
 			if ($active.Count -eq 0) {
 				$context = "Feature workflow: branch '$branch' has no in-progress feature. Use `$feature-start before feature source edits."
 			} else {
-				$m = $active[0].Manifest
+				$activeRecord = $active[0]
+				$m = $activeRecord.Manifest
 				$context = (
-					"Feature workflow: branch '$branch' is reserved by $($m.id) " +
+					"Feature workflow: branch '$branch' is reserved by " +
+					"$($activeRecord.Namespace)/$($m.id) " +
 					"'$($m.title)' in state $($m.status)/$($m.activity). " +
 					"Active task: $($m.activeSessionId). Use `$feature-continue only " +
 					"when paused, `$feature-pause to checkpoint, and `$feature-finish " +

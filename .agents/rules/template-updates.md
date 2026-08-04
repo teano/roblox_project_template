@@ -15,7 +15,8 @@ that documents a touched template path, and every affected subsystem rule.
 ## Definitions
 
 - A **template-owned path** is a path present in the merge-base or fetched
-  `upstream/main`, excluding `docs/adr/project/`.
+  `upstream/main`, excluding `docs/adr/project/` and
+  `docs/Features/project/`.
 - A **project divergence** is an intentional local modification, deletion, or
   rename of a template-owned path.
 - An **active owning ADR** has status `Accepted`, names the exact path in its
@@ -146,6 +147,13 @@ action.
 
 Project ADR files and their index are project-owned and MUST NOT be replaced by
 template content.
+
+Project feature manifests, artifacts, and `docs/Features/project/README.md`
+are also project-owned and MUST NOT be replaced, regenerated from template
+features, or added to a project divergence ADR. Incoming template feature
+history applies only under `docs/Features/template/`; its generated dashboard
+must contain only `TF-####` records. After the merge, validate both namespace
+dashboards without rewriting the foreign namespace.
 
 ## Required merge report
 

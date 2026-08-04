@@ -92,7 +92,7 @@ require edits to the Studio-owned canonical `place.rbxl`.
   `.agents/rules/testing.md`, `.agents/rules/rojo-project.md`.
 - Current documentation: `docs/Teleport.md`, `docs/TeleportTesting.md`,
   `docs/InitializationAndSaveSystem.md`, `docs/TestCoverage.md`, and
-  `docs/Features/TeleportModule/technical-specification.md`.
+  `docs/Features/template/TeleportModule/technical-specification.md`.
 - Code boundaries:
   `src/ServerScriptService/Modules/Teleport/TeleportValidationConfig.luau`,
   `src/ServerScriptService/Modules/Teleport/TeleportValidationPad.luau`, and

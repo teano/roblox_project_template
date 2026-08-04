@@ -538,7 +538,10 @@ function Test-TemplateDivergenceDocumentation {
 		& git -C $RepositoryRoot diff --name-only $mergeBase --
 	)
 	foreach ($path in $localChangedPaths | Sort-Object -Unique) {
-		if ($path.StartsWith("docs/adr/project/")) {
+		if (
+			$path.StartsWith("docs/adr/project/") -or
+			$path.StartsWith("docs/Features/project/")
+		) {
 			continue
 		}
 		if (-not $templatePaths.ContainsKey($path)) {
@@ -607,6 +610,28 @@ if ($isDerivedRepository) {
 	}
 } elseif (Test-Path -LiteralPath $projectDirectory) {
 	Add-Failure "The template repository must not contain docs/adr/project."
+}
+
+$featureRouterPath = Join-Path $repositoryRoot "docs\Features\README.md"
+$templateFeatureDirectory = Join-Path $repositoryRoot "docs\Features\template"
+$projectFeatureDirectory = Join-Path $repositoryRoot "docs\Features\project"
+if (-not (Test-Path -LiteralPath $featureRouterPath -PathType Leaf)) {
+	Add-Failure "The template-owned feature namespace router is missing."
+} else {
+	$featureRouterContent = Get-Content -LiteralPath $featureRouterPath -Raw
+	if ($featureRouterContent.Contains("<!-- feature-index:begin -->")) {
+		Add-Failure "docs/Features/README.md must route namespaces, not contain a generated feature index."
+	}
+}
+if (-not (Test-Path -LiteralPath (Join-Path $templateFeatureDirectory "README.md") -PathType Leaf)) {
+	Add-Failure "The template feature namespace dashboard is missing."
+}
+if ($isDerivedRepository) {
+	if (-not (Test-Path -LiteralPath (Join-Path $projectFeatureDirectory "README.md") -PathType Leaf)) {
+		Add-Failure "Derived repositories must initialize a project feature namespace dashboard."
+	}
+} elseif (Test-Path -LiteralPath $projectFeatureDirectory) {
+	Add-Failure "The template repository must not contain docs/Features/project."
 }
 
 $projectConfigurationPath = Join-Path $repositoryRoot "default.project.json"

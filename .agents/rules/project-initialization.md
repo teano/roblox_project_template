@@ -153,11 +153,15 @@ otherwise mandatory Rojo preflight.
    ask one focused user question before production-dependent work.
 11. Initialize local CodeGraph according to `docs/CodeGraphSetup.md` when the
     tool is available. Generated index files remain untracked.
-12. Validate the inherited feature manifests and regenerate
-    `docs/Features/README.md`. New game-owned features use `PF-####`;
-    template-owned historical features retain their immutable `TF-####`
-    identifiers. Do not install Git hooks; lifecycle checks are invoked through
-    the explicit feature chat commands.
+12. Preserve the inherited `docs/Features/template/` namespace byte-for-byte,
+    create `docs/Features/project/`, and generate its initially empty
+    `README.md` with `scripts/sync-feature-index.ps1 -Scope Project`.
+    `docs/Features/README.md` remains the template-owned router. Validate both
+    dashboards without rewriting the template namespace. New game-owned
+    features use `PF-####`; inherited template features retain their immutable
+    `TF-####` identifiers and remain read-only in the derived repository. Do
+    not install Git hooks; lifecycle checks are invoked through the explicit
+    feature chat commands.
 13. Read `template-updates.md` so future upstream merges preserve documented
     project decisions.
 
