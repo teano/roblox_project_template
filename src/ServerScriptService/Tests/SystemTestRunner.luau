@@ -157,9 +157,13 @@ function SystemTestRunner.runAll()
 		signal:Destroy()
 	end)
 
-	test("signal yielding listener does not block dispatch", function()
+	test("signal yielding listener does not block dispatch", function(scope)
 		local signal = Signal.new()
 		local releaseFirst = false
+		scope:Defer(function()
+			releaseFirst = true
+			signal:Destroy()
+		end)
 		local firstStarted = false
 		local firstCompleted = false
 		local secondCompleted = false
@@ -190,7 +194,6 @@ function SystemTestRunner.runAll()
 		releaseFirst = true
 		task.wait()
 		assertTrue(firstCompleted, "released listener must complete")
-		signal:Destroy()
 	end)
 
 	test("signal destroy during dispatch prevents remaining listeners", function()
@@ -216,6 +219,15 @@ function SystemTestRunner.runAll()
 		scope:Defer(function()
 			signal:Destroy()
 		end)
+		local signalEnvironment = getfenv(Signal.Fire)
+		local originalWarn = signalEnvironment.warn
+		local expectedDiagnostic = nil :: string?
+		signalEnvironment.warn = function(message)
+			expectedDiagnostic = tostring(message)
+		end
+		scope:Defer(function()
+			signalEnvironment.warn = originalWarn
+		end)
 		local laterCalls = 0
 		signal:Connect(function()
 			error("expected listener failure")
@@ -231,27 +243,87 @@ function SystemTestRunner.runAll()
 		task.wait()
 		signal:Fire("value", nil, 3)
 		waitUntil(function()
-			return laterCalls == 1 and waited ~= nil
+			return laterCalls == 1 and waited ~= nil and expectedDiagnostic ~= nil
 		end)
+		assertTrue(
+			string.find(expectedDiagnostic :: string, "[Signal] listener error:", 1, true) ~= nil
+				and string.find(expectedDiagnostic :: string, "expected listener failure", 1, true) ~= nil
+				and string.find(expectedDiagnostic :: string, "\n", 1, true) ~= nil
+				and string.find(expectedDiagnostic :: string, "function runListener", 1, true) ~= nil,
+			"listener failure diagnostic did not preserve its traceback"
+		)
 		assertEqual(waited.n, 3)
 		assertEqual(waited[1], "value")
 		assertEqual(waited[2], nil)
 		assertEqual(waited[3], 3)
 	end)
 
-	test("player observation emits each player once across subscribe-enumerate races", function()
-		local playersModule = PlayersModule.new()
-		local player = { UserId = 4_201 } :: any
+	test("player observation emits each player once across subscribe-enumerate races", function(scope)
+		local currentPlayers = {}
+		local playerAdded = Signal.new()
+		local playerRemoving = Signal.new()
+		scope:Defer(function()
+			playerAdded:Destroy()
+			playerRemoving:Destroy()
+		end)
+		local getPlayersHook = nil :: (() -> ())?
+		local service = {
+			PlayerAdded = playerAdded,
+			PlayerRemoving = playerRemoving,
+		}
+		function service:GetPlayers()
+			if getPlayersHook then
+				getPlayersHook()
+			end
+			return table.clone(currentPlayers)
+		end
+		function service:GetPlayerByUserId(userId)
+			for _, candidate in currentPlayers do
+				if candidate.UserId == userId then
+					return candidate
+				end
+			end
+			return nil
+		end
+		function service:GetPlayerFromCharacter(_character)
+			return nil
+		end
+		local function addPlayer(player)
+			table.insert(currentPlayers, player)
+			playerAdded:Fire(player)
+		end
+		local function removePlayer(player)
+			local index = table.find(currentPlayers, player)
+			if index then
+				table.remove(currentPlayers, index)
+			end
+			playerRemoving:Fire(player)
+		end
+		local function makeObservedPlayer(userId)
+			local player = {
+				UserId = userId,
+				Character = nil,
+				CharacterAdded = Signal.new(),
+				CharacterRemoving = Signal.new(),
+			} :: any
+			scope:Defer(function()
+				player.CharacterAdded:Destroy()
+				player.CharacterRemoving:Destroy()
+			end)
+			return player
+		end
+
+		local playersModule = PlayersModule.new(service)
+		scope:Defer(function()
+			playersModule:Stop()
+		end)
+		playersModule:Initialize()
+		local player = makeObservedPlayer(4_201)
 		local added = 0
 		local removed = 0
-		local currentPlayer = player
-
-		playersModule.GetPlayers = function(self)
-			self.PlayerAdded:Fire(player)
-			return { player }
-		end
-		playersModule.GetPlayerByUserId = function(_self, userId)
-			return if currentPlayer ~= nil and currentPlayer.UserId == userId then currentPlayer else nil
+		getPlayersHook = function()
+			getPlayersHook = nil
+			addPlayer(player)
 		end
 
 		local disconnect = playersModule:ObservePlayers(function(observedPlayer)
@@ -264,30 +336,26 @@ function SystemTestRunner.runAll()
 		task.wait()
 		assertEqual(added, 1, "subscribe-enumerate race emitted a duplicate player")
 
-		currentPlayer = nil
-		playersModule.PlayerRemoving:Fire(player)
-		playersModule.PlayerRemoving:Fire(player)
+		removePlayer(player)
+		removePlayer(player)
 		task.wait()
 		assertEqual(removed, 1, "player removal must be emitted once per observation")
 
 		disconnect()
 		disconnect()
-		playersModule.PlayerAdded:Fire(player)
+		addPlayer(player)
 		task.wait()
 		assertEqual(added, 1, "disconnected observer received another player")
 
-		currentPlayer = player
 		local addedWithoutRemovalCallback = 0
 		local disconnectWithoutRemovalCallback = playersModule:ObservePlayers(function()
 			addedWithoutRemovalCallback += 1
 		end)
 		task.wait()
 		assertEqual(addedWithoutRemovalCallback, 1)
-		currentPlayer = nil
-		playersModule.PlayerRemoving:Fire(player)
+		removePlayer(player)
 		task.wait()
-		currentPlayer = player
-		playersModule.PlayerAdded:Fire(player)
+		addPlayer(player)
 		task.wait()
 		assertEqual(
 			addedWithoutRemovalCallback,
@@ -296,19 +364,17 @@ function SystemTestRunner.runAll()
 		)
 		disconnectWithoutRemovalCallback()
 
-		local departedPlayersModule = PlayersModule.new()
-		local departedPlayer = { UserId = 4_202 } :: any
-		local departedCurrent = departedPlayer
-		departedPlayersModule.GetPlayerByUserId = function(_self, userId)
-			return if departedCurrent ~= nil and departedCurrent.UserId == userId then departedCurrent else nil
-		end
-		departedPlayersModule.GetPlayers = function(self)
-			departedCurrent = nil
-			self.PlayerRemoving:Fire(departedPlayer)
-			return { departedPlayer }
+		local departedPlayer = makeObservedPlayer(4_202)
+		addPlayer(departedPlayer)
+		getPlayersHook = function()
+			getPlayersHook = nil
+			removePlayer(departedPlayer)
 		end
 		local departedAdds = 0
-		local disconnectDeparted = departedPlayersModule:ObservePlayers(function()
+		local disconnectDeparted = playersModule:ObservePlayers(function(observedPlayer)
+			if observedPlayer ~= departedPlayer then
+				return
+			end
 			departedAdds += 1
 		end)
 		task.wait()

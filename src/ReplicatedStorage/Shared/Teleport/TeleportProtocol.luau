@@ -12,6 +12,16 @@ local function isFiniteInteger(value: any, minimum: number): boolean
 		and value >= minimum
 end
 
+local function isPlayerUserId(value: any): boolean
+	-- Studio Server & Clients assigns negative IDs to simulated players.
+	return typeof(value) == "number"
+		and value == value
+		and value ~= math.huge
+		and value ~= -math.huge
+		and value % 1 == 0
+		and value ~= 0
+end
+
 local function isCanonicalGuid(value: any): boolean
 	if typeof(value) ~= "string" or #value ~= 36 then
 		return false
@@ -109,7 +119,7 @@ local function validateAppearance(value: any): (boolean, any?, string?)
 	}) then
 		return false, nil, "InvalidAppearanceShape"
 	end
-	if not isFiniteInteger(value.UserId, 1) then
+	if not isPlayerUserId(value.UserId) then
 		return false, nil, "InvalidUserId"
 	end
 	if value.EntryKind ~= "External" and value.EntryKind ~= "Teleported" then
@@ -132,7 +142,7 @@ local function validateAppearance(value: any): (boolean, any?, string?)
 end
 
 local function validateDeparture(value: any): (boolean, any?, string?)
-	if not isPlainDictionary(value, { UserId = true }) or not isFiniteInteger(value.UserId, 1) then
+	if not isPlainDictionary(value, { UserId = true }) or not isPlayerUserId(value.UserId) then
 		return false, nil, "InvalidDeparture"
 	end
 	return true, { UserId = value.UserId }, nil

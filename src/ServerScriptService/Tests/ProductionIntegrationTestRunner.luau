@@ -14,6 +14,7 @@ local CommunicationProtocol = require(ReplicatedStorage.Shared.Communication.Com
 local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.CommunicationConfig)
 local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
 local TeleportProtocol = require(ReplicatedStorage.Shared.Teleport.TeleportProtocol)
+local SaveProtocol = require(ReplicatedStorage.Shared.Save.SaveProtocol)
 local SaveSerialize = require(ReplicatedStorage.Shared.Save.SaveSerialize)
 local TokenBucket = require(ReplicatedStorage.Shared.Communication.TokenBucket)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
@@ -48,6 +49,14 @@ local function assertTrue(value: any, message: string)
 	end
 end
 
+local function waitUntil(predicate: () -> boolean, message: string?)
+	local deadline = os.clock() + 2
+	while not predicate() and os.clock() < deadline do
+		task.wait()
+	end
+	assertTrue(predicate(), message or "condition did not complete before the deterministic deadline")
+end
+
 local function makeLogger()
 	local entries = {}
 	local function record(level: string, message: string, fields: any?)
@@ -71,6 +80,38 @@ local function makeLogger()
 			record("error", message, fields)
 		end,
 	}, entries
+end
+
+local function makeInstrumentedSignal()
+	local signal = Signal.new()
+	local connections = {}
+	local wrapper = {}
+
+	function wrapper:Connect(callback)
+		local connection = signal:Connect(callback)
+		table.insert(connections, connection)
+		return connection
+	end
+
+	function wrapper:Fire(...)
+		signal:Fire(...)
+	end
+
+	function wrapper:ActiveCount(): number
+		local active = 0
+		for _, connection in connections do
+			if connection.Connected then
+				active += 1
+			end
+		end
+		return active
+	end
+
+	function wrapper:Destroy()
+		signal:Destroy()
+	end
+
+	return wrapper
 end
 
 local function makeServerProvider(id: string, failValue: number?)
@@ -1669,6 +1710,241 @@ function ProductionIntegrationTestRunner.runAll()
 		server:EndSnapshotRequest(player)
 	end)
 
+	test("GlobalSave command wires existing join removal and shutdown through PlayersModule", function(scope)
+		local existingPlayer = { UserId = 3_970, Parent = {} } :: any
+		local joinedPlayer = { UserId = 3_971, Parent = {} } :: any
+		local currentPlayers = { existingPlayer }
+		local onAdded = nil :: ((any) -> ())?
+		local onRemoving = nil :: ((any) -> ())?
+		local getPlayersCalls = 0
+		local playersModule = {}
+
+		function playersModule:ObservePlayers(added, removing)
+			onAdded = added
+			onRemoving = removing
+			for _, player in currentPlayers do
+				added(player)
+			end
+			return function()
+				onAdded = nil
+				onRemoving = nil
+			end
+		end
+
+		function playersModule:GetPlayers()
+			getPlayersCalls += 1
+			return table.clone(currentPlayers)
+		end
+
+		function playersModule:Add(player)
+			table.insert(currentPlayers, player)
+			assert(onAdded ~= nil, "GlobalSave did not retain its Players observer")
+			local added = onAdded :: (any) -> ()
+			added(player)
+		end
+
+		function playersModule:Remove(player, keepPresent)
+			if not keepPresent then
+				local index = table.find(currentPlayers, player)
+				assert(index ~= nil, "removal player was not present")
+				table.remove(currentPlayers, index)
+			end
+			assert(onRemoving ~= nil, "GlobalSave did not retain its removal observer")
+			local removing = onRemoving :: (any) -> ()
+			removing(player)
+		end
+
+		scope:Defer(function()
+			onAdded = nil
+			onRemoving = nil
+		end)
+
+		local loads = {} :: { [any]: number }
+		local closeStarts = {} :: { [any]: number }
+		local closeJoins = {} :: { [any]: number }
+		local closeInFlight = {} :: { [any]: boolean }
+		local releaseJoinedClose = false
+		scope:Defer(function()
+			releaseJoinedClose = true
+		end)
+		local controller = {
+			Id = SaveProtocol.GlobalControllerId,
+		}
+		function controller:Load(player, _migrate)
+			loads[player] = (loads[player] or 0) + 1
+			return { Ok = true }
+		end
+		function controller:Close(player, _save)
+			if closeInFlight[player] then
+				closeJoins[player] = (closeJoins[player] or 0) + 1
+				return { Ok = true }
+			end
+			closeInFlight[player] = true
+			closeStarts[player] = (closeStarts[player] or 0) + 1
+			if player == joinedPlayer then
+				while not releaseJoinedClose do
+					task.wait()
+				end
+			end
+			closeInFlight[player] = nil
+			return { Ok = true }
+		end
+
+		local builder = {}
+		function builder:WithStorage(_storage)
+			return self
+		end
+		function builder:WithKeyResolver(_resolver)
+			return self
+		end
+		function builder:WithSoftSerializedBytesLimit(_limit)
+			return self
+		end
+		function builder:WithSaveProvider(_provider)
+			return self
+		end
+		function builder:Build()
+			return controller
+		end
+
+		local saveModule = {}
+		function saveModule:BuildSaveController(controllerId)
+			assertEqual(controllerId, SaveProtocol.GlobalControllerId)
+			return builder
+		end
+
+		local shutdownPlayers = nil :: { any }?
+		local shutdownCoordinator = {}
+		function shutdownCoordinator:ClosePlayers(closeController, players)
+			shutdownPlayers = table.clone(players)
+			for _, player in players do
+				closeController:Close(player, true)
+			end
+			return {
+				TimedOut = false,
+				Failed = 0,
+				Succeeded = #players,
+				Unfinished = 0,
+			}
+		end
+
+		local boundClose = nil :: (() -> ())?
+		local commandEnvironment = getfenv(GlobalSaveInitializationCommand.Initialize)
+		local originalGame = commandEnvironment.game
+		commandEnvironment.game = {
+			BindToClose = function(_self, callback)
+				boundClose = callback
+			end,
+		}
+		scope:Defer(function()
+			commandEnvironment.game = originalGame
+		end)
+
+		local remotesRoot = ReplicatedStorage:FindFirstChild("Remotes")
+		local saveFolder = if remotesRoot then remotesRoot:FindFirstChild(SaveProtocol.RemoteFolderName) else nil
+		local originalRemote = if saveFolder then saveFolder:FindFirstChild(SaveProtocol.GlobalSnapshotFunctionName) else nil
+		local displacedRemoteName = "__ProductionIntegrationOriginalGlobalSnapshot"
+		if originalRemote then
+			assert(originalRemote:IsA("RemoteFunction"), "existing global snapshot endpoint must be a RemoteFunction")
+			assert(saveFolder ~= nil)
+			assert(saveFolder:FindFirstChild(displacedRemoteName) == nil, "temporary remote name is already occupied")
+			originalRemote.Name = displacedRemoteName
+		end
+		scope:Defer(function()
+			local currentRoot = ReplicatedStorage:FindFirstChild("Remotes")
+			local currentFolder = if currentRoot then currentRoot:FindFirstChild(SaveProtocol.RemoteFolderName) else nil
+			local currentRemote = if currentFolder then currentFolder:FindFirstChild(SaveProtocol.GlobalSnapshotFunctionName) else nil
+			if currentRemote then
+				currentRemote:Destroy()
+			end
+			if originalRemote then
+				originalRemote.Name = SaveProtocol.GlobalSnapshotFunctionName
+			end
+		end)
+
+		local registeredAutoSave = nil :: any
+		local registeredSessionLock = nil :: any
+		local command = GlobalSaveInitializationCommand.new({
+			SaveModule = saveModule,
+			Storage = {},
+			StorageConfig = {
+				KeyPrefix = "Evidence_",
+				SoftSerializedBytesLimit = 10_000,
+			},
+			Config = {
+				GetRequired = function(_self, name)
+					assertEqual(name, "GlobalSave")
+					return {
+						AutoSaveIntervalSeconds = 60,
+						SnapshotLoadTimeoutSeconds = 1,
+					}
+				end,
+			},
+			PlayersModule = playersModule,
+			Communication = {
+				RegisterHandler = function() end,
+			},
+			Teleport = {},
+			MigrationModule = {},
+			AutoSaveModule = {
+				RegisterController = function(_self, registered)
+					registeredAutoSave = registered
+				end,
+				Stop = function() end,
+			},
+			SessionLockModule = {
+				RegisterController = function(_self, registered)
+					registeredSessionLock = registered
+				end,
+				Stop = function() end,
+			},
+			ShutdownSaveCoordinator = shutdownCoordinator,
+			VersionModule = { Id = "Version" },
+			WalletModule = { Id = "Wallet" },
+			Logger = makeLogger(),
+		})
+		local context = { Services = {} }
+		command:Initialize(context)
+		assertEqual(context.Services.GlobalSaveController, controller)
+		assertEqual(registeredAutoSave, controller)
+		assertEqual(registeredSessionLock, controller)
+		assert(boundClose ~= nil)
+		waitUntil(function()
+			return loads[existingPlayer] == 1
+		end)
+
+		playersModule:Add(joinedPlayer)
+		waitUntil(function()
+			return loads[joinedPlayer] == 1
+		end)
+		assertEqual(loads[existingPlayer], 1, "existing player load was duplicated")
+		assertEqual(loads[joinedPlayer], 1, "joined player load was duplicated")
+
+		playersModule:Remove(existingPlayer, false)
+		assertEqual(closeStarts[existingPlayer], 1, "normal removal did not close exactly once")
+
+		local removalFinished = false
+		task.spawn(function()
+			playersModule:Remove(joinedPlayer, true)
+			removalFinished = true
+		end)
+		waitUntil(function()
+			return closeStarts[joinedPlayer] == 1
+		end)
+		local closeOnShutdown = boundClose :: () -> ()
+		closeOnShutdown()
+		assertEqual(getPlayersCalls, 1, "shutdown did not enumerate current PlayersModule state exactly once")
+		assert(shutdownPlayers ~= nil)
+		assertEqual(#(shutdownPlayers :: { any }), 1)
+		assertEqual((shutdownPlayers :: { any })[1], joinedPlayer)
+		assertEqual(closeStarts[joinedPlayer], 1, "shutdown started a duplicate close")
+		assertEqual(closeJoins[joinedPlayer], 1, "shutdown did not join the in-flight removal close")
+		releaseJoinedClose = true
+		waitUntil(function()
+			return removalFinished
+		end)
+	end)
+
 	test("snapshot network cap is checked before epoch mutation and guard always releases", function()
 		local logger, entries = makeLogger()
 		local inFlight = false
@@ -1895,22 +2171,36 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(server:GetQueueStats(player).OutgoingSequence, 5)
 	end)
 
-	test("communication limiter state is cleared for a player and on stop", function()
+	test("communication limiter state is cleared for a player and on stop", function(scope)
 		local sentToPlayers = 0
+		local playerRemoving = makeInstrumentedSignal()
+		local clientToServer = makeInstrumentedSignal()
+		scope:Defer(function()
+			playerRemoving:Destroy()
+			clientToServer:Destroy()
+		end)
 		local server = CommunicationServer.new({
 			PlayersModule = {
-				PlayerRemoving = Signal.new(),
+				PlayerRemoving = playerRemoving,
 			},
 			Transport = {
-				ClientToServer = {},
+				ClientToServer = {
+					OnServerEvent = clientToServer,
+				},
 				ServerToClient = {
 					FireClient = function()
 						sentToPlayers += 1
 					end,
 				},
-				Request = {},
+			Request = {},
 			},
 		})
+		scope:Defer(function()
+			server:Stop()
+		end)
+		server:Initialize()
+		assertEqual(playerRemoving:ActiveCount(), 1, "communication did not subscribe through PlayersModule")
+		assertEqual(clientToServer:ActiveCount(), 1, "communication did not subscribe to its transport")
 		local firstPlayer = { UserId = 4002 } :: any
 		local secondPlayer = { UserId = 4003 } :: any
 		local handled = 0
@@ -1934,11 +2224,14 @@ function ProductionIntegrationTestRunner.runAll()
 		server:Queue(firstPlayer, "Integration.Cleanup.Out", {})
 		server:Flush()
 		assertEqual(sentToPlayers, 1)
-		server:ForgetPlayer(firstPlayer)
+		playerRemoving:Fire(firstPlayer)
+		task.wait()
 		local forgottenStats = server:GetQueueStats(firstPlayer)
 		assertEqual(forgottenStats.Messages, 0)
 		assertEqual(forgottenStats.OutgoingSequence, 0)
 		assertEqual(forgottenStats.Epoch, 0)
+		playerRemoving:Fire(firstPlayer)
+		task.wait()
 		server:ReceiveBatch(firstPlayer, {
 			Sequence = 1,
 			Messages = {
@@ -1956,10 +2249,18 @@ function ProductionIntegrationTestRunner.runAll()
 		end
 		assertEqual(response.Code, "RateLimited")
 		server:Stop()
+		assertEqual(playerRemoving:ActiveCount(), 0, "communication retained the PlayersModule listener after Stop")
+		assertEqual(clientToServer:ActiveCount(), 0, "communication retained the transport listener after Stop")
+		playerRemoving:Fire(secondPlayer)
+		task.wait()
 		assertEqual(server:HandleRequest(secondPlayer, "invalid").Code, "Unavailable")
 
 		local now = 0
 		local sent = 0
+		local serverToClient = Signal.new()
+		scope:Defer(function()
+			serverToClient:Destroy()
+		end)
 		local clientToServer = {
 			FireServer = function()
 				sent += 1
@@ -1970,7 +2271,7 @@ function ProductionIntegrationTestRunner.runAll()
 		end, nil, {
 			ClientToServer = clientToServer,
 			ServerToClient = {
-				OnClientEvent = Signal.new(),
+				OnClientEvent = serverToClient,
 			},
 			Request = {
 				InvokeServer = function()
@@ -1978,6 +2279,9 @@ function ProductionIntegrationTestRunner.runAll()
 				end,
 			},
 		})
+		scope:Defer(function()
+			client:Stop()
+		end)
 		for index = 1, CommunicationConfig.BatchInvocationBurst do
 			client:Queue("Integration.BeforeStop", { Index = index })
 			client:Flush()
@@ -2302,6 +2606,17 @@ function ProductionIntegrationTestRunner.runAll()
 				onAdded(player)
 			end
 		end
+		function playersModule:Remove(player)
+			local index = table.find(players, player)
+			if index == nil then
+				return
+			end
+			table.remove(players, index)
+			if onRemoving then
+				onRemoving(player)
+			end
+			self.PlayerRemoving:Fire(player)
+		end
 
 		local clients = {}
 		local communicationServer = CommunicationServer.new({
@@ -2432,7 +2747,7 @@ function ProductionIntegrationTestRunner.runAll()
 			assertEqual(communicationServer:SetClientReady(player, response.CommunicationEpoch), true)
 		end
 
-		local first = newPlayer(4201)
+		local first = newPlayer(-1)
 		playersModule:Add(first)
 		local firstCommunication, firstTeleport = newClient(first)
 		local firstReconciliations = 0
@@ -2460,7 +2775,7 @@ function ProductionIntegrationTestRunner.runAll()
 		firstTeleport.PlayerAppeared:Connect(function()
 			appearedSignals += 1
 		end)
-		local second = newPlayer(4202)
+		local second = newPlayer(-2)
 		playersModule:Add(second)
 		local secondCommunication, secondTeleport = newClient(second)
 		applySnapshot(second, secondCommunication, secondTeleport)
@@ -2546,6 +2861,32 @@ function ProductionIntegrationTestRunner.runAll()
 			"backpressure snapshot recovery was invisible to subscribers"
 		)
 		assertEqual(firstReconciledAttemptId, replacement.AttemptId)
+
+		playersModule:Remove(second)
+		communicationServer:Flush()
+		task.wait()
+		assertEqual(firstTeleport:GetPresentPlayers()[second.UserId], nil, "departed Studio peer remained presented")
+
+		local reconciliationBeforeDepartureRecovery = firstReconciliations
+		assertEqual(communicationServer:Queue(
+			first,
+			TeleportProtocol.MessageTypes.PlayerAppeared,
+			{ UserId = 0, EntryKind = "External" },
+			nil,
+			{ Priority = CommunicationProtocol.Priorities.Presentation }
+		), true)
+		communicationServer:Flush()
+		deadline = os.clock() + 2
+		while firstCommunication:GetQueueStats().PausedForResync and os.clock() < deadline do
+			task.wait()
+		end
+		task.wait()
+		assertEqual(firstCommunication:GetQueueStats().PausedForResync, false, "post-departure recovery did not resume")
+		assertTrue(
+			firstReconciliations > reconciliationBeforeDepartureRecovery,
+			"post-departure handler-failure snapshot recovery was invisible"
+		)
+		assertEqual(firstTeleport:GetPresentPlayers()[second.UserId], nil, "recovery restored a departed Studio peer")
 	end)
 
 	test("server backpressure drops presentation before state", function()

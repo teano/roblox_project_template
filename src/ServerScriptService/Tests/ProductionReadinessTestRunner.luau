@@ -52,6 +52,17 @@ local function assertThrows(callback: () -> (), expected: string?)
 	end
 end
 
+local function assertOperationsThrow(operations: { [string]: () -> () }, expected: string)
+	for name, operation in operations do
+		local ok, operationError = pcall(operation)
+		assertEqual(ok, false, `{name} unexpectedly succeeded`)
+		assertTrue(
+			string.find(tostring(operationError), expected, 1, true) ~= nil,
+			`{name} did not report {expected}`
+		)
+	end
+end
+
 local function waitUntil(predicate: () -> boolean)
 	while not predicate() do
 		task.wait()
@@ -138,16 +149,74 @@ local function makeController(id: string, providers: { any }, softSerializedByte
 	})
 end
 
+local function makeInstrumentedEvent()
+	local signal = Signal.new()
+	local connections = {}
+	local event = {
+		ConnectCalls = 0,
+		FireCalls = 0,
+		FailConnectAt = nil :: number?,
+		OnConnect = nil :: (() -> ())?,
+	}
+
+	function event:Connect(callback)
+		self.ConnectCalls += 1
+		if self.FailConnectAt == self.ConnectCalls then
+			error(`injected connection failure {self.ConnectCalls}`)
+		end
+		local connection = signal:Connect(callback)
+		table.insert(connections, connection)
+		if self.OnConnect then
+			self.OnConnect()
+		end
+		return connection
+	end
+
+	function event:Fire(...)
+		self.FireCalls += 1
+		signal:Fire(...)
+	end
+
+	function event:ActiveCount(): number
+		local active = 0
+		for _, connection in connections do
+			if connection.Connected then
+				active += 1
+			end
+		end
+		return active
+	end
+
+	function event:Destroy()
+		signal:Destroy()
+	end
+
+	return event
+end
+
 local function makePlayersService()
 	local players = {}
 	local service = {
-		PlayerAdded = Signal.new(),
-		PlayerRemoving = Signal.new(),
+		PlayerAdded = makeInstrumentedEvent(),
+		PlayerRemoving = makeInstrumentedEvent(),
+		GetPlayersCalls = 0,
+		GetPlayerByUserIdCalls = 0,
+		GetPlayerFromCharacterCalls = 0,
+		GetPlayersHook = nil :: (() -> ())?,
+		FailGetPlayers = false,
 	}
 	function service:GetPlayers()
+		self.GetPlayersCalls += 1
+		if self.FailGetPlayers then
+			error("injected GetPlayers failure")
+		end
+		if self.GetPlayersHook then
+			self.GetPlayersHook()
+		end
 		return table.clone(players)
 	end
 	function service:GetPlayerByUserId(userId)
+		self.GetPlayerByUserIdCalls += 1
 		for _, player in players do
 			if player.UserId == userId then
 				return player
@@ -156,6 +225,7 @@ local function makePlayersService()
 		return nil
 	end
 	function service:GetPlayerFromCharacter(character)
+		self.GetPlayerFromCharacterCalls += 1
 		for _, player in players do
 			if player.Character == character then
 				return player
@@ -174,6 +244,11 @@ local function makePlayersService()
 		end
 		self.PlayerRemoving:Fire(player)
 	end
+	function service:Replace(oldPlayer, newPlayer)
+		local index = table.find(players, oldPlayer)
+		assert(index ~= nil, "replacement source player missing")
+		players[index] = newPlayer
+	end
 	function service:Destroy()
 		self.PlayerAdded:Destroy()
 		self.PlayerRemoving:Destroy()
@@ -182,11 +257,13 @@ local function makePlayersService()
 end
 
 local function makePlayer(userId: number, character: any?)
+	local characterAdded = makeInstrumentedEvent()
+	local characterRemoving = makeInstrumentedEvent()
 	return {
 		UserId = userId,
 		Character = character,
-		CharacterAdded = Signal.new(),
-		CharacterRemoving = Signal.new(),
+		CharacterAdded = characterAdded,
+		CharacterRemoving = characterRemoving,
 		Destroy = function(self)
 			self.CharacterAdded:Destroy()
 			self.CharacterRemoving:Destroy()
@@ -1456,33 +1533,240 @@ function ProductionReadinessTestRunner.runAll()
 		scope:Defer(function()
 			module:Stop()
 		end)
+		assertThrows(function()
+			module:GetLocalPlayer()
+		end, "PlayersModuleNotInitialized")
+		assertThrows(function()
+			module.CharacterAdded:Connect(function() end)
+		end, "PlayersModuleNotInitialized")
+		module:Initialize()
+		module:Initialize()
+		assertEqual(module:GetLocalPlayer(), player)
+		assertEqual(
+			(module :: any).LocalPlayer,
+			nil,
+			"client PlayersModule exposed mutable LocalPlayer state outside its getter-only public contract"
+		)
+		assertEqual(module:GetCharacter(), existingCharacter)
+		assertEqual(module:WaitForCharacter(), existingCharacter)
 		local added = {}
 		local removed = {}
-		module.CharacterAdded:Connect(function(character)
+		local addedConnection = module.CharacterAdded:Connect(function(character)
 			table.insert(added, character)
 		end)
 		module.CharacterRemoving:Connect(function(character)
 			table.insert(removed, character)
 		end)
-		module:Initialize()
-		module:Initialize()
-		waitUntil(function()
-			return #added == 1
-		end)
 		player.CharacterRemoving:Fire(existingCharacter)
 		player.Character = nextCharacter
 		player.CharacterAdded:Fire(nextCharacter)
 		waitUntil(function()
-			return #added == 2 and #removed == 1
+			return #added == 1 and #removed == 1
 		end)
 		assertEqual(module:GetLocalPlayer(), player)
 		assertEqual(module:GetCharacter(), nextCharacter)
 		assertEqual(module:WaitForCharacter(), nextCharacter)
 		module:Stop()
 		module:Stop()
+		assertEqual(addedConnection.Connected, false)
+		assertEqual((module.CharacterAdded :: any).Wait, nil)
+		assertEqual((module.CharacterAdded :: any).Fire, nil)
+		assertEqual((module.CharacterAdded :: any).Destroy, nil)
+		assertThrows(function()
+			module:GetCharacter()
+		end, "PlayersModuleTerminal")
+		assertThrows(function()
+			module:Initialize()
+		end, "PlayersModuleTerminal")
 		player.CharacterAdded:Fire({} :: any)
 		task.wait()
-		assertEqual(#added, 2, "stopped client player wrapper leaked a connection")
+		assertEqual(#added, 1, "stopped client player wrapper leaked a connection")
+	end)
+
+	test("PlayersModule public state matrices reject every unsupported operation", function(scope)
+		local service = makePlayersService()
+		local player = makePlayer(4_410)
+		local model = {} :: any
+		scope:Defer(function()
+			service:Destroy()
+			player:Destroy()
+		end)
+
+		local server = ServerPlayersModule.new(service)
+		scope:Defer(function()
+			server:Stop()
+		end)
+		local function serverOperations(includeInitialize: boolean): { [string]: () -> () }
+			local operations = {
+				GetPlayers = function() server:GetPlayers() end,
+				GetPlayerByUserId = function() server:GetPlayerByUserId(player.UserId) end,
+				GetPlayerFromCharacter = function() server:GetPlayerFromCharacter(model) end,
+				ObservePlayers = function() server:ObservePlayers(function() end) end,
+				PlayerAddedConnect = function() server.PlayerAdded:Connect(function() end) end,
+				PlayerAddedOnce = function() server.PlayerAdded:Once(function() end) end,
+				PlayerRemovingConnect = function() server.PlayerRemoving:Connect(function() end) end,
+				PlayerRemovingOnce = function() server.PlayerRemoving:Once(function() end) end,
+				CharacterAddedConnect = function() server.CharacterAdded:Connect(function() end) end,
+				CharacterAddedOnce = function() server.CharacterAdded:Once(function() end) end,
+				CharacterRemovingConnect = function() server.CharacterRemoving:Connect(function() end) end,
+				CharacterRemovingOnce = function() server.CharacterRemoving:Once(function() end) end,
+			}
+			if includeInitialize then
+				operations.Initialize = function() server:Initialize() end
+			end
+			return operations
+		end
+		assertOperationsThrow(serverOperations(false), "PlayersModuleNotInitialized")
+		assertEqual((server.PlayerAdded :: any).Wait, nil)
+		assertEqual((server.PlayerAdded :: any).Fire, nil)
+		assertEqual((server.PlayerAdded :: any).Destroy, nil)
+		server:Stop()
+		server:Stop()
+		assertOperationsThrow(serverOperations(true), "PlayersModuleTerminal")
+
+		local activeService = makePlayersService()
+		scope:Defer(function()
+			activeService:Destroy()
+		end)
+		local activeServer = ServerPlayersModule.new(activeService)
+		scope:Defer(function()
+			activeServer:Stop()
+		end)
+		activeServer:Initialize()
+		local playerAddedConnections = activeService.PlayerAdded:ActiveCount()
+		local playerRemovingConnections = activeService.PlayerRemoving:ActiveCount()
+		assertThrows(function()
+			activeServer:ObservePlayers(nil :: any)
+		end, "onAdded required")
+		assertEqual(activeService.PlayerAdded:ActiveCount(), playerAddedConnections)
+		assertEqual(activeService.PlayerRemoving:ActiveCount(), playerRemovingConnections)
+		local failedObserverCalls = 0
+		activeService.FailGetPlayers = true
+		assertThrows(function()
+			activeServer:ObservePlayers(function()
+				failedObserverCalls += 1
+			end)
+		end, "injected GetPlayers failure")
+		activeService.FailGetPlayers = false
+		local firstObserverCalls = 0
+		local secondObserverCalls = 0
+		local firstDisconnect = nil :: (() -> ())?
+		firstDisconnect = activeServer:ObservePlayers(function()
+			firstObserverCalls += 1
+			assert(firstDisconnect ~= nil)
+			local disconnectFirst = firstDisconnect :: () -> ()
+			disconnectFirst()
+		end)
+		local secondDisconnect = activeServer:ObservePlayers(function()
+			secondObserverCalls += 1
+		end)
+		scope:Defer(secondDisconnect)
+		local firstObserved = makePlayer(4_413)
+		local secondObserved = makePlayer(4_414)
+		scope:Defer(function()
+			firstObserved:Destroy()
+			secondObserved:Destroy()
+		end)
+		activeService:Add(firstObserved)
+		activeService:Add(secondObserved)
+		waitUntil(function()
+			return firstObserverCalls == 1 and secondObserverCalls == 2
+		end)
+		task.wait()
+		assertEqual(failedObserverCalls, 0, "failed observer registration retained its callback")
+
+		local client = ClientPlayersModule.new({ LocalPlayer = player })
+		scope:Defer(function()
+			client:Stop()
+		end)
+		local function clientOperations(includeInitialize: boolean): { [string]: () -> () }
+			local operations = {
+				GetLocalPlayer = function() client:GetLocalPlayer() end,
+				GetCharacter = function() client:GetCharacter() end,
+				WaitForCharacter = function() client:WaitForCharacter() end,
+				CharacterAddedConnect = function() client.CharacterAdded:Connect(function() end) end,
+				CharacterAddedOnce = function() client.CharacterAdded:Once(function() end) end,
+				CharacterRemovingConnect = function() client.CharacterRemoving:Connect(function() end) end,
+				CharacterRemovingOnce = function() client.CharacterRemoving:Once(function() end) end,
+			}
+			if includeInitialize then
+				operations.Initialize = function() client:Initialize() end
+			end
+			return operations
+		end
+		assertOperationsThrow(clientOperations(false), "PlayersModuleNotInitialized")
+		assertEqual((client.CharacterAdded :: any).Wait, nil)
+		assertEqual((client.CharacterAdded :: any).Fire, nil)
+		assertEqual((client.CharacterAdded :: any).Destroy, nil)
+		client:Stop()
+		client:Stop()
+		assertOperationsThrow(clientOperations(true), "PlayersModuleTerminal")
+	end)
+
+	test("PlayersModule terminal cleanup suppresses later callback entry without joining started work", function(scope)
+		local service = makePlayersService()
+		local player = makePlayer(4_411)
+		scope:Defer(function()
+			service:Destroy()
+			player:Destroy()
+		end)
+		local server = ServerPlayersModule.new(service)
+		scope:Defer(function()
+			server:Stop()
+		end)
+		server:Initialize()
+		local serverThread = nil :: thread?
+		local serverFinished = false
+		local laterServerCalls = 0
+		server.PlayerAdded:Connect(function()
+			serverThread = coroutine.running()
+			server:Stop()
+			coroutine.yield()
+			serverFinished = true
+		end)
+		server.PlayerAdded:Connect(function()
+			laterServerCalls += 1
+		end)
+		service:Add(player)
+		assert(serverThread ~= nil)
+		assertEqual(serverFinished, false)
+		assertEqual(laterServerCalls, 0, "server callback entered after terminal cleanup")
+		task.spawn(serverThread :: thread)
+		waitUntil(function()
+			return serverFinished
+		end)
+
+		local clientPlayer = makePlayer(4_412)
+		scope:Defer(function()
+			clientPlayer:Destroy()
+		end)
+		local client = ClientPlayersModule.new({ LocalPlayer = clientPlayer })
+		scope:Defer(function()
+			client:Stop()
+		end)
+		client:Initialize()
+		local clientThread = nil :: thread?
+		local clientFinished = false
+		local laterClientCalls = 0
+		client.CharacterAdded:Connect(function()
+			clientThread = coroutine.running()
+			client:Stop()
+			coroutine.yield()
+			clientFinished = true
+		end)
+		client.CharacterAdded:Connect(function()
+			laterClientCalls += 1
+		end)
+		local character = {} :: any
+		clientPlayer.Character = character
+		clientPlayer.CharacterAdded:Fire(character)
+		assert(clientThread ~= nil)
+		assertEqual(clientFinished, false)
+		assertEqual(laterClientCalls, 0, "client callback entered after terminal cleanup")
+		task.spawn(clientThread :: thread)
+		waitUntil(function()
+			return clientFinished
+		end)
 	end)
 
 	test("server PlayersModule owns join, leave, character, lookup, and repeated cleanup", function(scope)
@@ -1497,6 +1781,14 @@ function ProductionReadinessTestRunner.runAll()
 		scope:Defer(function()
 			module:Stop()
 		end)
+		assertThrows(function()
+			module:GetPlayers()
+		end, "PlayersModuleNotInitialized")
+		assertThrows(function()
+			module.PlayerAdded:Connect(function() end)
+		end, "PlayersModuleNotInitialized")
+		module:Initialize()
+		module:Initialize()
 		local added = 0
 		local removed = 0
 		local charactersAdded = 0
@@ -1513,8 +1805,6 @@ function ProductionReadinessTestRunner.runAll()
 		module.CharacterRemoving:Connect(function()
 			charactersRemoved += 1
 		end)
-		module:Initialize()
-		module:Initialize()
 		service:Add(player)
 		waitUntil(function()
 			return added == 1
@@ -1532,9 +1822,698 @@ function ProductionReadinessTestRunner.runAll()
 		end)
 		module:Stop()
 		module:Stop()
+		assertThrows(function()
+			module:GetPlayerByUserId(41)
+		end, "PlayersModuleTerminal")
+		assertThrows(function()
+			module:Initialize()
+		end, "PlayersModuleTerminal")
 		service:Add(player)
 		task.wait()
 		assertEqual(added, 1, "stopped server player wrapper leaked a connection")
+	end)
+
+	test("server PlayersModule tracks an existing character through removal and respawn", function(scope)
+		local service = makePlayersService()
+		local firstCharacter = {} :: any
+		local secondCharacter = {} :: any
+		local player = makePlayer(4_101, firstCharacter)
+		service:Add(player)
+		scope:Defer(function()
+			service:Destroy()
+			player:Destroy()
+		end)
+
+		local module = ServerPlayersModule.new(service)
+		scope:Defer(function()
+			module:Stop()
+		end)
+		module:Initialize()
+		assertEqual(player.CharacterAdded:ActiveCount(), 1, "existing player was not tracked during Initialize")
+		assertEqual(player.CharacterRemoving:ActiveCount(), 1, "existing character removal was not observed")
+
+		local removals = {}
+		local additions = {}
+		module.CharacterRemoving:Connect(function(observedPlayer, character)
+			table.insert(removals, { Player = observedPlayer, Character = character })
+		end)
+		module.CharacterAdded:Connect(function(observedPlayer, character)
+			table.insert(additions, { Player = observedPlayer, Character = character })
+		end)
+
+		player.Character = nil
+		player.CharacterRemoving:Fire(firstCharacter)
+		waitUntil(function()
+			return #removals == 1
+		end)
+		assertEqual(removals[1].Player, player)
+		assertEqual(removals[1].Character, firstCharacter)
+
+		player.Character = secondCharacter
+		player.CharacterAdded:Fire(secondCharacter)
+		waitUntil(function()
+			return #additions == 1
+		end)
+		assertEqual(additions[1].Player, player)
+		assertEqual(additions[1].Character, secondCharacter)
+
+		player.CharacterAdded:Fire(secondCharacter)
+		task.wait()
+		assertEqual(#removals, 1, "existing character removal was duplicated")
+		assertEqual(#additions, 1, "respawn character add was duplicated")
+	end)
+
+	test("server terminal Stop releases observers and public listeners", function(scope)
+		local service = makePlayersService()
+		local player = makePlayer(42)
+		scope:Defer(function()
+			service:Destroy()
+			player:Destroy()
+		end)
+		service:Add(player)
+		local module = ServerPlayersModule.new(service)
+		scope:Defer(function()
+			module:Stop()
+		end)
+		module:Initialize()
+
+		local publicCalls = 0
+		local observerCalls = 0
+		local publicConnection = module.PlayerAdded:Once(function()
+			publicCalls += 1
+		end)
+		local disconnect = module:ObservePlayers(function()
+			observerCalls += 1
+		end)
+		assertEqual(observerCalls, 1)
+		module:Stop()
+		module:Stop()
+		assertEqual(publicConnection.Connected, false)
+		disconnect()
+		disconnect()
+
+		local latePlayer = makePlayer(43)
+		scope:Defer(function()
+			latePlayer:Destroy()
+		end)
+		service:Add(latePlayer)
+		task.wait()
+		assertEqual(publicCalls, 0)
+		assertEqual(observerCalls, 1)
+		assertEqual(service.PlayerAdded:ActiveCount(), 0)
+		assertEqual(service.PlayerRemoving:ActiveCount(), 0)
+		assertEqual(player.CharacterAdded:ActiveCount(), 0)
+		assertEqual(player.CharacterRemoving:ActiveCount(), 0)
+		assertThrows(function()
+			module:ObservePlayers(function() end)
+		end, "PlayersModuleTerminal")
+	end)
+
+	test("server initialization failures roll back and remain terminal", function(scope)
+		local firstConnectionService = makePlayersService()
+		firstConnectionService.PlayerAdded.FailConnectAt = 1
+		scope:Defer(function()
+			firstConnectionService:Destroy()
+		end)
+		local firstConnectionFailure = ServerPlayersModule.new(firstConnectionService)
+		scope:Defer(function()
+			firstConnectionFailure:Stop()
+		end)
+		assertThrows(function()
+			firstConnectionFailure:Initialize()
+		end, "injected connection failure")
+		assertEqual(firstConnectionService.PlayerAdded:ActiveCount(), 0)
+		assertEqual(firstConnectionService.PlayerRemoving:ActiveCount(), 0)
+		assertThrows(function()
+			firstConnectionFailure:Initialize()
+		end, "PlayersModuleTerminal")
+
+		local service = makePlayersService()
+		service.PlayerRemoving.FailConnectAt = 1
+		scope:Defer(function()
+			service:Destroy()
+		end)
+		local module = ServerPlayersModule.new(service)
+		scope:Defer(function()
+			module:Stop()
+		end)
+		assertThrows(function()
+			module:Initialize()
+		end, "injected connection failure")
+		assertEqual(service.PlayerAdded:ActiveCount(), 0)
+		assertEqual(service.PlayerRemoving:ActiveCount(), 0)
+		assertThrows(function()
+			module:Initialize()
+		end, "PlayersModuleTerminal")
+		assertThrows(function()
+			module:GetPlayers()
+		end, "PlayersModuleTerminal")
+		assertOperationsThrow({
+			GetPlayerByUserId = function() module:GetPlayerByUserId(1) end,
+			GetPlayerFromCharacter = function() module:GetPlayerFromCharacter({} :: any) end,
+			ObservePlayers = function() module:ObservePlayers(function() end) end,
+			PlayerAddedConnect = function() module.PlayerAdded:Connect(function() end) end,
+			PlayerAddedOnce = function() module.PlayerAdded:Once(function() end) end,
+			PlayerRemovingConnect = function() module.PlayerRemoving:Connect(function() end) end,
+			PlayerRemovingOnce = function() module.PlayerRemoving:Once(function() end) end,
+			CharacterAddedConnect = function() module.CharacterAdded:Connect(function() end) end,
+			CharacterAddedOnce = function() module.CharacterAdded:Once(function() end) end,
+			CharacterRemovingConnect = function() module.CharacterRemoving:Connect(function() end) end,
+			CharacterRemovingOnce = function() module.CharacterRemoving:Once(function() end) end,
+		}, "PlayersModuleTerminal")
+
+		local freshService = makePlayersService()
+		scope:Defer(function()
+			freshService:Destroy()
+		end)
+		local fresh = ServerPlayersModule.new(freshService)
+		scope:Defer(function()
+			fresh:Stop()
+		end)
+		fresh:Initialize()
+		assertEqual(#fresh:GetPlayers(), 0)
+
+		local characterService = makePlayersService()
+		local characterPlayer = makePlayer(4_401)
+		characterPlayer.CharacterRemoving.FailConnectAt = 1
+		characterService:Add(characterPlayer)
+		scope:Defer(function()
+			characterService:Destroy()
+			characterPlayer:Destroy()
+		end)
+		local characterFailure = ServerPlayersModule.new(characterService)
+		scope:Defer(function()
+			characterFailure:Stop()
+		end)
+		assertThrows(function()
+			characterFailure:Initialize()
+		end, "injected connection failure")
+		assertEqual(characterService.PlayerAdded:ActiveCount(), 0)
+		assertEqual(characterService.PlayerRemoving:ActiveCount(), 0)
+		assertEqual(characterPlayer.CharacterAdded:ActiveCount(), 0)
+		assertEqual(characterPlayer.CharacterRemoving:ActiveCount(), 0)
+
+		local firstCharacterService = makePlayersService()
+		local firstCharacterPlayer = makePlayer(4_404)
+		firstCharacterPlayer.CharacterAdded.FailConnectAt = 1
+		firstCharacterService:Add(firstCharacterPlayer)
+		scope:Defer(function()
+			firstCharacterService:Destroy()
+			firstCharacterPlayer:Destroy()
+		end)
+		local firstCharacterFailure = ServerPlayersModule.new(firstCharacterService)
+		scope:Defer(function()
+			firstCharacterFailure:Stop()
+		end)
+		assertThrows(function()
+			firstCharacterFailure:Initialize()
+		end, "injected connection failure")
+		assertEqual(firstCharacterService.PlayerAdded:ActiveCount(), 0)
+		assertEqual(firstCharacterService.PlayerRemoving:ActiveCount(), 0)
+		assertEqual(firstCharacterPlayer.CharacterAdded:ActiveCount(), 0)
+		assertEqual(firstCharacterPlayer.CharacterRemoving:ActiveCount(), 0)
+		assertThrows(function()
+			firstCharacterFailure:GetPlayers()
+		end, "PlayersModuleTerminal")
+
+		local enumerationService = makePlayersService()
+		enumerationService.FailGetPlayers = true
+		scope:Defer(function()
+			enumerationService:Destroy()
+		end)
+		local enumerationFailure = ServerPlayersModule.new(enumerationService)
+		scope:Defer(function()
+			enumerationFailure:Stop()
+		end)
+		assertThrows(function()
+			enumerationFailure:Initialize()
+		end, "injected GetPlayers failure")
+		assertEqual(enumerationService.PlayerAdded:ActiveCount(), 0)
+		assertEqual(enumerationService.PlayerRemoving:ActiveCount(), 0)
+		assertThrows(function()
+			enumerationFailure:Initialize()
+		end, "PlayersModuleTerminal")
+
+		local interruptedService = makePlayersService()
+		local interrupted = nil :: any
+		local reentrantError = nil :: any
+		interruptedService.PlayerAdded.OnConnect = function()
+			local ok, result = pcall(function()
+				return interrupted:GetPlayers()
+			end)
+			assertEqual(ok, false)
+			reentrantError = result
+			interrupted:Stop()
+		end
+		interrupted = ServerPlayersModule.new(interruptedService)
+		scope:Defer(function()
+			interruptedService:Destroy()
+			interrupted:Stop()
+		end)
+		assertThrows(function()
+			interrupted:Initialize()
+		end, "PlayersModuleTerminal")
+		assertTrue(string.find(tostring(reentrantError), "PlayersModuleInitializing", 1, true) ~= nil, "server reentrant state was not observable")
+		assertEqual(interruptedService.PlayerAdded:ActiveCount(), 0)
+	end)
+
+	test("client initialization failures and waiters terminate cleanly", function(scope)
+		local nilModule = ClientPlayersModule.new({ LocalPlayer = nil })
+		scope:Defer(function()
+			nilModule:Stop()
+		end)
+		assertThrows(function()
+			nilModule:Initialize()
+		end, "LocalPlayer is not available")
+		assertThrows(function()
+			nilModule:GetLocalPlayer()
+		end, "PlayersModuleTerminal")
+
+		local firstConnectionPlayer = makePlayer(4_405)
+		firstConnectionPlayer.CharacterAdded.FailConnectAt = 1
+		local firstConnectionModule = ClientPlayersModule.new({ LocalPlayer = firstConnectionPlayer })
+		scope:Defer(function()
+			firstConnectionPlayer:Destroy()
+			firstConnectionModule:Stop()
+		end)
+		assertThrows(function()
+			firstConnectionModule:Initialize()
+		end, "injected connection failure")
+		assertEqual(firstConnectionPlayer.CharacterAdded:ActiveCount(), 0)
+		assertEqual(firstConnectionPlayer.CharacterRemoving:ActiveCount(), 0)
+		assertThrows(function()
+			firstConnectionModule:GetLocalPlayer()
+		end, "PlayersModuleTerminal")
+
+		local partialPlayer = makePlayer(4_402)
+		partialPlayer.CharacterRemoving.FailConnectAt = 1
+		local partialModule = ClientPlayersModule.new({ LocalPlayer = partialPlayer })
+		scope:Defer(function()
+			partialPlayer:Destroy()
+			partialModule:Stop()
+		end)
+		assertThrows(function()
+			partialModule:Initialize()
+		end, "injected connection failure")
+		assertEqual(partialPlayer.CharacterAdded:ActiveCount(), 0)
+		assertEqual(partialPlayer.CharacterRemoving:ActiveCount(), 0)
+		assertThrows(function()
+			partialModule:GetCharacter()
+		end, "PlayersModuleTerminal")
+		assertOperationsThrow({
+			Initialize = function() partialModule:Initialize() end,
+			GetLocalPlayer = function() partialModule:GetLocalPlayer() end,
+			WaitForCharacter = function() partialModule:WaitForCharacter() end,
+			CharacterAddedConnect = function() partialModule.CharacterAdded:Connect(function() end) end,
+			CharacterAddedOnce = function() partialModule.CharacterAdded:Once(function() end) end,
+			CharacterRemovingConnect = function() partialModule.CharacterRemoving:Connect(function() end) end,
+			CharacterRemovingOnce = function() partialModule.CharacterRemoving:Once(function() end) end,
+		}, "PlayersModuleTerminal")
+
+		local interruptedPlayer = makePlayer(4_403)
+		local interruptedClient = nil :: any
+		local clientReentrantError = nil :: any
+		interruptedPlayer.CharacterAdded.OnConnect = function()
+			local ok, result = pcall(function()
+				return interruptedClient:GetLocalPlayer()
+			end)
+			assertEqual(ok, false)
+			clientReentrantError = result
+			interruptedClient:Stop()
+		end
+		interruptedClient = ClientPlayersModule.new({ LocalPlayer = interruptedPlayer })
+		scope:Defer(function()
+			interruptedPlayer:Destroy()
+			interruptedClient:Stop()
+		end)
+		assertThrows(function()
+			interruptedClient:Initialize()
+		end, "PlayersModuleTerminal")
+		assertTrue(string.find(tostring(clientReentrantError), "PlayersModuleInitializing", 1, true) ~= nil, "client reentrant state was not observable")
+		assertEqual(interruptedPlayer.CharacterAdded:ActiveCount(), 0)
+
+		local player = makePlayer(44)
+		local module = ClientPlayersModule.new({ LocalPlayer = player })
+		scope:Defer(function()
+			player:Destroy()
+			module:Stop()
+		end)
+		module:Initialize()
+		local waiterStarted = false
+		local waiterOk = nil :: boolean?
+		local waiterValue = nil :: any
+		task.spawn(function()
+			waiterStarted = true
+			waiterOk, waiterValue = pcall(function()
+				return module:WaitForCharacter()
+			end)
+		end)
+		waitUntil(function()
+			return waiterStarted
+		end)
+		local character = {} :: any
+		player.Character = character
+		player.CharacterAdded:Fire(character)
+		waitUntil(function()
+			return waiterOk ~= nil
+		end)
+		assertEqual(waiterOk, true)
+		assertEqual(waiterValue, character)
+
+		player.Character = nil
+		player.CharacterRemoving:Fire(character)
+		waiterOk = nil
+		waiterValue = nil
+		task.spawn(function()
+			waiterOk, waiterValue = pcall(function()
+				return module:WaitForCharacter()
+			end)
+		end)
+		task.wait()
+		module:Stop()
+		waitUntil(function()
+			return waiterOk ~= nil
+		end)
+		assertEqual(waiterOk, false)
+		assertTrue(string.find(tostring(waiterValue), "PlayersModuleTerminal", 1, true) ~= nil, "waiter missed terminal error")
+	end)
+
+	test("server initial observation isolates throw and preserves serial yield", function(scope)
+		local service = makePlayersService()
+		local first = makePlayer(45)
+		local second = makePlayer(46)
+		local future = makePlayer(47)
+		scope:Defer(function()
+			service:Destroy()
+			first:Destroy()
+			second:Destroy()
+			future:Destroy()
+		end)
+		service:Add(first)
+		service:Add(second)
+		local module = ServerPlayersModule.new(service)
+		scope:Defer(function()
+			module:Stop()
+		end)
+		module:Initialize()
+
+		local moduleEnvironment = getfenv(ServerPlayersModule.ObservePlayers)
+		local originalWarn = moduleEnvironment.warn
+		local expectedDiagnostic = nil :: string?
+		moduleEnvironment.warn = function(message)
+			expectedDiagnostic = tostring(message)
+		end
+		scope:Defer(function()
+			moduleEnvironment.warn = originalWarn
+		end)
+		local delivered = {}
+		local disconnect = module:ObservePlayers(function(player)
+			table.insert(delivered, player.UserId)
+			if player == first then
+				error("expected initial observer failure")
+			end
+		end)
+		disconnect()
+		assertEqual(delivered[1], first.UserId)
+		assertEqual(delivered[2], second.UserId)
+		assertTrue(
+			expectedDiagnostic ~= nil
+				and string.find(expectedDiagnostic, "[PlayersModule] initial observer error:", 1, true) ~= nil
+				and string.find(expectedDiagnostic, "expected initial observer failure", 1, true) ~= nil
+				and string.find(expectedDiagnostic, "\n", 1, true) ~= nil
+				and string.find(expectedDiagnostic, "function ObservePlayers", 1, true) ~= nil,
+			"initial observer diagnostic did not preserve its traceback"
+		)
+
+		local yieldedThread = nil :: thread?
+		local returned = false
+		local futureDelivered = false
+		local order = {}
+		local yieldedDisconnect = nil :: (() -> ())?
+		task.spawn(function()
+			yieldedDisconnect = module:ObservePlayers(function(player)
+				if player == first then
+					table.insert(order, "first-start")
+					yieldedThread = coroutine.running()
+					coroutine.yield()
+					table.insert(order, "first-end")
+				elseif player == second then
+					table.insert(order, "second")
+				elseif player == future then
+					futureDelivered = true
+				end
+			end)
+			returned = true
+		end)
+		waitUntil(function()
+			return yieldedThread ~= nil
+		end)
+		service:Add(future)
+		waitUntil(function()
+			return futureDelivered
+		end)
+		assertEqual(returned, false)
+		assertEqual(order[1], "first-start")
+		assertEqual(order[2], nil)
+		task.spawn(yieldedThread :: thread)
+		waitUntil(function()
+			return returned
+		end)
+		assertEqual(order[2], "first-end")
+		assertEqual(order[3], "second")
+		assert(yieldedDisconnect ~= nil)
+		local disconnectYielded = yieldedDisconnect :: () -> ()
+		disconnectYielded()
+	end)
+
+	test("PlayersModule character races and delivery cost remain bounded", function(scope)
+		local service = makePlayersService()
+		local initialCharacter = {} :: any
+		local player = makePlayer(48, initialCharacter)
+		player.CharacterAdded.OnConnect = function()
+			player.CharacterAdded:Fire(initialCharacter)
+		end
+		scope:Defer(function()
+			service:Destroy()
+			player:Destroy()
+		end)
+		local module = ServerPlayersModule.new(service)
+		scope:Defer(function()
+			module:Stop()
+		end)
+		module:Initialize()
+		local characterAdds = 0
+		local characterRemovals = 0
+		module.CharacterAdded:Connect(function(observedPlayer, character)
+			assertEqual(observedPlayer, player)
+			assertEqual(character, initialCharacter)
+			characterAdds += 1
+		end)
+		module.CharacterRemoving:Connect(function(observedPlayer, character)
+			assertEqual(observedPlayer, player)
+			assertEqual(character, initialCharacter)
+			characterRemovals += 1
+		end)
+		service:Add(player)
+		waitUntil(function()
+			return characterAdds == 1
+		end)
+		assertEqual(characterAdds, 1, "character add race emitted a duplicate fact")
+
+		local observers = 3
+		local deliveries = 0
+		local removals = 0
+		local disconnects = {}
+		for _ = 1, observers do
+			table.insert(disconnects, module:ObservePlayers(function()
+				deliveries += 1
+			end, function()
+				removals += 1
+			end))
+		end
+		assertEqual(deliveries, observers)
+		local lookupsAfterExisting = service.GetPlayerByUserIdCalls
+		player.CharacterRemoving:Fire(initialCharacter)
+		waitUntil(function()
+			return characterRemovals == 1
+		end)
+		service:Remove(player)
+		waitUntil(function()
+			return removals == observers
+		end)
+		assertEqual(characterRemovals, 1, "stale player.Character duplicated character removal")
+		assertTrue(service.GetPlayerByUserIdCalls - lookupsAfterExisting <= 1, "leave performed superlinear lookups")
+		for _, disconnect in disconnects do
+			disconnect()
+		end
+		module:Stop()
+		assertEqual(service.PlayerAdded:ActiveCount(), 0)
+		assertEqual(service.PlayerRemoving:ActiveCount(), 0)
+		assertEqual(player.CharacterAdded:ActiveCount(), 0)
+		assertEqual(player.CharacterRemoving:ActiveCount(), 0)
+	end)
+
+	test("PlayersModule stale identity and 0 1 N delivery counters remain exact", function(scope)
+		local signalEnvironment = getfenv(Signal.Fire)
+		local originalTask = signalEnvironment.task
+		local scheduledListenerTasks = 0
+		local instrumentedTask = table.clone(originalTask)
+		instrumentedTask.spawn = function(...)
+			scheduledListenerTasks += 1
+			return originalTask.spawn(...)
+		end
+		signalEnvironment.task = instrumentedTask
+		scope:Defer(function()
+			signalEnvironment.task = originalTask
+		end)
+
+		local staleService = makePlayersService()
+		local stalePlayer = makePlayer(4_420)
+		local replacementPlayer = makePlayer(4_420)
+		scope:Defer(function()
+			staleService:Destroy()
+			stalePlayer:Destroy()
+			replacementPlayer:Destroy()
+		end)
+		staleService:Add(stalePlayer)
+		local staleModule = ServerPlayersModule.new(staleService)
+		scope:Defer(function()
+			staleModule:Stop()
+		end)
+		staleModule:Initialize()
+		local addedPlayers = {}
+		local removedPlayers = {}
+		local disconnectStale = staleModule:ObservePlayers(function(player)
+			table.insert(addedPlayers, player)
+		end, function(player)
+			table.insert(removedPlayers, player)
+		end)
+		scope:Defer(disconnectStale)
+		assertEqual(#addedPlayers, 1)
+		assertEqual(addedPlayers[1], stalePlayer)
+		staleService:Replace(stalePlayer, replacementPlayer)
+		staleService.PlayerAdded:Fire(stalePlayer)
+		staleService.PlayerAdded:Fire(replacementPlayer)
+		waitUntil(function()
+			return #addedPlayers == 2
+		end)
+		assertEqual(addedPlayers[2], replacementPlayer, "replacement identity was not delivered")
+		staleService:Remove(stalePlayer)
+		task.wait()
+		assertEqual(#removedPlayers, 1)
+		assertEqual(removedPlayers[1], stalePlayer)
+		staleService.PlayerAdded:Fire(replacementPlayer)
+		task.wait()
+		assertEqual(#addedPlayers, 2, "stale removal cleared replacement membership")
+		staleService:Remove(replacementPlayer)
+		waitUntil(function()
+			return #removedPlayers == 2
+		end)
+		assertEqual(removedPlayers[2], replacementPlayer)
+
+		local function measure(observerCount: number)
+			local service = makePlayersService()
+			local first = makePlayer(5_000 + observerCount * 10)
+			local second = makePlayer(5_001 + observerCount * 10)
+			local joined = makePlayer(5_002 + observerCount * 10)
+			scope:Defer(function()
+				service:Destroy()
+				first:Destroy()
+				second:Destroy()
+				joined:Destroy()
+			end)
+			service:Add(first)
+			service:Add(second)
+			local module = ServerPlayersModule.new(service)
+			scope:Defer(function()
+				module:Stop()
+			end)
+			module:Initialize()
+			local deliveries = 0
+			local removals = 0
+			local publicPlayerAdds = 0
+			local publicPlayerRemovals = 0
+			local playerAddedProbe = module.PlayerAdded:Connect(function()
+				publicPlayerAdds += 1
+			end)
+			local playerRemovingProbe = module.PlayerRemoving:Connect(function()
+				publicPlayerRemovals += 1
+			end)
+			scope:Defer(function()
+				playerAddedProbe:Disconnect()
+				playerRemovingProbe:Disconnect()
+			end)
+			local disconnects = {}
+			local getPlayersBeforeObservers = service.GetPlayersCalls
+			local lookupBeforeObservers = service.GetPlayerByUserIdCalls
+			local scheduledBeforeExisting = scheduledListenerTasks
+			for _ = 1, observerCount do
+				table.insert(disconnects, module:ObservePlayers(function()
+					deliveries += 1
+				end, function()
+					removals += 1
+				end))
+			end
+			assertEqual(deliveries, observerCount * 2)
+			assertEqual(service.GetPlayersCalls - getPlayersBeforeObservers, observerCount)
+			assertEqual(service.GetPlayerByUserIdCalls - lookupBeforeObservers, observerCount * 2)
+			assertEqual(publicPlayerAdds, 0, "existing enumeration unexpectedly fired the public PlayerAdded signal")
+			assertEqual(
+				scheduledListenerTasks - scheduledBeforeExisting,
+				0,
+				"existing enumeration unexpectedly scheduled Signal listener tasks"
+			)
+
+			local lookupBeforeJoin = service.GetPlayerByUserIdCalls
+			local platformDispatchesBeforeJoin = service.PlayerAdded.FireCalls
+			local scheduledBeforeJoin = scheduledListenerTasks
+			service:Add(joined)
+			waitUntil(function()
+				return publicPlayerAdds == 1 and deliveries == observerCount * 3
+			end)
+			assertEqual(service.PlayerAdded.FireCalls - platformDispatchesBeforeJoin, 1)
+			assertEqual(publicPlayerAdds, 1, "join did not produce exactly one Players-side PlayerAdded dispatch")
+			assertEqual(
+				scheduledListenerTasks - scheduledBeforeJoin,
+				observerCount + 2,
+				"join scheduled-task count was not one platform listener plus one public probe and one task per observer"
+			)
+			assertEqual(
+				service.GetPlayerByUserIdCalls - lookupBeforeJoin,
+				observerCount + 1,
+				"join lookup growth was not one tracking lookup plus one per observer"
+			)
+
+			local lookupBeforeLeave = service.GetPlayerByUserIdCalls
+			local platformRemovalsBeforeLeave = service.PlayerRemoving.FireCalls
+			local scheduledBeforeLeave = scheduledListenerTasks
+			service:Remove(joined)
+			waitUntil(function()
+				return publicPlayerRemovals == 1 and removals == observerCount
+			end)
+			assertEqual(service.PlayerRemoving.FireCalls - platformRemovalsBeforeLeave, 1)
+			assertEqual(publicPlayerRemovals, 1, "leave did not produce exactly one Players-side PlayerRemoving dispatch")
+			assertEqual(
+				scheduledListenerTasks - scheduledBeforeLeave,
+				observerCount + 2,
+				"leave scheduled-task count was not one platform listener plus one public probe and one task per observer"
+			)
+			assertEqual(service.GetPlayerByUserIdCalls - lookupBeforeLeave, 0)
+			for _, disconnect in disconnects do
+				disconnect()
+				disconnect()
+			end
+			module:Stop()
+			assertEqual(service.PlayerAdded:ActiveCount(), 0)
+			assertEqual(service.PlayerRemoving:ActiveCount(), 0)
+			assertEqual(first.CharacterAdded:ActiveCount(), 0)
+			assertEqual(second.CharacterAdded:ActiveCount(), 0)
+			assertEqual(joined.CharacterAdded:ActiveCount(), 0)
+		end
+
+		for _, observerCount in { 0, 1, 3 } do
+			measure(observerCount)
+		end
 	end)
 
 	test("server and client SaveModule registries enforce construction and removal contracts", function(scope)

@@ -1191,6 +1191,68 @@ test("bootstrap exposes own session and only safe other-player appearance", func
 	assertEqual(payload.PresentPlayers[1].AttemptId, nil)
 end)
 
+test("Studio local-server identities bootstrap and stream while invalid identities stay rejected", function(scope)
+	local handlers = {}
+	local communication = {}
+	function communication:RegisterHandler(messageType, handler)
+		handlers[messageType] = handler
+	end
+	function communication:Request()
+		return true, {
+			Arrival = { SessionId = guid(90), EntryKind = "External" },
+			Attempt = nil,
+			PresentPlayers = {
+				{ UserId = -2, EntryKind = "External" },
+			},
+		}, nil
+	end
+
+	local client = TeleportClient.new({
+		Communication = communication,
+		PlayersModule = {
+			GetLocalPlayer = function()
+				return { UserId = -1 }
+			end,
+		},
+		MaxPlayers = 3,
+	})
+	scope:Defer(function()
+		client:Stop()
+	end)
+	client:Initialize()
+	assertEqual(client:GetPresentPlayers()[-2].EntryKind, "External")
+
+	handlers[TeleportProtocol.MessageTypes.PlayerAppeared]({
+		UserId = -3,
+		EntryKind = "External",
+	})
+	assertEqual(client:GetPresentPlayers()[-3].EntryKind, "External")
+	handlers[TeleportProtocol.MessageTypes.PlayerDeparted]({ UserId = -3 })
+	assertEqual(client:GetPresentPlayers()[-3], nil)
+
+	local zeroValid, _, zeroReason = TeleportProtocol.ValidateAppearance({
+		UserId = 0,
+		EntryKind = "External",
+	})
+	assertEqual(zeroValid, false)
+	assertEqual(zeroReason, "InvalidUserId")
+	local fractionalValid, _, fractionalReason = TeleportProtocol.ValidateAppearance({
+		UserId = -1.5,
+		EntryKind = "External",
+	})
+	assertEqual(fractionalValid, false)
+	assertEqual(fractionalReason, "InvalidUserId")
+	local bootstrapValid, _, bootstrapReason = TeleportProtocol.ValidateBootstrapResponse({
+		Arrival = { SessionId = guid(91), EntryKind = "External" },
+		Attempt = nil,
+		PresentPlayers = {
+			{ UserId = 0, EntryKind = "External" },
+		},
+	}, 1)
+	assertEqual(bootstrapValid, false)
+	assertEqual(bootstrapReason, "InvalidPresentPlayer")
+end)
+
 test("client bootstrap and lifecycle projection are ordered and subscriber optional", function(scope)
 	local handlers = {}
 	local communication = {}

@@ -1,0 +1,93 @@
+{
+  "schema_version": 3,
+  "items": [
+    {
+      "id": "REV-001",
+      "source": "review",
+      "severity": "major",
+      "title": "Missing server existing-character and respawn regressions",
+      "evidence": "arch-01 A-001 + verif-01 V-001; aggregate-review-report.md",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "status": "resolved",
+      "created_at": "2026-08-04T12:37:56+00:00",
+      "resolved_revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "kind": "evidence",
+      "resolved_product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+      "resolved_evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+      "resolved_at": "2026-08-04T14:00:53+00:00"
+    },
+    {
+      "id": "REV-002",
+      "source": "review",
+      "severity": "major",
+      "title": "Players Signal dispatch and scheduled-task cost not measured",
+      "evidence": "arch-01 A-002 + verif-01 V-002; aggregate-review-report.md",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "status": "resolved",
+      "created_at": "2026-08-04T12:37:57+00:00",
+      "resolved_revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "kind": "evidence",
+      "resolved_product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+      "resolved_evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+      "resolved_at": "2026-08-04T14:00:53+00:00"
+    },
+    {
+      "id": "REV-004",
+      "source": "review",
+      "severity": "major",
+      "title": "GlobalSave command Players observer wiring lacks integration regression",
+      "evidence": "arch-01 A-003; aggregate-review-report.md",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "status": "resolved",
+      "created_at": "2026-08-04T12:37:57+00:00",
+      "resolved_revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "kind": "evidence",
+      "resolved_product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+      "resolved_evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+      "resolved_at": "2026-08-04T14:00:53+00:00"
+    },
+    {
+      "id": "REV-003",
+      "source": "review",
+      "severity": "major",
+      "title": "Static negative type diagnostics not executed",
+      "evidence": "verif-01 V-003; canonical spec PL-T-001/003 and section 8.5; aggregate-review-report.md",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "status": "resolved",
+      "created_at": "2026-08-04T12:37:57+00:00",
+      "resolved_revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "kind": "evidence",
+      "resolved_product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+      "resolved_evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+      "resolved_at": "2026-08-04T14:00:53+00:00"
+    },
+    {
+      "id": "REV-005",
+      "source": "review",
+      "severity": "minor",
+      "title": "Yielding Signal test lacks failure-safe cleanup",
+      "evidence": "arch-01 A-004; aggregate-review-report.md",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "status": "resolved",
+      "created_at": "2026-08-04T12:37:57+00:00",
+      "resolved_revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "kind": "evidence",
+      "resolved_product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+      "resolved_evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+      "resolved_at": "2026-08-04T14:00:53+00:00"
+    },
+    {
+      "id": "QA-F-001",
+      "source": "qa",
+      "kind": "product",
+      "severity": "major",
+      "title": "Additional local-server player breaks Teleport presentation bootstrap and survivor resynchronization",
+      "evidence": "tests/players-module/qa/0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9/qa-01/qa-report.md; reproducible InvalidPresentPlayer/InvalidUserId and resync loop in fresh two-client local server",
+      "revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "status": "resolved",
+      "created_at": "2026-08-04T14:29:36+00:00",
+      "resolved_revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+      "resolved_at": "2026-08-04T15:22:46+00:00"
+    }
+  ]
+}

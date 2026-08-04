@@ -1,0 +1,360 @@
+{
+  "schema_version": 3,
+  "contract_version": "2026-08-04-review-qa-v1",
+  "project_root": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template",
+  "feature": "players-module",
+  "slice_id": "players-module-production-readiness-audit",
+  "requirements_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\docs\\features\\players-module\\product-requirements.md",
+  "requirements_revision": "2",
+  "requirements_sha256": "9c8bb37605362347af41609892dd9714203c96e9090ba1072b0ac3b303a6e8fc",
+  "spec_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\docs\\features\\players-module\\technical-specification.md",
+  "spec_sha256": "94c29e5858a2315069c327f8c4d17ab57dcba12ed4b0c37b2353f3e145914828",
+  "tests_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module",
+  "phase": "ready",
+  "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+  "last_engineer_run_id": "eng-08-clean-convergence",
+  "last_engineer_outcome": "clean",
+  "machine_checks": {
+    "status": "pass",
+    "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+    "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+    "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\eng-08-clean-convergence\\verification-report.md",
+    "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\eng-08-clean-convergence\\coverage-manifest.json"
+  },
+  "engineer_clean": {
+    "run_id": "eng-08-clean-convergence",
+    "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+    "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+    "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+    "audit_complete": true,
+    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\eng-08-clean-convergence\\verification-report.md",
+    "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\eng-08-clean-convergence\\coverage-manifest.json",
+    "recorded_at": "2026-08-04T15:54:12+00:00"
+  },
+  "engineer_runs": [
+    {
+      "run_id": "eng-01-initial-audit",
+      "input_revision": null,
+      "revision": "96b58ee29ccd7f7336864c24850fd38f8df635d9",
+      "outcome": "changed",
+      "machine_checks": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\baseline-051674b982f63399-prd9c8bb376-spec94c29e58\\eng-01-initial-audit\\verification-report.md",
+      "audit_complete": true,
+      "recorded_at": "2026-08-04T10:25:58+00:00",
+      "product_revision": "96b58ee29ccd7f7336864c24850fd38f8df635d9",
+      "evidence_revision": "96b58ee29ccd7f7336864c24850fd38f8df635d9",
+      "change_class": "product"
+    },
+    {
+      "run_id": "eng-02-clean-convergence",
+      "input_revision": "96b58ee29ccd7f7336864c24850fd38f8df635d9",
+      "revision": "f63df8201bb5352d67ef839dc63e94f4081e3949",
+      "outcome": "changed",
+      "machine_checks": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\96b58ee29ccd7f7336864c24850fd38f8df635d9\\eng-02-clean-convergence\\verification-report.md",
+      "audit_complete": true,
+      "recorded_at": "2026-08-04T10:56:02+00:00",
+      "product_revision": "f63df8201bb5352d67ef839dc63e94f4081e3949",
+      "evidence_revision": "f63df8201bb5352d67ef839dc63e94f4081e3949",
+      "change_class": "product"
+    },
+    {
+      "run_id": "eng-03-clean-convergence",
+      "input_revision": "f63df8201bb5352d67ef839dc63e94f4081e3949",
+      "revision": "35d9a3a6799809a6f261292193f0ca4af674d584698330a5a6604d934acc4fc9",
+      "outcome": "changed",
+      "machine_checks": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\f63df8201bb5352d67ef839dc63e94f4081e3949\\eng-03-clean-convergence\\verification-report.md",
+      "audit_complete": true,
+      "recorded_at": "2026-08-04T11:21:24+00:00",
+      "product_revision": "35d9a3a6799809a6f261292193f0ca4af674d584698330a5a6604d934acc4fc9",
+      "evidence_revision": "35d9a3a6799809a6f261292193f0ca4af674d584698330a5a6604d934acc4fc9",
+      "change_class": "product"
+    },
+    {
+      "run_id": "eng-04-clean-convergence",
+      "input_revision": "35d9a3a6799809a6f261292193f0ca4af674d584698330a5a6604d934acc4fc9",
+      "revision": "6125c8297daaa4565f3cd60295ecd3a4f98d2c079f8704825c51a54442fb66c0",
+      "outcome": "changed",
+      "machine_checks": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\35d9a3a6799809a6f261292193f0ca4af674d584698330a5a6604d934acc4fc9\\eng-04-clean-convergence\\verification-report.md",
+      "audit_complete": true,
+      "recorded_at": "2026-08-04T11:45:18+00:00",
+      "product_revision": "6125c8297daaa4565f3cd60295ecd3a4f98d2c079f8704825c51a54442fb66c0",
+      "evidence_revision": "6125c8297daaa4565f3cd60295ecd3a4f98d2c079f8704825c51a54442fb66c0",
+      "change_class": "product"
+    },
+    {
+      "run_id": "eng-05-clean-convergence",
+      "input_revision": "6125c8297daaa4565f3cd60295ecd3a4f98d2c079f8704825c51a54442fb66c0",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "outcome": "changed",
+      "machine_checks": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\6125c8297daaa4565f3cd60295ecd3a4f98d2c079f8704825c51a54442fb66c0\\eng-05-clean-convergence\\verification-report.md",
+      "audit_complete": true,
+      "recorded_at": "2026-08-04T12:07:27+00:00",
+      "product_revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "evidence_revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "change_class": "product"
+    },
+    {
+      "run_id": "eng-06-clean-convergence",
+      "input_revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "outcome": "clean",
+      "machine_checks": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c\\eng-06-clean-convergence\\verification-report.md",
+      "audit_complete": true,
+      "recorded_at": "2026-08-04T12:21:38+00:00",
+      "product_revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "evidence_revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "change_class": "none"
+    },
+    {
+      "run_id": "eng-07-qa-remediation",
+      "input_revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "input_product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+      "input_evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+      "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+      "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+      "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+      "change_class": "product",
+      "outcome": "changed",
+      "machine_checks": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9\\eng-07-qa-remediation\\verification-report.md",
+      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9\\eng-07-qa-remediation\\coverage-manifest.json",
+      "production_change_scope": "local",
+      "production_files_changed": 1,
+      "production_lines_changed": 14,
+      "scope_approval": null,
+      "audit_complete": true,
+      "recorded_at": "2026-08-04T15:22:39+00:00"
+    },
+    {
+      "run_id": "eng-08-clean-convergence",
+      "input_revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+      "input_product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+      "input_evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+      "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+      "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+      "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+      "change_class": "none",
+      "outcome": "clean",
+      "machine_checks": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\eng-08-clean-convergence\\verification-report.md",
+      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\eng-08-clean-convergence\\coverage-manifest.json",
+      "production_change_scope": "none",
+      "production_files_changed": 0,
+      "production_lines_changed": 0,
+      "scope_approval": null,
+      "audit_complete": true,
+      "recorded_at": "2026-08-04T15:54:12+00:00"
+    }
+  ],
+  "required_reviews": 2,
+  "review": {
+    "status": "passed",
+    "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+    "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+    "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+    "required": 2,
+    "runs": [
+      {
+        "run_id": "review-arch-02",
+        "reviewer_id": "arch-02",
+        "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+        "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+        "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+        "status": "pass",
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\arch-02\\review-report.md",
+        "recorded_at": "2026-08-04T16:09:51+00:00"
+      },
+      {
+        "run_id": "review-verif-02",
+        "reviewer_id": "verif-02",
+        "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+        "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+        "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+        "status": "pass",
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\verif-02\\review-report.md",
+        "recorded_at": "2026-08-04T16:09:52+00:00"
+      }
+    ],
+    "recovery_run": null,
+    "decision": "pass",
+    "decision_report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\aggregate-review-report.md",
+    "decision_reason": null,
+    "decided_at": "2026-08-04T16:10:21+00:00"
+  },
+  "review_runs": [
+    {
+      "run_id": "review-verif-01",
+      "reviewer_id": "verif-01",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "status": "fail",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c\\verif-01\\review-report.md",
+      "recorded_at": "2026-08-04T12:33:05+00:00"
+    },
+    {
+      "run_id": "review-arch-01",
+      "reviewer_id": "arch-01",
+      "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+      "status": "fail",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c\\arch-01\\review-report.md",
+      "recorded_at": "2026-08-04T12:36:23+00:00"
+    },
+    {
+      "run_id": "recovery-review-01",
+      "reviewer_id": "recovery-verifier-01",
+      "revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+      "evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+      "status": "pass",
+      "mode": "evidence_recovery",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9\\recovery-verifier-01\\review-report.md",
+      "recorded_at": "2026-08-04T14:09:31+00:00"
+    },
+    {
+      "run_id": "review-arch-02",
+      "reviewer_id": "arch-02",
+      "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+      "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+      "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+      "status": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\arch-02\\review-report.md",
+      "recorded_at": "2026-08-04T16:09:51+00:00"
+    },
+    {
+      "run_id": "review-verif-02",
+      "reviewer_id": "verif-02",
+      "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+      "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+      "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+      "status": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\verif-02\\review-report.md",
+      "recorded_at": "2026-08-04T16:09:52+00:00"
+    }
+  ],
+  "qa": {
+    "status": "pass",
+    "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+    "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+    "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+    "run_id": "qa-02",
+    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\qa\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\qa-02\\qa-report.md",
+    "pending_scenarios": [],
+    "reason": null
+  },
+  "qa_runs": [
+    {
+      "run_id": "qa-01",
+      "revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+      "product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+      "evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+      "status": "fail_product",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\qa\\0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9\\qa-01\\qa-report.md",
+      "pending_scenarios": [
+        "QA-MC-RESPAWN"
+      ],
+      "reason": "Fresh two-client local server reproduced InvalidPresentPlayer/InvalidUserId Teleport presentation failures and persistent survivor resync churn.",
+      "recorded_at": "2026-08-04T14:29:46+00:00"
+    },
+    {
+      "run_id": "qa-02",
+      "revision": "bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2",
+      "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+      "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+      "status": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\qa\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\qa-02\\qa-report.md",
+      "pending_scenarios": [],
+      "reason": null,
+      "recorded_at": "2026-08-04T16:25:22+00:00"
+    }
+  ],
+  "gates": [],
+  "created_at": "2026-08-04T09:47:12+00:00",
+  "updated_at": "2026-08-04T16:25:22+00:00",
+  "product_revision": "6aeb0122760781db31946f2825613550ed052b1923aaab79c4abd4c796faceb2",
+  "evidence_revision": "dad1c9fc68f1153394876a18b2b46ee157d6b56670dfdcabc4ad75d504a286cf",
+  "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\bfddbf43438df3050fbdce215e72d248a9c6e4c29892d74ef9c21944038f43c2\\eng-08-clean-convergence\\coverage-manifest.json",
+  "iteration_control": {
+    "automatic_product_changes": 6,
+    "max_automatic_product_changes": 2,
+    "status": "running",
+    "reason": null,
+    "authorizations": [
+      {
+        "reason": "User explicitly authorized continuation on 2026-08-04 after reviewing the QA-F-001 remediation pass; allow one fresh unchanged-revision convergence audit.",
+        "phase": "convergence_hold",
+        "recorded_at": "2026-08-04T15:31:26+00:00"
+      }
+    ]
+  },
+  "recovery": {
+    "status": "passed",
+    "base_revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+    "base_product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+    "base_evidence_revision": "79a8d70d836e2dfeec5d6f4baa7a391124590034673388f325430ce426863a6b",
+    "finding_ids": [
+      "REV-001",
+      "REV-002",
+      "REV-003",
+      "REV-004",
+      "REV-005"
+    ],
+    "base_review_runs": [
+      {
+        "run_id": "review-verif-01",
+        "reviewer_id": "verif-01",
+        "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+        "status": "fail",
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c\\verif-01\\review-report.md",
+        "recorded_at": "2026-08-04T12:33:05+00:00"
+      },
+      {
+        "run_id": "review-arch-01",
+        "reviewer_id": "arch-01",
+        "revision": "b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c",
+        "status": "fail",
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\b88e082777536ed0ba3c5bd380c3cd6e238f4b02260db1e9b8bd89a7067b0f0c\\arch-01\\review-report.md",
+        "recorded_at": "2026-08-04T12:36:23+00:00"
+      }
+    ],
+    "remediation_runs": [
+      {
+        "run_id": "eng-evidence-01",
+        "revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+        "product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+        "evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+        "resolved_findings": [
+          "REV-001",
+          "REV-002",
+          "REV-003",
+          "REV-004",
+          "REV-005"
+        ],
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\evidence-recovery-01\\verification-report.md",
+        "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\verification\\evidence-recovery-01\\coverage-manifest.json",
+        "recorded_at": "2026-08-04T14:00:53+00:00"
+      }
+    ],
+    "verification_runs": [
+      {
+        "run_id": "recovery-review-01",
+        "reviewer_id": "recovery-verifier-01",
+        "revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+        "product_revision": "c5753ff76b6bac69765b5094059cb6b19ef5dc935d6f5e8d9e613fad5a73ea53",
+        "evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa",
+        "status": "pass",
+        "mode": "evidence_recovery",
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\players-module\\reviews\\0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9\\recovery-verifier-01\\review-report.md",
+        "recorded_at": "2026-08-04T14:09:31+00:00"
+      }
+    ],
+    "cycles": 0,
+    "reason": "Paused all-evidence Review rework resumed under schema-v3 evidence recovery; preserve CLEAN Engineer and both full Reviews.",
+    "current_revision": "0716d4e0510d3e5ca10a6f52f41c939dec257d895e6004f8d655895beba976b9",
+    "current_evidence_revision": "ae07e2b5294202765b178da3b8f2b6e1e26a8841c9a44610fb6a858c89601eaa"
+  }
+}
