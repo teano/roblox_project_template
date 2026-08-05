@@ -1,0 +1,38 @@
+{
+    "schemaVersion":  1,
+    "id":  "TF-0006",
+    "slug":  "csv-converter-plugin",
+    "title":  "CSV-конвертер плагин",
+    "status":  "in_progress",
+    "activity":  "active",
+    "branch":  "main",
+    "baseCommit":  "15bc56c659ed826377085be6cb2b66f0bfe41b9b",
+    "startedAt":  "2026-08-05T20:02:34.9526025+00:00",
+    "completedAt":  null,
+    "updatedAt":  "2026-08-05T20:02:34.9558600+00:00",
+    "activeSessionId":  "019fd36c-b364-7bf3-8667-f4ef4f95afe0",
+    "sessions":  [
+                     {
+                         "threadId":  "019fd36c-b364-7bf3-8667-f4ef4f95afe0",
+                         "hostId":  "local",
+                         "role":  "implementation",
+                         "startedAt":  "2026-08-05T20:02:34.9600524+00:00",
+                         "endedAt":  null,
+                         "startCommit":  "15bc56c659ed826377085be6cb2b66f0bfe41b9b",
+                         "endCommit":  null,
+                         "outcome":  "active",
+                         "summary":  null
+                     }
+                 ],
+    "blockers":  [
+                     "Product requirements are missing and require the approved requirements workflow.",
+                     "Technical specification is missing and requires approved product requirements."
+                 ],
+    "artifacts":  [
+
+                  ],
+    "verification":  null,
+    "recoveryLog":  [
+
+                    ]
+}
