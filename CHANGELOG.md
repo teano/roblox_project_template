@@ -1,0 +1,232 @@
+# Changelog
+
+Все заметные изменения Roblox Project Template документируются в этом файле.
+
+Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
+а номера версий следуют [Semantic Versioning](https://semver.org/lang/ru/).
+До версии `1.0.0` шаблон находится в активной разработке: его публичные
+контракты и структура могут меняться между minor-версиями.
+
+Git-теги описывают версии самого шаблона. Они не связаны с
+`VersionConfig.CurrentVersion`, который является checkpoint версии
+пользовательских данных и миграций. Исторические теги `v0.1.0`–`v0.14.1`
+добавлены ретроспективно без изменения существующих коммитов; сам этот файл
+впервые входит в `v0.15.0`.
+
+## [Unreleased]
+
+## [0.15.0] - 2026-08-05
+
+### Added
+
+- Добавлена серверная система числовой статистики с глобальными,
+  сессионными, плейсовыми и проектными снимками.
+- Добавлены атомарные операции `Set`, `Inc`, `Dec`, `Min` и `Max`,
+  фильтрация показателей, ограниченная история и расширяемые метаданные.
+- Добавлена дедупликация фактов по последовательности источника и `EventId`.
+- Добавлено продолжение сессионного снимка через доверенную Teleport-сессию
+  с отдельным снимком для каждого посещения плейса.
+- Добавлены безопасные read-only проекции текущей статистики для клиента и
+  фиксированный контракт проектных клиентских фактов.
+- Добавлена интеграция с Wallet для учёта полученной валюты без стартового
+  баланса и трат.
+- Добавлены `statistics_config`, документация, ADR и полный набор регрессий.
+
+### Changed
+
+- Save-контур получил приватные клиентские проекции провайдеров, полный
+  финальный capture и объединение частых запросов сохранения.
+- Общий набор расширен до 206 проходящих тестов в 10 suites.
+
+## [0.14.1] - 2026-08-04
+
+### Fixed
+
+- Удалена зависимость feature workflow от Codex hook и перенесено безопасное
+  определение task identity непосредственно в workflow-команды.
+
+## [0.14.0] - 2026-08-04
+
+### Changed
+
+- Реестры фич разделены на независимые пространства `template` и `project`.
+- Добавлены раздельные dashboards, правила владения и merge-политика для
+  обновлений производных проектов.
+
+## [0.13.0] - 2026-08-04
+
+### Added
+
+- Добавлен формальный жизненный цикл разработки фич: start, continue, pause и
+  finish.
+- Добавлены feature manifests, handoff, worklog, PRD/specification artifacts,
+  writer lease и автоматическая проверка dashboards.
+
+## [0.12.0] - 2026-08-04
+
+### Changed
+
+- PlayersModule доведён до production-ready состояния.
+- Усилены контракты подключения, удаления, персонажей и взаимодействия с
+  Teleport, Communication и сохранением.
+- Добавлены pipeline evidence и проверки критических lifecycle-сценариев.
+
+## [0.11.0] - 2026-08-04
+
+### Added
+
+- Добавлен серверно-авторитетный TeleportModule с безопасными destination
+  policy, per-player попытками и доверенной session continuity.
+- Добавлен клиентский Teleport facade и синхронизация состояния через общий
+  Communication snapshot.
+- Добавлен повтор захвата session lock на целевом сервере без создания пустого
+  профиля.
+- Добавлен отключённый по умолчанию двухплейсовый validation pad и процедура
+  опубликованного runtime-тестирования.
+
+## [0.10.0] - 2026-07-31
+
+### Added
+
+- Добавлены итеративные миграции заблокированных пользовательских документов
+  с детерминированным порядком и checkpoint версии.
+- Добавлена стабильная cloud identity шаблона и правила безопасной публикации
+  и подключения плейсов.
+- Добавлены aggregate test runner, production-readiness suite и матрица
+  release-покрытия.
+
+### Changed
+
+- Усилена проверка репозиторной структуры, Rojo-проекта, session locking и
+  атомарного применения save providers.
+
+## [0.9.1] - 2026-07-30
+
+### Fixed
+
+- Усилен lifecycle сохранения и восстановления после ошибок.
+- Исправлены граничные случаи session locks, сериализации, Wallet и
+  согласованности runtime после неуспешной загрузки или сохранения.
+
+## [0.9.0] - 2026-07-30
+
+### Changed
+
+- Communication transport получил строгую сериализацию, ограниченные очереди,
+  sequencing, epochs и восстановление через resync.
+- Добавлены приоритеты сообщений и token-bucket pacing для ограничения
+  входящего и исходящего трафика.
+
+## [0.8.1] - 2026-07-30
+
+### Fixed
+
+- Signal получил изолированную side-local диспетчеризацию, безопасный lifecycle
+  подключений и устойчивость к yielding/error callbacks.
+- Logger получил структурированные уровни, безопасное форматирование и
+  production-поведение.
+
+## [0.8.0] - 2026-07-30
+
+### Added
+
+- Добавлен серверный каталог Roblox Experience Config с валидируемыми codecs,
+  атомарными generations и клиентскими bundles.
+- Wallet и global save переведены на обязательные конфигурации из Experience
+  Config.
+- Добавлена интеграционная документация для опубликованных конфигураций и
+  стабильной идентификации Studio DataModel.
+
+## [0.7.0] - 2026-07-30
+
+### Added
+
+- Добавлен Rojo preflight, который проверяет владельца стандартного endpoint и
+  безопасно переключает активный проект.
+- Добавлены правила явного выбора правильного Studio instance перед Play и
+  cloud-зависимыми операциями.
+
+## [0.6.0] - 2026-07-29
+
+### Added
+
+- Добавлен единый ContentPreloader поверх AssetRegistry и Roblox
+  ContentProvider.
+- Добавлены именованные single-flight запросы, прогресс, failure policy и
+  startup-preload до завершения клиентской инициализации.
+
+## [0.5.0] - 2026-07-29
+
+### Added
+
+- Добавлены раздельные серверный и клиентский каталоги статических assets с
+  путями, стабильными `AssetKey`, tags и metadata queries.
+- Добавлены явные Rojo roots для Shared, Client и Server assets.
+
+### Changed
+
+- Сам template переведён на стандартный Rojo port; производные проекты на этом
+  этапе сохраняли собственные port overrides.
+
+## [0.4.0] - 2026-07-29
+
+### Added
+
+- Добавлена ADR-управляемая политика обновления производных проектов из
+  template upstream.
+- Добавлен пользовательский выбор ветки обновления, защита от дублирующих ADR
+  расхождений и правила сохранения проектного `place.rbxl`.
+- Добавлена первоначальная политика идентификации Rojo-проектов и портов,
+  позднее заменённая единым стандартным endpoint.
+
+## [0.3.0] - 2026-07-29
+
+### Added
+
+- Добавлен workflow инициализации производного проекта.
+- Разделены template-owned и project-owned ADR namespaces.
+- Канонический Studio-файл переименован в `place.rbxl`, добавлен validator
+  структуры репозитория.
+- Добавлена документация bootstrap из отдельного Git-репозитория.
+
+## [0.2.0] - 2026-07-29
+
+### Added
+
+- Добавлены раздельные серверный и клиентский PoolModule.
+- Добавлены homogeneous pools, generation leases, lifecycle adapters,
+  ограничение active/retained объектов и безопасная очистка.
+- Добавлены CodeGraph setup и расширенная русская документация шаблона.
+
+## [0.1.0] - 2026-07-28
+
+### Added
+
+- Создан репозиторий Roblox Project Template с лицензией и базовой
+  документацией.
+- Добавлена модульная серверная и клиентская инициализация через явные
+  manifests и единственные bootstraps.
+- Добавлены базовые Players, Communication, Save, Storage, Wallet, Version и
+  Migration boundaries.
+- Добавлены Rojo project mapping, канонические agent rules, ADR и первые
+  системные и production integration tests.
+
+[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/teano/roblox_project_template/compare/v0.14.1...v0.15.0
+[0.14.1]: https://github.com/teano/roblox_project_template/compare/v0.14.0...v0.14.1
+[0.14.0]: https://github.com/teano/roblox_project_template/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/teano/roblox_project_template/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/teano/roblox_project_template/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/teano/roblox_project_template/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/teano/roblox_project_template/compare/v0.9.1...v0.10.0
+[0.9.1]: https://github.com/teano/roblox_project_template/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/teano/roblox_project_template/compare/v0.8.1...v0.9.0
+[0.8.1]: https://github.com/teano/roblox_project_template/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/teano/roblox_project_template/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/teano/roblox_project_template/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/teano/roblox_project_template/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/teano/roblox_project_template/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/teano/roblox_project_template/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/teano/roblox_project_template/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/teano/roblox_project_template/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/teano/roblox_project_template/tree/v0.1.0
