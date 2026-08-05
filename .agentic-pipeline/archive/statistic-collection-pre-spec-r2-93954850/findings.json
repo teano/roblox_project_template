@@ -1,0 +1,53 @@
+{
+  "schema_version": 3,
+  "items": [
+    {
+      "id": "REV-TF0003-001",
+      "source": "review",
+      "kind": "product",
+      "severity": "major",
+      "title": "Wallet GUID fact identity can exceed accepted Statistics identifier limit",
+      "evidence": "review-tf0003-arch-01: StatisticsConfigCodec accepts maxStatisticIdLength below 36; Wallet emits 36-character TransactionId GUID as FactIdentity.EventId; StatisticsModule rejects it after the Wallet commit, losing the required received-currency fact.",
+      "revision": "93954850ecd6dd2881f6056005ff4494dd2b4b25660df0f52f3fc08036465621",
+      "status": "open",
+      "created_at": "2026-08-04T23:11:08+00:00",
+      "resolved_revision": null
+    },
+    {
+      "id": "REV-TF0003-002",
+      "source": "review",
+      "kind": "product",
+      "severity": "major",
+      "title": "Statistics config budget omits declared EventId dedupe ledger capacity",
+      "evidence": "review-tf0003-verify-02: accepted aggregate budget reserves only MaxDedupSources structural bytes and omits MaxEventIdsPerSource plus identifier storage, allowing declared valid traffic capacity to exceed MaxProviderEncodedBytes.",
+      "revision": "93954850ecd6dd2881f6056005ff4494dd2b4b25660df0f52f3fc08036465621",
+      "status": "open",
+      "created_at": "2026-08-04T23:11:09+00:00",
+      "resolved_revision": null
+    },
+    {
+      "id": "REV-TF0003-003",
+      "source": "review",
+      "kind": "product",
+      "severity": "minor",
+      "title": "README initialization diagrams drift from canonical manifests",
+      "evidence": "review-tf0003-arch-01: README server/client initialization order omits or misorders Teleport, TeleportValidationPad, and Statistics relative to ServerManifest, ClientManifest, and current system documentation.",
+      "revision": "93954850ecd6dd2881f6056005ff4494dd2b4b25660df0f52f3fc08036465621",
+      "status": "open",
+      "created_at": "2026-08-04T23:11:09+00:00",
+      "resolved_revision": null
+    },
+    {
+      "id": "REV-TF0003-004",
+      "source": "review",
+      "kind": "product",
+      "severity": "minor",
+      "title": "AutoSave requested-save bookkeeping lacks controller unregistration",
+      "evidence": "review-tf0003-verify-02: removed controllers remain retained by autosave entries/maps/connections because no unregister/removal lifecycle clears new requested-save state, violating bounded cleanup expectations.",
+      "revision": "93954850ecd6dd2881f6056005ff4494dd2b4b25660df0f52f3fc08036465621",
+      "status": "open",
+      "created_at": "2026-08-04T23:11:10+00:00",
+      "resolved_revision": null
+    }
+  ]
+}

@@ -7,7 +7,7 @@
 ```lua
 {
   Id = "GlobalSave",
-  DependsOn = { "DomainData" },
+  DependsOn = { "DomainData", "Teleport", "Statistics" },
   Initialize = function(self, context) ... end,
 }
 ```
@@ -19,14 +19,14 @@ A command taking longer than 30 seconds emits a watchdog error but is not cancel
 Server order:
 
 ```text
-Assets → Pooling → Players → Communication → Teleport → TeleportValidationPad → Config → Save → Migration
-       → DomainData → GlobalSave → PersistenceSchedule
+Assets → Pooling → Players → Communication → Teleport → TeleportValidationPad → Config → Statistics
+       → Save → Migration → DomainData → GlobalSave → PersistenceSchedule
 ```
 
 Client order:
 
 ```text
-Assets → StartupContentPreload → Pooling → Players → Communication
+Assets → StartupContentPreload → Pooling → Players → Communication → Statistics
        → Teleport → Config → Save → DomainData → GlobalSave
 ```
 
@@ -99,7 +99,8 @@ The current `global_save` controller is created by
 `GlobalSaveInitializationCommand` and registers, in order:
 
 1. Wallet
-2. Version
+2. Statistics
+3. Version
 
 Projects insert additional ordinary domain providers before Version on both
 server and client. Version remains last because its `Run` is the commit point
@@ -107,20 +108,34 @@ that advances the persisted game-version checkpoint only after every other
 provider has installed and started successfully.
 
 `wallet_config` supplies the one-time starting balances for a newly created
-Wallet provider. Wallet memento version 2 persists `IsInitialized`; version 1
-wallets reconcile as already initialized so existing balances never receive
-the startup grant again.
+Wallet provider. Wallet memento version 3 persists `IsInitialized` and the
+server-only `LastTransactionSequence`; versions 1 and 2 reconcile without
+changing balances or replaying startup grants.
+
+`Statistics` is a server-authoritative provider omitted from every client save
+snapshot. It owns bounded Global, Teleport Session, Place, and configured
+custom statistic snapshots. Its required native-JSON `statistics_config`
+supplies snapshot types, retention, filters, projections, storage limits, and
+the requested-save cooldown. Current built-in client reads use a separate
+deny-by-default projection. See [Statistics.md](Statistics.md).
 
 `global_save_config` supplies the autosave interval, server snapshot-load
 timeout, and bounded client snapshot retry policy. The client receives only
-the two retry fields through the approved config bundle. Both configs are
-validated and frozen before `DomainData` or `GlobalSave` starts.
+the two retry fields through the approved config bundle. All three required
+native-JSON Experience Config values -- `wallet_config`, `statistics_config`,
+and `global_save_config` -- are validated and frozen before `DomainData` or
+`GlobalSave` starts.
 
 This ordered provider collection is the player profile. The template does not
 add a monolithic `ProfileModule`: projects extend the profile by registering
 their own domain providers in both server and client commands.
 
-A future session or game-slot controller can be built independently and removed through `SaveModule:RemoveSaveController`.
+A future session or game-slot controller can be built independently and
+removed through `SaveModule:RemoveSaveController`. The server composition
+registers a synchronous pre-removal callback that unregisters the controller
+from `AutoSaveModule` before destruction. Unregistration is idempotent and
+clears periodic scheduling, pending requested saves, per-player state, and the
+controller's `PlayerClosed` connection.
 
 ## Provider lifecycle
 
@@ -138,6 +153,15 @@ Validate/reconcile all target mementos
 
 `Run` means every provider's data has already been installed, so runtime controllers may now be constructed. Closing captures and saves before `Stop`, preventing runtime changes from being lost.
 
+Statistics treats an installed Global/Session/Place set that already matches
+the current trusted Teleport session and current PlaceId as lifecycle-ready.
+The save transaction marks its internal `Stop`/`SetMemento`/`Run` restart
+explicitly, which makes snapshot application and rollback an exact resume with
+no Session/Place replacement, dirty mark, or lifecycle event. An identical
+memento installed by a cold load is not marked as a restart; cold load, closed
+handoff state, or mismatched trusted session/place therefore still performs
+the normal lifecycle resolution before load success.
+
 Target mementos are reconciled and validated before runtime mutation. Current mementos are then captured before `Stop`. If any target `SetMemento` or `Run` fails, all partially installed providers are stopped and the complete previous memento set is restored before any provider is run again. A controller remains `Loaded` only when rollback fully succeeds; a cleanup or rollback failure moves it to `ApplyFailed`. Provider `Stop` must therefore be idempotent and safe after `SetMemento`, even if `Run` did not complete.
 
 After reconciliation and default creation, the server validates and measures
@@ -146,7 +170,17 @@ the complete prepared persistence document before `Stop`, `SetMemento`, or
 releases its lock, or leaves an already loaded runtime unchanged; the game
 never publishes a snapshot that is already impossible to persist.
 
-`MementoChanged` only marks a provider dirty. The controller captures dirty mementos on Heartbeat, but it does not write to DataStore every frame.
+When the prepared provider envelope differs from the stored envelope because
+of default creation, version reconciliation, or safe policy reconciliation,
+the controller advances the document revision and keeps it dirty. The next
+save therefore persists the prepared generation instead of leaving a
+runtime-only reconciliation that would repeat or disappear on reload.
+
+`MementoChanged` only marks a provider dirty. The controller captures dirty
+mementos on Heartbeat, but it does not write to DataStore every frame. An
+identical capture does not advance document revision. Close performs one full
+provider capture before persistence so a valid final change is not dependent
+on a prior dirty signal.
 
 ## Persistence
 
@@ -159,6 +193,7 @@ Production storage uses:
 - stale-lock takeover after 30 minutes;
 - dirty-only autosave, staggered at the validated
   `global_save_config.autoSaveIntervalSeconds`;
+- per-controller/player requested saves coalesced behind a configured cooldown;
 - save on player exit and server shutdown.
 
 Dirty capture is atomic across the selected providers: if any capture or

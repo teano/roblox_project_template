@@ -42,6 +42,7 @@ Repositories derived from the template receive these records from their
 | [ADR-0032](0032-track-feature-work-with-manifests.md) | Track feature work with canonical manifests and explicit lifecycle commands | Superseded by ADR-0033 |
 | [ADR-0033](0033-separate-template-and-project-feature-registries.md) | Separate template and project feature registries | Superseded by ADR-0034 |
 | [ADR-0034](0034-resolve-feature-task-identity-without-hooks.md) | Resolve feature task identity without repository hooks | Accepted |
+| [ADR-0035](0035-server-owned-statistics-snapshots.md) | Collect statistics in server-owned bounded snapshots | Accepted |
 
 ## Ownership and numbering
 

@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
+local TableUtil = require(ReplicatedStorage.Shared.Util.TableUtil)
 local CommunicationProtocol = require(ReplicatedStorage.Shared.Communication.CommunicationProtocol)
 local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.CommunicationConfig)
 local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
@@ -33,6 +34,7 @@ local SessionLockingStorage = require(ServerScriptService.Modules.Storage.Sessio
 local ServerSaveController = require(ServerScriptService.Modules.Save.ServerSaveController)
 local ShutdownSaveCoordinator = require(ServerScriptService.Modules.Save.ShutdownSaveCoordinator)
 local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
+local StatisticsModule = require(ServerScriptService.Modules.Statistics.StatisticsModule)
 local TestHarness = require(script.Parent.TestHarness)
 
 local ProductionIntegrationTestRunner = {}
@@ -80,6 +82,58 @@ local function makeLogger()
 			record("error", message, fields)
 		end,
 	}, entries
+end
+
+local function makeStatisticsConfig()
+	return {
+		SnapshotTypes = {
+			Global = { Retention = 0, Filter = { Mode = "AllowAllExcept", StatisticIds = {} } },
+			Session = { Retention = 4, Filter = { Mode = "AllowAllExcept", StatisticIds = {} } },
+			Place = { Retention = 8, Filter = { Mode = "AllowAllExcept", StatisticIds = {} } },
+		},
+		PublicProjection = {
+			Global = { StatisticIds = {}, MetadataKeys = {} },
+			Session = { StatisticIds = {}, MetadataKeys = {} },
+			Place = { StatisticIds = {}, MetadataKeys = {} },
+		},
+		Limits = {
+			MaxSnapshotTypes = 16,
+			MaxRetentionPerType = 32,
+			MaxStatisticIdsPerSnapshot = 256,
+			MaxStatisticIdLength = 64,
+			MaxSnapshotTypeLength = 48,
+			MaxSnapshotEncodedBytes = 24_576,
+			MaxMetadataDepth = 6,
+			MaxMetadataNodes = 128,
+			MaxMetadataEncodedBytes = 4_096,
+			MaxMetadataKeyLength = 64,
+			MaxMetadataStringLength = 256,
+			MaxDedupSources = 16,
+			MaxEventIdsPerSource = 64,
+			MaxProviderEncodedBytes = 524_288,
+			MaxClientResponseEstimatedBytes = 49_152,
+			MaxHistoryReadCount = 32,
+		},
+		SaveRequestCooldownSeconds = 30,
+	}
+end
+
+local function makeStatistics(session: any, placeId: number)
+	local logger = makeLogger()
+	local statistics = StatisticsModule.new({
+		Config = {
+			GetRequired = function(_self, id)
+				assertEqual(id, "Statistics")
+				return makeStatisticsConfig()
+			end,
+		},
+		Teleport = { GetSession = function() return TableUtil.deepCopy(session) end },
+		AutoSave = {},
+		PlaceId = placeId,
+		Logger = logger,
+	})
+	statistics:Initialize()
+	return statistics
 end
 
 local function makeInstrumentedSignal()
@@ -301,8 +355,9 @@ function ProductionIntegrationTestRunner.runAll()
 		first:Destroy(false)
 
 		local persisted = memory:Read("WalletStartup_303")
-		assertEqual(persisted.Providers.Wallet.Version, 2)
+		assertEqual(persisted.Providers.Wallet.Version, 3)
 		assertEqual(persisted.Providers.Wallet.Data.IsInitialized, true)
+		assertEqual(persisted.Providers.Wallet.Data.LastTransactionSequence, 0)
 		assertEqual(persisted.Providers.Wallet.Data.Coins, 25)
 
 		local secondWallet = makeWallet(999)
@@ -376,6 +431,107 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(#waits, 1, "target did not stop retrying after acquisition")
 		assertEqual(waits[1], 0.25, "target used the wrong first handoff delay")
 		assertEqual(result.StaleTakeover, false, "clean handoff was classified as stale takeover")
+	end)
+
+	test("Statistics teleport handoff preserves the final fact and live locks fail closed", function(scope)
+		local sessionId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+		local player = { UserId = 3_403 } :: any
+		local key = "StatisticsTeleportFinalFact_3403"
+		local memory = MemoryStorage.new()
+		local sourceStatistics = makeStatistics({
+			SessionId = sessionId,
+			EntryKind = "External",
+			SourcePlaceId = nil,
+		}, 101)
+		scope:Defer(function() sourceStatistics:Destroy() end)
+		local sourceStorage = SessionLockingStorage.new(memory, { StaleLockSeconds = 1_800 })
+		local sourceController = ServerSaveController.new({
+			Id = "statistics_teleport_source",
+			Providers = { sourceStatistics },
+			Storage = sourceStorage,
+			KeyResolver = function() return key end,
+		})
+		scope:Defer(function() sourceController:Destroy(false) end)
+		sourceStatistics:BindSaveController(sourceController)
+		assertTrue(sourceController:Load(player).Ok, "source Statistics profile did not load")
+
+		local waitCount = 0
+		local targetStorage = SessionLockingStorage.new(memory, {
+			StaleLockSeconds = 1_800,
+			LockAcquisitionRetry = {
+				MaxAttempts = 3,
+				BaseDelaySeconds = 0.01,
+				MaxDelaySeconds = 0.01,
+			},
+		}, nil, {
+			Wait = function()
+				waitCount += 1
+				assertEqual(waitCount, 1, "target retried after the source released its lock")
+				assertTrue(sourceStatistics:ApplyOperation(player, {
+					Operation = "Inc",
+					StatisticId = "Teleport.FinalFact",
+					Operand = 7,
+				}).Ok, "final pre-handoff fact was rejected")
+				assertTrue(sourceStatistics:PrepareForProfileClose(player).Ok, "source snapshot close failed")
+				assertTrue(sourceController:Close(player, true).Ok, "source final save and release failed")
+			end,
+		})
+		local targetStatistics = makeStatistics({
+			SessionId = sessionId,
+			EntryKind = "Teleported",
+			SourcePlaceId = 101,
+		}, 202)
+		scope:Defer(function() targetStatistics:Destroy() end)
+		local targetController = ServerSaveController.new({
+			Id = "statistics_teleport_target",
+			Providers = { targetStatistics },
+			Storage = targetStorage,
+			KeyResolver = function() return key end,
+		})
+		scope:Defer(function() targetController:Destroy(false) end)
+		targetStatistics:BindSaveController(targetController)
+		assertTrue(targetController:Load(player).Ok, "target did not acquire the released Statistics profile")
+		assertEqual(waitCount, 1)
+		assertEqual(targetStatistics:GetValue(player, "Global", "Teleport.FinalFact"), 7)
+		assertEqual(targetStatistics:GetValue(player, "Session", "Teleport.FinalFact"), 7)
+		assertEqual(targetStatistics:GetValue(player, "Place", "Teleport.FinalFact"), 0)
+		assertEqual(targetStatistics:GetActiveSnapshot(player, "Session").SessionId, sessionId)
+		assertEqual(targetStatistics:GetActiveSnapshot(player, "Place").PlaceId, 202)
+		local places = targetStatistics:GetSnapshots(player, "Place")
+		assertEqual(#places, 2, "source Place history and target active Place were not both available")
+		assertEqual(places[1].State, "Closed")
+		assertEqual(places[1].PlaceId, 101)
+		assertEqual(places[1].Values["Teleport.FinalFact"], 7)
+
+		local beforeBlockedLoad = memory:Read(key)
+		local blockedStatistics = makeStatistics({
+			SessionId = sessionId,
+			EntryKind = "Teleported",
+			SourcePlaceId = 202,
+		}, 303)
+		scope:Defer(function() blockedStatistics:Destroy() end)
+		local blockedController = ServerSaveController.new({
+			Id = "statistics_teleport_blocked",
+			Providers = { blockedStatistics },
+			Storage = SessionLockingStorage.new(memory, {
+				StaleLockSeconds = 1_800,
+				LockAcquisitionRetry = {
+					MaxAttempts = 2,
+					BaseDelaySeconds = 0,
+					MaxDelaySeconds = 0,
+				},
+			}, nil, { Wait = function() end }),
+			KeyResolver = function() return key end,
+		})
+		scope:Defer(function() blockedController:Destroy(false) end)
+		blockedStatistics:BindSaveController(blockedController)
+		local blocked = blockedController:Load(player)
+		assertEqual(blocked.Code, "SessionLocked", "exhausted target lock did not fail closed")
+		assertEqual(blockedStatistics:GetActiveSnapshot(player, "Global"), nil, "blocked load created fallback state")
+		assertTrue(TableUtil.deepEqual(memory:Read(key), beforeBlockedLoad), "blocked load changed persisted Statistics")
+
+		assertTrue(targetStatistics:PrepareForProfileClose(player).Ok, "target snapshot close failed")
+		assertTrue(targetController:Close(player, true).Ok, "target cleanup save failed")
 	end)
 
 	test("session lock handoff retry is bounded and cancellable", function(scope)
@@ -1713,6 +1869,8 @@ function ProductionIntegrationTestRunner.runAll()
 	test("GlobalSave command wires existing join removal and shutdown through PlayersModule", function(scope)
 		local existingPlayer = { UserId = 3_970, Parent = {} } :: any
 		local joinedPlayer = { UserId = 3_971, Parent = {} } :: any
+		local earlyRemovalPlayer = { UserId = 3_972, Parent = {} } :: any
+		local shutdownLoadingPlayer = { UserId = 3_973, Parent = {} } :: any
 		local currentPlayers = { existingPlayer }
 		local onAdded = nil :: ((any) -> ())?
 		local onRemoving = nil :: ((any) -> ())?
@@ -1864,6 +2022,19 @@ function ProductionIntegrationTestRunner.runAll()
 
 		local registeredAutoSave = nil :: any
 		local registeredSessionLock = nil :: any
+		local boundStatisticsController = nil :: any
+		local preparedPlayers = {} :: { [any]: number }
+		local statisticsModule = { Id = "Statistics" }
+		function statisticsModule:BindSaveController(registered)
+			boundStatisticsController = registered
+		end
+		function statisticsModule:PrepareForProfileClose(player)
+			preparedPlayers[player] = (preparedPlayers[player] or 0) + 1
+			if player == earlyRemovalPlayer or player == shutdownLoadingPlayer then
+				return { Ok = false, Code = "NotLoaded" }
+			end
+			return { Ok = true }
+		end
 		local command = GlobalSaveInitializationCommand.new({
 			SaveModule = saveModule,
 			Storage = {},
@@ -1901,6 +2072,7 @@ function ProductionIntegrationTestRunner.runAll()
 			ShutdownSaveCoordinator = shutdownCoordinator,
 			VersionModule = { Id = "Version" },
 			WalletModule = { Id = "Wallet" },
+			StatisticsModule = statisticsModule,
 			Logger = makeLogger(),
 		})
 		local context = { Services = {} }
@@ -1908,20 +2080,36 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(context.Services.GlobalSaveController, controller)
 		assertEqual(registeredAutoSave, controller)
 		assertEqual(registeredSessionLock, controller)
+		assertEqual(boundStatisticsController, controller)
 		assert(boundClose ~= nil)
 		waitUntil(function()
 			return loads[existingPlayer] == 1
 		end)
 
 		playersModule:Add(joinedPlayer)
+		playersModule:Add(earlyRemovalPlayer)
+		playersModule:Add(shutdownLoadingPlayer)
 		waitUntil(function()
 			return loads[joinedPlayer] == 1
+				and loads[earlyRemovalPlayer] == 1
+				and loads[shutdownLoadingPlayer] == 1
 		end)
 		assertEqual(loads[existingPlayer], 1, "existing player load was duplicated")
 		assertEqual(loads[joinedPlayer], 1, "joined player load was duplicated")
+		assertEqual(loads[earlyRemovalPlayer], 1, "early-removal player load was duplicated")
+		assertEqual(loads[shutdownLoadingPlayer], 1, "shutdown-loading player load was duplicated")
 
 		playersModule:Remove(existingPlayer, false)
+		assertEqual(preparedPlayers[existingPlayer], 1, "normal removal did not prepare Statistics")
 		assertEqual(closeStarts[existingPlayer], 1, "normal removal did not close exactly once")
+
+		playersModule:Remove(earlyRemovalPlayer, false)
+		assertEqual(preparedPlayers[earlyRemovalPlayer], 1, "early removal did not inspect Statistics")
+		assertEqual(
+			closeStarts[earlyRemovalPlayer],
+			1,
+			"Statistics NotLoaded prevented the controller from cancelling the player load"
+		)
 
 		local removalFinished = false
 		task.spawn(function()
@@ -1935,10 +2123,18 @@ function ProductionIntegrationTestRunner.runAll()
 		closeOnShutdown()
 		assertEqual(getPlayersCalls, 1, "shutdown did not enumerate current PlayersModule state exactly once")
 		assert(shutdownPlayers ~= nil)
-		assertEqual(#(shutdownPlayers :: { any }), 1)
+		assertEqual(#(shutdownPlayers :: { any }), 2)
 		assertEqual((shutdownPlayers :: { any })[1], joinedPlayer)
+		assertEqual((shutdownPlayers :: { any })[2], shutdownLoadingPlayer)
 		assertEqual(closeStarts[joinedPlayer], 1, "shutdown started a duplicate close")
 		assertEqual(closeJoins[joinedPlayer], 1, "shutdown did not join the in-flight removal close")
+		assertEqual(preparedPlayers[joinedPlayer], 2, "removal and shutdown did not both prepare Statistics")
+		assertEqual(preparedPlayers[shutdownLoadingPlayer], 1, "shutdown did not inspect loading Statistics")
+		assertEqual(
+			closeStarts[shutdownLoadingPlayer],
+			1,
+			"Statistics NotLoaded excluded a loading player from shutdown close"
+		)
 		releaseJoinedClose = true
 		waitUntil(function()
 			return removalFinished

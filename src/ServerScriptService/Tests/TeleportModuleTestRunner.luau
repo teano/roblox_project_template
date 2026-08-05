@@ -9,7 +9,9 @@ local CommunicationConfig = require(ReplicatedStorage.Shared.Communication.Commu
 local CommunicationSerialize = require(ReplicatedStorage.Shared.Communication.CommunicationSerialize)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
 local TeleportClient = require(ReplicatedStorage.Client.Teleport.TeleportClient)
+local TableUtil = require(ReplicatedStorage.Shared.Util.TableUtil)
 local CommunicationServer = require(ServerScriptService.Modules.Communication.CommunicationServer)
+local StatisticsModule = require(ServerScriptService.Modules.Statistics.StatisticsModule)
 local TeleportModule = require(ServerScriptService.Modules.Teleport.TeleportModule)
 local TeleportPolicy = require(ServerScriptService.Modules.Teleport.TeleportPolicy)
 local TeleportValidationConfig = require(ServerScriptService.Modules.Teleport.TeleportValidationConfig)
@@ -275,6 +277,40 @@ local function newServer(
 	end)
 	module:Initialize()
 	return module, playersModule, teleportService, comm
+end
+
+local function statisticsConfig(): any
+	return {
+		SnapshotTypes = {
+			Global = { Retention = 0, Filter = { Mode = "AllowAllExcept", StatisticIds = {} } },
+			Session = { Retention = 4, Filter = { Mode = "AllowAllExcept", StatisticIds = {} } },
+			Place = { Retention = 8, Filter = { Mode = "AllowAllExcept", StatisticIds = {} } },
+		},
+		PublicProjection = {
+			Global = { StatisticIds = {}, MetadataKeys = {} },
+			Session = { StatisticIds = {}, MetadataKeys = {} },
+			Place = { StatisticIds = {}, MetadataKeys = {} },
+		},
+		Limits = {
+			MaxSnapshotTypes = 16,
+			MaxRetentionPerType = 32,
+			MaxStatisticIdsPerSnapshot = 256,
+			MaxStatisticIdLength = 64,
+			MaxSnapshotTypeLength = 48,
+			MaxSnapshotEncodedBytes = 24_576,
+			MaxMetadataDepth = 6,
+			MaxMetadataNodes = 128,
+			MaxMetadataEncodedBytes = 4_096,
+			MaxMetadataKeyLength = 64,
+			MaxMetadataStringLength = 256,
+			MaxDedupSources = 16,
+			MaxEventIdsPerSource = 64,
+			MaxProviderEncodedBytes = 524_288,
+			MaxClientResponseEstimatedBytes = 49_152,
+			MaxHistoryReadCount = 32,
+		},
+		SaveRequestCooldownSeconds = 30,
+	}
 end
 
 local function continuationJoinData(userId: number, sessionId: string, sourcePlaceId: number?): any
@@ -927,6 +963,76 @@ test("synchronous failure clears only the attempt and preserves the session", fu
 	end
 	assertEqual(failureCount, 1)
 	assertEqual(departureCount, 0)
+end)
+
+test("accepted synchronous early and late Teleport outcomes preserve active Statistics", function(scope)
+	local player = newPlayer(511, nil)
+	local service = newTeleportService()
+	local teleport = newServer(scope, { player }, service)
+	local statistics = StatisticsModule.new({
+		Config = {
+			GetRequired = function(_self, configId)
+				assertEqual(configId, "Statistics")
+				return statisticsConfig()
+			end,
+		},
+		Teleport = teleport,
+		AutoSave = {},
+		PlaceId = PLACE_ID,
+		Clock = function()
+			return 100
+		end,
+		Logger = {
+			Warn = function() end,
+			Error = function() end,
+		},
+	})
+	statistics:Initialize()
+	scope:Defer(function()
+		statistics:Destroy()
+	end)
+	statistics:SetMemento(player, statistics:CreateDefault(player))
+	statistics:Run(player)
+	assertTrue(statistics:ApplyOperation(player, {
+		Operation = "Inc",
+		StatisticId = "Teleport.Invariant",
+		Operand = 3,
+	}).Ok)
+	local before = statistics:GetMemento(player)
+	local function assertUnchanged(label: string)
+		assertTrue(TableUtil.deepEqual(statistics:GetMemento(player), before), `{label} changed Statistics`)
+		for _, snapshotType in { "Global", "Session", "Place" } do
+			assertEqual(statistics:GetActiveSnapshot(player, snapshotType).State, "Active", label)
+		end
+	end
+
+	local accepted = teleport:Teleport({ player }, { Kind = "Public", PlaceId = PLACE_ID })
+	assertTrue(accepted.Ok)
+	assertUnchanged("accepted Teleport")
+	service.TeleportInitFailed:Fire(player, "Failure", "late", PLACE_ID, service.Calls[1].Options)
+	assertUnchanged("late TeleportInitFailed")
+
+	service.Throw = true
+	local synchronous = teleport:Teleport({ player }, { Kind = "Public", PlaceId = PLACE_ID })
+	assertEqual(synchronous.Ok, false)
+	assertUnchanged("synchronous Teleport failure")
+
+	service.Throw = false
+	service.Yield = true
+	local earlyResult = nil :: any
+	local requestThread = coroutine.create(function()
+		earlyResult = teleport:Teleport({ player }, { Kind = "Public", PlaceId = PLACE_ID })
+	end)
+	local resumed, marker = coroutine.resume(requestThread)
+	assertTrue(resumed)
+	assertEqual(marker, "TeleportAsyncYielded")
+	local earlyOptions = service.Calls[#service.Calls].Options
+	service.TeleportInitFailed:Fire(player, "Failure", "early", PLACE_ID, earlyOptions)
+	assertUnchanged("early TeleportInitFailed")
+	resumed = coroutine.resume(requestThread)
+	assertTrue(resumed)
+	assertTrue(earlyResult.Ok)
+	assertUnchanged("early failure completion")
 end)
 
 test("yielding successful request is isolated from caller group mutation", function(scope)

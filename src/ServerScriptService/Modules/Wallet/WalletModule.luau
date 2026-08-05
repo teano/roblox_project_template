@@ -22,6 +22,7 @@ end
 local function createEmptyMemento(isInitialized: boolean)
 	local result: { [string]: any } = {
 		IsInitialized = isInitialized,
+		LastTransactionSequence = 0,
 	}
 	for currencyId in WalletConfig.CurrencyIds do
 		result[currencyId] = 0
@@ -31,6 +32,25 @@ end
 
 local function isSafeBalance(value: any): boolean
 	return isFiniteInteger(value) and value >= 0 and value <= WalletConfig.MaxBalance
+end
+
+local function copyCommittedValue(value: any, seen: { [any]: any }?): any
+	if typeof(value) ~= "table" then
+		return value
+	end
+
+	local visited = seen or {}
+	local existing = visited[value]
+	if existing ~= nil then
+		return existing
+	end
+
+	local copy: { [any]: any } = {}
+	visited[value] = copy
+	for key, child in value do
+		copy[copyCommittedValue(key, visited)] = copyCommittedValue(child, visited)
+	end
+	return copy
 end
 
 function WalletModule.new(communication: any, configCatalog: any)
@@ -43,6 +63,7 @@ function WalletModule.new(communication: any, configCatalog: any)
 		_config = nil,
 		_data = {} :: { [Player]: { [string]: any } },
 		_running = {} :: { [Player]: boolean },
+		_committedHandlers = {} :: { any },
 		MementoChanged = Signal.new(),
 		Changed = Signal.new(),
 	}, WalletModule)
@@ -60,6 +81,11 @@ end
 function WalletModule:ReconcileMemento(_player: Player, value: any, fromVersion: number)
 	if fromVersion >= WalletConfig.ProviderVersion then
 		return TableUtil.deepCopy(value)
+	end
+	if fromVersion >= 2 and typeof(value) == "table" then
+		local result = TableUtil.deepCopy(value)
+		result.LastTransactionSequence = 0
+		return result
 	end
 
 	-- Version 1 stored only flat currency balances. Treat every such wallet as
@@ -79,16 +105,25 @@ function WalletModule:ReconcileMemento(_player: Player, value: any, fromVersion:
 end
 
 function WalletModule:ValidateMemento(_player: Player, value: any): (boolean, any?, string?)
-	if typeof(value) ~= "table" or typeof(value.IsInitialized) ~= "boolean" then
+	if typeof(value) ~= "table"
+		or typeof(value.IsInitialized) ~= "boolean"
+		or not isFiniteInteger(value.LastTransactionSequence)
+		or value.LastTransactionSequence < 0
+		or value.LastTransactionSequence > WalletConfig.MaxBalance
+	then
 		return false, nil, "Wallet IsInitialized must be a boolean"
 	end
 	for key in value do
-		if key ~= "IsInitialized" and WalletConfig.CurrencyIds[key] ~= true then
+		if key ~= "IsInitialized"
+			and key ~= "LastTransactionSequence"
+			and WalletConfig.CurrencyIds[key] ~= true
+		then
 			return false, nil, `Unknown Wallet field '{tostring(key)}'`
 		end
 	end
 
 	local data = createEmptyMemento(value.IsInitialized)
+	data.LastTransactionSequence = value.LastTransactionSequence
 	for currencyId in WalletConfig.CurrencyIds do
 		local amount = value[currencyId]
 		if not isSafeBalance(amount) then
@@ -136,6 +171,47 @@ function WalletModule:ToClientMemento(_player: Player, value: any)
 	return result
 end
 
+function WalletModule:RegisterCommittedChangeHandler(handler: (Player, any) -> any)
+	assert(typeof(handler) == "function", "Committed Wallet handler required")
+	assert(next(self._running) == nil, "Committed Wallet handlers must register before player runtime starts")
+	assert(#self._committedHandlers < 32, "Too many committed Wallet handlers")
+	local record = { Callback = handler, Connected = true }
+	table.insert(self._committedHandlers, record)
+	local connection = {}
+	function connection:Disconnect()
+		if not record.Connected then return end
+		record.Connected = false
+		record.Callback = nil
+	end
+	return setmetatable(connection, {
+		__index = function(_self, key)
+			if key == "Connected" then return record.Connected end
+			return nil
+		end,
+		__newindex = function()
+			error("Wallet committed connection is read-only", 2)
+		end,
+	})
+end
+
+function WalletModule:_deliverCommitted(player: Player, change: any): { any }
+	local failures = {}
+	local handlers = table.clone(self._committedHandlers)
+	for index, record in handlers do
+		if not record.Connected or record.Callback == nil then continue end
+		local ok, result = xpcall(function()
+			return record.Callback(player, copyCommittedValue(change, nil))
+		end, debug.traceback)
+		if not ok or (typeof(result) == "table" and result.Ok == false) then
+			table.insert(failures, {
+				HandlerIndex = index,
+				Code = if ok and typeof(result) == "table" then result.Code else "HandlerFailed",
+			})
+		end
+	end
+	return failures
+end
+
 function WalletModule:GetBalance(player: Player, currencyId: string): number?
 	assert(WalletConfig.CurrencyIds[currencyId] == true, `Unknown currency '{currencyId}'`)
 	local data = self._data[player]
@@ -152,12 +228,22 @@ function WalletModule:_set(player: Player, currencyId: string, newValue: number,
 			Ok = true,
 			OldValue = oldValue,
 			NewValue = newValue,
-			TransactionId = HttpService:GenerateGUID(false),
+			TransactionId = nil,
+			TransactionSequence = data.LastTransactionSequence,
+		}
+	end
+	if data.LastTransactionSequence >= WalletConfig.MaxBalance then
+		return {
+			Ok = false,
+			Code = "TransactionSequenceExhausted",
+			Error = "Wallet transaction sequence is exhausted",
 		}
 	end
 
-	data[currencyId] = newValue
 	local transactionId = HttpService:GenerateGUID(false)
+	local transactionSequence = data.LastTransactionSequence + 1
+	data[currencyId] = newValue
+	data.LastTransactionSequence = transactionSequence
 	local change = {
 		ProviderId = self.Id,
 		Path = { currencyId },
@@ -167,7 +253,9 @@ function WalletModule:_set(player: Player, currencyId: string, newValue: number,
 		Reason = reason,
 		Metadata = metadata,
 		TransactionId = transactionId,
+		TransactionSequence = transactionSequence,
 	}
+	local integrationFailures = self:_deliverCommitted(player, change)
 	self.MementoChanged:Fire(player)
 	self.Changed:Fire(player, change)
 	self._communication:Queue(player, WalletConfig.MessageTypes.Changed, change, nil, {
@@ -178,6 +266,8 @@ function WalletModule:_set(player: Player, currencyId: string, newValue: number,
 		OldValue = oldValue,
 		NewValue = newValue,
 		TransactionId = transactionId,
+		TransactionSequence = transactionSequence,
+		IntegrationFailures = integrationFailures,
 	}
 end
 

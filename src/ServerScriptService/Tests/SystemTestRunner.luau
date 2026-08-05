@@ -529,15 +529,18 @@ function SystemTestRunner.runAll()
 		assertEqual(domainData.DependsOn[1], "Migration")
 		assertEqual(globalSave.DependsOn[1], "DomainData")
 		assertEqual(globalSave.DependsOn[2], "Teleport")
+		assertEqual(globalSave.DependsOn[3], "Statistics")
 	end)
 
 	test("global save production composition keeps Version as the final provider", function()
 		local providers = GlobalSaveInitializationCommand.GetOrderedProviders(
 			ServerManifest.Services.Wallet,
+			ServerManifest.Services.Statistics,
 			ServerManifest.Services.Version
 		)
-		assertEqual(#providers, 2, "unexpected template global-save provider count")
+		assertEqual(#providers, 3, "unexpected template global-save provider count")
 		assertEqual(providers[1].Id, WalletConfig.ProviderId)
+		assertEqual(providers[2].Id, "Statistics")
 		assertEqual(providers[#providers].Id, VersionConfig.ProviderId)
 	end)
 
@@ -628,7 +631,9 @@ function SystemTestRunner.runAll()
 		assertEqual(wallet:GetBalance(player, "Coins"), 25)
 		assertEqual(wallet:GetBalance(player, "Gems"), 3)
 		assertEqual(wallet:GetMemento(player).IsInitialized, true)
+		assertEqual(wallet:GetMemento(player).LastTransactionSequence, 0)
 		assertEqual(wallet:ToClientMemento(player, wallet:GetMemento(player)).IsInitialized, nil)
+		assertEqual(wallet:ToClientMemento(player, wallet:GetMemento(player)).LastTransactionSequence, nil)
 		wallet:Run(player)
 		assertEqual(wallet:GetBalance(player, "Coins"), 25, "startup balance must only apply once")
 		assertTrue(wallet:Add(player, "Coins", 100, "Test").Ok, "add failed")
@@ -662,6 +667,7 @@ function SystemTestRunner.runAll()
 
 		local validOversized = wallet:ValidateMemento(player, {
 			IsInitialized = true,
+			LastTransactionSequence = 2,
 			Coins = WalletConfig.MaxBalance + 1,
 			Gems = 0,
 		})

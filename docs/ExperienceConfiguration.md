@@ -42,12 +42,11 @@ projection are valid. Consumers call `Services.Config:GetRequired("Equipment")`
 and never read `ConfigService` directly.
 
 The template manifest declares its required models explicitly, so bootstrap
-fails before domain initialization when either source value is absent or
-invalid.
+fails before domain initialization when any source value is absent or invalid.
 
 ## Required template configs
 
-The template currently consumes two required Experience Configs. Both values
+The template currently consumes three required Experience Configs. Every value
 must use the native Experience Config type `JSON`; a `String` containing
 serialized JSON does not satisfy these contracts.
 
@@ -93,11 +92,76 @@ The codec accepts only finite values within these bounds:
 | `snapshotRequestAttempts` | integer from 1 through 100 |
 | `snapshotRetryDelaySeconds` | number from 0.05 through 10 |
 
-Both models are startup-only for a server generation. Publishing a newer
+`statistics_config`:
+
+```json
+{
+  "snapshotTypes": {
+    "Global": { "retention": 0, "filter": { "mode": "AllowAllExcept", "statisticIds": [] } },
+    "Session": { "retention": 4, "filter": { "mode": "AllowAllExcept", "statisticIds": [] } },
+    "Place": { "retention": 8, "filter": { "mode": "AllowAllExcept", "statisticIds": [] } }
+  },
+  "publicProjection": {
+    "Global": { "statisticIds": [], "metadataKeys": [] },
+    "Session": { "statisticIds": [], "metadataKeys": [] },
+    "Place": { "statisticIds": [], "metadataKeys": [] }
+  },
+  "limits": {
+    "maxSnapshotTypes": 16,
+    "maxRetentionPerType": 32,
+    "maxStatisticIdsPerSnapshot": 256,
+    "maxStatisticIdLength": 64,
+    "maxSnapshotTypeLength": 48,
+    "maxSnapshotEncodedBytes": 24576,
+    "maxMetadataDepth": 6,
+    "maxMetadataNodes": 128,
+    "maxMetadataEncodedBytes": 4096,
+    "maxMetadataKeyLength": 64,
+    "maxMetadataStringLength": 256,
+    "maxDedupSources": 16,
+    "maxEventIdsPerSource": 64,
+    "maxProviderEncodedBytes": 524288,
+    "maxClientResponseEstimatedBytes": 49152,
+    "maxHistoryReadCount": 32
+  },
+  "saveRequestCooldownSeconds": 30
+}
+```
+
+The three built-in types are required. Projects add stable custom type IDs in
+`snapshotTypes`, but only built-ins may appear in `publicProjection`.
+`AllowOnly` and `AllowAllExcept` filters are copied into each new snapshot.
+The codec applies field/count/string/metadata/record/provider/response caps.
+`maxStatisticIdLength` must be at least 36 so every accepted configuration can
+represent the mandatory Wallet transaction GUID and the adapter's code-owned
+source/statistic IDs. Aggregate provider budgeting reserves every retained
+snapshot plus the larger of a maximum ordered cursor or a maximum exact
+EventId ledger for each dedupe source, including bounded identifier and JSON
+encoding overhead. The practical `16 × 64` dedupe defaults fit the 512 KiB
+provider budget alongside the configured snapshot maxima; larger values remain
+within the code hard caps only when the complete theoretical budget fits.
+The default public projection is empty. See
+[Statistics.md](Statistics.md) for lifecycle and API semantics.
+
+`saveRequestCooldownSeconds` accepts finite values from `1` through `3600`.
+The positive lower bound is code-owned safety policy: every accepted
+Statistics configuration retains the shared requested-save coalescing window.
+
+All three models are startup-only for a server generation. Publishing a newer
 Experience Config makes `UpdateAvailable` fire, but it does not change active
-wallet grants, autosave scheduling, or snapshot retry policy. Those values
-apply after the next server/client bootstrap unless a future domain-safe
-coordinator explicitly adopts a refreshed catalog generation.
+wallet grants, autosave scheduling, snapshot retry policy, or active statistic
+filters/retention. Those values apply after the next server/client bootstrap
+unless a future domain-safe coordinator explicitly adopts a refreshed catalog
+generation.
+
+When a later generation reduces snapshot retention, Statistics reconciliation
+deterministically removes only the oldest excess closed records before
+validation and preserves the newest records plus active/pending snapshots,
+counters, values, metadata, filters, and deduplication state. Other persisted
+limit reductions remain fail-closed and may require an explicit migration.
+Retention pruning itself also validates every old record and its ID/counter
+relationship first, so it cannot trim away malformed or conflicting data and
+make a corrupt profile appear valid.
 
 ## Client disclosure
 
@@ -114,10 +178,11 @@ ClientBundles = {
 
 The allowlist is server code, not an Experience Config. A newly created key
 therefore remains server-only until code review explicitly exposes it.
-The template exposes only the client-safe GlobalSave retry policy; Wallet
-configuration remains server-only. A project that adds another client config
-must add its logical ID, explicit projection, and matching client decoder in
-reviewed code.
+The template exposes only the client-safe GlobalSave retry policy; Wallet and
+Statistics configuration remain server-only. Statistics current-state reads
+use their own bounded, server-projected domain DTO rather than disclosing this
+configuration. A project that adds another client config must add its logical
+ID, explicit projection, and matching client decoder in reviewed code.
 
 Every exposed definition requires `ToClient`. This function creates a DTO and
 is the only place where server data crosses the disclosure boundary. Fields
@@ -185,8 +250,9 @@ rounds, on the next session, or only after server restart.
 
 ## Wallet initialization
 
-Wallet provider version 2 persists flat currency balances plus
-`IsInitialized`. A missing Wallet provider is a new wallet:
+Wallet provider version 3 persists flat currency balances,
+`IsInitialized`, and server-only `LastTransactionSequence`. A missing Wallet
+provider is a new wallet:
 
 ```text
 CreateDefault with IsInitialized=false
@@ -194,14 +260,15 @@ CreateDefault with IsInitialized=false
   -> Run applies wallet_config.startingBalances
   -> set IsInitialized=true
   -> mark Wallet dirty
-  -> persist provider version 2
+  -> persist provider version 3
 ```
 
 Repeated `Run` and later loads see `IsInitialized=true` and never apply the
 startup grant again. Version 1 wallets did not have the flag; reconciliation
 preserves their balances and sets the flag to `true`, preventing an upgrade
-from granting existing players a second starting balance. The flag remains
-server-only and is removed by `ToClientMemento`.
+from granting existing players a second starting balance. Version 2 wallets
+gain sequence zero without changing balances. Both fields remain server-only
+and are removed by `ToClientMemento`.
 
 ## Failure policy
 

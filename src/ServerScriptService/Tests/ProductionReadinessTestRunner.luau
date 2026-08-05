@@ -379,6 +379,53 @@ function ProductionReadinessTestRunner.runAll()
 		assertEqual(entries[1].Event, "autosave_failed")
 	end)
 
+	test("save controller removal unregisters idle and pending autosave state", function(scope)
+		local scheduled = {}
+		local logger, entries = makeLogger()
+		local autoSave = AutoSaveModule.new(logger, {
+			Clock = function() return 100 end,
+			Random = function() return 0 end,
+			Spawn = function(callback) table.insert(scheduled, callback) end,
+			Wait = function(seconds) return seconds end,
+		})
+		scope:Defer(function() autoSave:Stop() end)
+		local saveModule = ServerSaveModule.new({
+			OnControllerRemoving = function(controller)
+				autoSave:UnregisterController(controller)
+			end,
+		})
+		saveModule:Initialize()
+		local provider = makeProvider("RemovalProvider", "Server")
+		scope:Defer(function() provider:Destroy() end)
+		scope:Defer(function() saveModule:RemoveAllSaveControllers(false) end)
+
+		local function buildController(id)
+			return saveModule:BuildSaveController(id)
+				:WithSaveProvider(provider)
+				:WithStorage(SessionLockingStorage.new(MemoryStorage.new(), { StaleLockSeconds = 1_800 }))
+				:WithKeyResolver(function(player) return `{id}_{player.UserId}` end)
+				:Build()
+		end
+
+		local pendingController = buildController("pending_removal")
+		autoSave:RegisterController(pendingController, { IntervalSeconds = 60 })
+		local player = { UserId = 8_001 } :: any
+		assertEqual(autoSave:RequestSave(pendingController, player, "PendingRemoval", 200).Code, "Queued")
+		assertEqual(#scheduled, 1)
+		assertEqual(saveModule:RemoveSaveController(pendingController, false), true)
+		scheduled[1]()
+		assertEqual(#entries, 0, "removed controller's pending save still executed")
+		assertEqual(autoSave:UnregisterController(pendingController), false)
+		assertThrows(function()
+			autoSave:RequestSave(pendingController, player, "Removed", 0)
+		end, "not registered")
+
+		local idleController = buildController("idle_removal")
+		autoSave:RegisterController(idleController, { IntervalSeconds = 60 })
+		saveModule:RemoveAllSaveControllers(false)
+		assertEqual(autoSave:UnregisterController(idleController), false)
+	end)
+
 	test("session lock scheduler refreshes only due loaded players and logs failure", function(scope)
 		local logger, entries = makeLogger()
 		local spawned = nil

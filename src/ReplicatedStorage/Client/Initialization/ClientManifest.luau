@@ -16,6 +16,7 @@ local ClientConfigManifest = require(ReplicatedStorage.Client.Config.ClientConfi
 local SaveModule = require(ReplicatedStorage.Client.Save.SaveModule)
 local VersionClient = require(ReplicatedStorage.Client.Version.VersionClient)
 local WalletClient = require(ReplicatedStorage.Client.Wallet.WalletClient)
+local StatisticsClient = require(ReplicatedStorage.Client.Statistics.StatisticsClient)
 
 local Commands = script.Parent.Commands
 local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
@@ -27,6 +28,7 @@ local TeleportInitializationCommand = require(Commands.TeleportInitializationCom
 local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand)
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
 local DomainDataInitializationCommand = require(Commands.DomainDataInitializationCommand)
+local StatisticsInitializationCommand = require(Commands.StatisticsInitializationCommand)
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
 
 local replicatedAssets = ReplicatedStorage:FindFirstChild("Assets")
@@ -67,6 +69,7 @@ local configCatalog = ClientConfigCatalog.new({
 local saveModule = SaveModule.new(communication)
 local versionClient = VersionClient.new()
 local walletClient = WalletClient.new(communication)
+local statisticsClient = StatisticsClient.new(communication)
 
 local services = {
 	Assets = assetRegistry,
@@ -79,6 +82,7 @@ local services = {
 	Save = saveModule,
 	Version = versionClient,
 	Wallet = walletClient,
+	Statistics = statisticsClient,
 }
 
 return {
@@ -90,6 +94,7 @@ return {
 		PoolingInitializationCommand.new(poolModule),
 		PlayersInitializationCommand.new(playersModule),
 		CommunicationInitializationCommand.new(communication),
+		StatisticsInitializationCommand.new(statisticsClient),
 		TeleportInitializationCommand.new(teleportClient),
 		ConfigInitializationCommand.new(configCatalog),
 		SaveInitializationCommand.new(saveModule),

@@ -2,7 +2,7 @@
 
 Основа для создания модульных Roblox-игр, ориентированная на использование в
 production и построенная с помощью [Rojo](https://rojo.space/). Репозиторий
-содержит переиспользуемую инфраструктуру, один рабочий провайдер Wallet, тесты,
+содержит переиспользуемую инфраструктуру, провайдеры Wallet и Statistics, тесты,
 архитектурную документацию, правила для агентов и записи об архитектурных
 решениях.
 
@@ -43,6 +43,8 @@ production и построенная с помощью [Rojo](https://rojo.space
   реально выпущенными версиями.
 - Сервер-авторитетный Wallet с настраиваемыми валютами и компактными
   клиентскими обновлениями.
+- Сервер-авторитетные bounded Statistics snapshots для Global, Teleport
+  Session, Place и проектных lifecycle с deny-by-default клиентским чтением.
 - Клиентский фасад `GameDataClient` только для чтения.
 - Хранилище Studio в памяти и отключённый по умолчанию smoke-тест настоящего
   DataStore.
@@ -323,10 +325,10 @@ Project ADR находятся только в `docs/adr/project/`, поэтом
 8. Выберите имя production DataStore и ограничения сохранения в
    `StorageConfig`.
 9. Настройте стабильные идентификаторы валют в `WalletConfig`.
-10. Создайте обязательные Experience Configs `wallet_config` и
-   `global_save_config` по схемам из
+10. Создайте обязательные Experience Configs `wallet_config`,
+   `global_save_config` и `statistics_config` по схемам из
    [docs/ExperienceConfiguration.md](docs/ExperienceConfiguration.md).
-   Оба значения должны иметь нативный тип `JSON` и быть опубликованы; строка с
+   Все три значения должны иметь нативный тип `JSON` и быть опубликованы; строка с
    сериализованным JSON и staged-only значение не подходят.
 
 После Studio-изменений сцены сохраните или экспортируйте её именно в
@@ -397,15 +399,16 @@ StarterPlayerScripts/Bootstrap.client.luau
 Порядок серверной инициализации:
 
 ```text
-Assets → Pooling → Players → Communication → Config → Save → Migration
-       → DomainData → GlobalSave → PersistenceSchedule
+Assets → Pooling → Players → Communication → Teleport → TeleportValidationPad
+       → Config → Statistics → Save → Migration → DomainData → GlobalSave
+       → PersistenceSchedule
 ```
 
 Порядок клиентской инициализации:
 
 ```text
-Assets → StartupContentPreload → Pooling → Players → Communication
-       → Config → Save → DomainData → GlobalSave
+Assets → StartupContentPreload → Pooling → Players → Communication → Statistics
+       → Teleport → Config → Save → DomainData → GlobalSave
 ```
 
 `Assets` один раз индексирует только явно заданные статические корни. Сервер
@@ -425,7 +428,7 @@ Assets → StartupContentPreload → Pooling → Players → Communication
 независимых провайдеров:
 
 ```text
-Wallet → project providers → Version (checkpoint commit-provider)
+Wallet → Statistics → project providers → Version (checkpoint commit-provider)
 ```
 
 `SaveModule` не знает, что означает глобальный, сессионный или слотовый слой
@@ -482,6 +485,7 @@ docs/
 ├── IntegrationTesting.md             отдельное интеграционное окружение
 ├── Logger.md                         формат и гарантии журналирования
 ├── ResourceManagement.md             пулы, адаптеры, lease и очистка
+├── Statistics.md                     snapshots, факты, retention и client reads
 ├── Signal.md                         локальные события и lifecycle подключений
 └── UserDataMigrations.md             миграции пользовательских сохранений
 .agents/rules/                        обязательные правила изменения проекта
@@ -619,6 +623,20 @@ persistent memento хранит `IsInitialized`, поэтому стартова
 safe integers не выше `WalletConfig.MaxBalance` (`2^53 - 1`). Операция, которая
 превысила бы этот предел, завершается с `BalanceLimitExceeded` без изменения
 кошелька.
+
+## Statistics
+
+`StatisticsModule` хранит числовые факты в bounded snapshot-ах `Global`,
+Teleport `Session`, `Place` и проектных типов. Серверные операции применяются
+атомарно ко всем snapshot-ам, чьи frozen-фильтры принимают statistic ID;
+missing reads возвращают `0` без записи. Положительные Wallet-транзакции
+синхронно учитываются как `Wallet.<Currency>.Earned`, а стартовые балансы и
+траты игнорируются.
+
+Persistent provider полностью исключён из общего клиентского save snapshot.
+Клиентский `Services.Statistics` читает только текущие built-in snapshot/value
+через deny-by-default проекцию из `statistics_config`; mutation API отсутствует.
+Полный контракт: [docs/Statistics.md](docs/Statistics.md).
 
 ## Настройка сохранения
 

@@ -127,7 +127,8 @@ The server permits only one snapshot request per player at a time, applies a
 cooldown between attempts, and validates the complete response envelope against
 an explicit node budget and the separate
 `MaxSnapshotNetworkEstimatedBytes` network cap. The current 256 KiB estimate is
-well above the template's Version-plus-Wallet snapshot and ordinary 64 KiB
+well above the template's Version-plus-Wallet snapshot (the private Statistics
+provider is omitted) and ordinary 64 KiB
 batch cap, while remaining independent of the much larger DataStore soft
 serialization limit. An oversized response returns `SnapshotTooLarge` before
 `BeginSnapshot`, so it does not change epoch, clear the queue, or strand the
@@ -167,6 +168,12 @@ snapshot byte and node limits.
 Teleport State queue failure calls the communication recovery boundary
 explicitly; backpressure collapse and client handler failure use the same
 replacement path.
+
+Statistics current-state reads use the same validated request transport but
+are not part of the global save baseline. Only built-in snapshot types are
+accepted, the server applies a code-reviewed statistic/metadata projection, and
+each response is measured below the configured Statistics response cap. There
+is no generic client Statistics mutation request.
 
 ## Lifecycle
 

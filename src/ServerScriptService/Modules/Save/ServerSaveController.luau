@@ -86,6 +86,12 @@ function ServerSaveController.new(config: {
 	for _, provider in config.Providers do
 		assert(typeof(provider.Id) == "string" and provider.Id ~= "", "Save provider Id required")
 		assert(providersById[provider.Id] == nil, `Duplicate save provider '{provider.Id}'`)
+		assert(
+			provider.ClientSnapshotPolicy == nil
+				or provider.ClientSnapshotPolicy == "Include"
+				or provider.ClientSnapshotPolicy == "Omit",
+			`Save provider '{provider.Id}' has an invalid ClientSnapshotPolicy`
+		)
 		providersById[provider.Id] = provider
 	end
 
@@ -209,14 +215,16 @@ function ServerSaveController:ApplyMemento(player: Player, document: any)
 	source.Providers = if typeof(source.Providers) == "table" then source.Providers else {}
 	source.Metadata = if typeof(source.Metadata) == "table" then source.Metadata else createDocument().Metadata
 
-	local createdDefault = false
+	local preparedDocumentChanged = false
 	local targetValues = {}
 	for _, provider in self._providers do
-		if source.Providers[provider.Id] == nil then
-			createdDefault = true
+		local storedEnvelope = source.Providers[provider.Id]
+		local data = self:_prepareProviderData(provider, storedEnvelope, player)
+		local preparedEnvelope = self:_makeProviderEnvelope(provider, data)
+		if not TableUtil.deepEqual(storedEnvelope, preparedEnvelope) then
+			preparedDocumentChanged = true
 		end
-		local data = self:_prepareProviderData(provider, source.Providers[provider.Id], player)
-		source.Providers[provider.Id] = self:_makeProviderEnvelope(provider, data)
+		source.Providers[provider.Id] = preparedEnvelope
 		targetValues[provider] = data
 	end
 
@@ -284,7 +292,7 @@ function ServerSaveController:ApplyMemento(player: Player, document: any)
 			error("Previous values were already captured")
 		end,
 		Stop = function(provider)
-			provider:Stop(player)
+			provider:Stop(player, wasRunning)
 		end,
 		SetMemento = function(provider, value)
 			provider:SetMemento(player, TableUtil.deepCopy(value))
@@ -314,7 +322,7 @@ function ServerSaveController:ApplyMemento(player: Player, document: any)
 
 	runtime.Running = true
 	runtime.State = "Loaded"
-	if createdDefault then
+	if preparedDocumentChanged then
 		runtime.Document.Revision += 1
 		runtime.Dirty = true
 	end
@@ -533,16 +541,27 @@ function ServerSaveController:_captureDirty(player: Player, runtime: Runtime): (
 		return false, tostring(captureError)
 	end
 
+	local changed = false
 	for providerId, envelope in capturedEnvelopes do
-		runtime.Document.Providers[providerId] = envelope
+		if not TableUtil.deepEqual(runtime.Document.Providers[providerId], envelope) then
+			runtime.Document.Providers[providerId] = envelope
+			changed = true
+		end
 	end
 
-	if next(capturedEnvelopes) ~= nil then
+	if changed then
 		runtime.Document.Revision += 1
 		runtime.Document.Metadata.UpdatedAt = os.time()
 		runtime.Dirty = true
 	end
 	return true, nil
+end
+
+function ServerSaveController:_captureAll(player: Player, runtime: Runtime): (boolean, string?)
+	for _, provider in self._providers do
+		runtime.DirtyProviders[provider.Id] = true
+	end
+	return self:_captureDirty(player, runtime)
 end
 
 function ServerSaveController:FlushDirty(player: Player): (boolean, string?)
@@ -570,6 +589,9 @@ function ServerSaveController:BuildSnapshot(player: Player)
 
 	local providers = {}
 	for _, provider in self._providers do
+		if provider.ClientSnapshotPolicy == "Omit" then
+			continue
+		end
 		local envelope = runtime.Document.Providers[provider.Id]
 		if envelope == nil then
 			continue
@@ -848,6 +870,17 @@ function ServerSaveController:Close(player: Player, saveBeforeClose: boolean?, o
 		end
 
 		local shouldSave = saveBeforeClose ~= false and (runtime.State == "Loaded" or runtime.Running)
+		if shouldSave then
+			local captured, captureError = self:_captureAll(player, runtime)
+			if not captured then
+				runtime.State = "Loaded"
+				return {
+					Ok = false,
+					Code = "CaptureFailed",
+					Error = captureError or "Close capture failed",
+				}
+			end
+		end
 		runtime.State = "Closing"
 
 		local saveResult = { Ok = true, Revision = runtime.Document.Revision }

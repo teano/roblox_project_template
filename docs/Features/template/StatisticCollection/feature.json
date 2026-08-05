@@ -1,34 +1,42 @@
 {
-  "schemaVersion": 1,
-  "id": "TF-0003",
-  "slug": "statistic-collection",
-  "title": "Statistic Collection",
-  "status": "planned",
-  "activity": "none",
-  "branch": null,
-  "baseCommit": null,
-  "startedAt": null,
-  "completedAt": null,
-  "updatedAt": "2026-08-03T09:27:54Z",
-  "activeSessionId": null,
-  "sessions": [
-    {
-      "threadId": "019fc6b9-64b0-70b0-9fb1-b3f1767cea01",
-      "hostId": "local",
-      "role": "requirements-discovery",
-      "startedAt": "2026-08-03T08:24:26Z",
-      "endedAt": "2026-08-03T09:27:54Z",
-      "startCommit": null,
-      "endCommit": null,
-      "outcome": "historical",
-      "summary": "Initial requirements discovery task; its generated working document was intentionally removed."
-    }
-  ],
-  "blockers": [
-    "Product requirements must be regenerated and approved before implementation.",
-    "Technical specification is not available."
-  ],
-  "artifacts": [],
-  "verification": null,
-  "recoveryLog": []
+    "schemaVersion":  1,
+    "id":  "TF-0003",
+    "slug":  "statistic-collection",
+    "title":  "Statistic Collection",
+    "status":  "ready",
+    "activity":  "none",
+    "branch":  "main",
+    "baseCommit":  "ec70a72b61912bd81e68d1ed3963282d74573651",
+    "startedAt":  null,
+    "completedAt":  "2026-08-05T10:28:08.0819500+00:00",
+    "updatedAt":  "2026-08-05T10:28:08.0819500+00:00",
+    "activeSessionId":  null,
+    "sessions":  [
+                     {
+                         "threadId":  "019fc6b9-64b0-70b0-9fb1-b3f1767cea01",
+                         "hostId":  "local",
+                         "role":  "requirements-discovery",
+                         "startedAt":  "2026-08-03T08:24:26Z",
+                         "endedAt":  "2026-08-05T10:28:08.0761640+00:00",
+                         "startCommit":  null,
+                         "endCommit":  "ec70a72b61912bd81e68d1ed3963282d74573651",
+                         "outcome":  "completed",
+                         "summary":  "Delivered server-authoritative bounded Statistics snapshots with Global, Session, Place, and project-defined custom lifecycles; atomic operations and EventId deduplication; Wallet earned-currency adapter; Save and Teleport continuity; deny-by-default client reads; native statistics_config; documentation and ADR-0035. Published operator-assisted E2E completed 7 joins and 6 teleports with one continuous Session and monotonic Place history, followed by verified safe teardown."
+                     }
+                 ],
+    "blockers":  [
+
+                 ],
+    "artifacts":  [
+                      "product-requirements.md",
+                      "technical-specification.md"
+                  ],
+    "verification":  {
+                         "completedAt":  "2026-08-05T10:28:08.0819500+00:00",
+                         "head":  "ec70a72b61912bd81e68d1ed3963282d74573651",
+                         "summary":  "Pipeline ready=true with 39/39 coverage and exact revisions composite 8c4e65cdcc1b1369564cf685b906fd1b82ea2c5fedfcf025353e11114f185f4c, product 26e555ce9a2d322a1ba040cb69537c83cb6b8b2e2ce67dfb0bbadf1d78021382, evidence 877512b1574d1289e622196ae9554b0537299f6696c6ee8865d821b486daff27. Studio: Statistics 30/30, ConfigCatalog 11/11, Teleport 30/30, System 20/20, ProductionIntegration 51/51, ProductionReadiness 35/35, AllTests 206/206 across 10 suites. Clean production Play: 13/13 server commands, 11/11 client commands, server ConfigCount=3 Generation=1, client ConfigCount=1 Generation=1, ClientInitialized=true, no non-asset warnings/errors. Published E2E: 7 joins/6 teleports, exact Session continuity and A/B/A/B/A/B/A Place history verified in DataStore; primary and destination validation disabled after teardown. Rojo build, feature workflow, generated index, repository layout, and git diff checks passed. Formal RealDataStoreSmokeTest was not run because its dedicated opt-in integration environment was absent; production DataStore state was read-only verified during the published E2E."
+                     },
+    "recoveryLog":  [
+
+                    ]
 }

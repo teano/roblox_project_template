@@ -17,6 +17,7 @@ local ExperienceConfigCatalog = require(ServerScriptService.Modules.Config.Exper
 local ServerConfigManifest = require(ServerScriptService.Modules.Config.ServerConfigManifest)
 local ServerGlobalSaveConfigCodec = require(ServerScriptService.Modules.Config.Codecs.GlobalSaveConfigCodec)
 local WalletConfigCodec = require(ServerScriptService.Modules.Config.Codecs.WalletConfigCodec)
+local StatisticsConfigCodec = require(ServerScriptService.Modules.Config.Codecs.StatisticsConfigCodec)
 local TestHarness = require(script.Parent.TestHarness)
 
 local ConfigCatalogTestRunner = {}
@@ -64,6 +65,40 @@ local function makeCommunication()
 				Handle = handler,
 			}
 		end,
+	}
+end
+
+local function statisticsConfig()
+	return {
+		snapshotTypes = {
+			Global = { retention = 0, filter = { mode = "AllowAllExcept", statisticIds = {} } },
+			Session = { retention = 4, filter = { mode = "AllowAllExcept", statisticIds = {} } },
+			Place = { retention = 8, filter = { mode = "AllowAllExcept", statisticIds = {} } },
+		},
+		publicProjection = {
+			Global = { statisticIds = {}, metadataKeys = {} },
+			Session = { statisticIds = {}, metadataKeys = {} },
+			Place = { statisticIds = {}, metadataKeys = {} },
+		},
+		limits = {
+			maxSnapshotTypes = 16,
+			maxRetentionPerType = 32,
+			maxStatisticIdsPerSnapshot = 256,
+			maxStatisticIdLength = 64,
+			maxSnapshotTypeLength = 48,
+			maxSnapshotEncodedBytes = 24_576,
+			maxMetadataDepth = 6,
+			maxMetadataNodes = 128,
+			maxMetadataEncodedBytes = 4_096,
+			maxMetadataKeyLength = 64,
+			maxMetadataStringLength = 256,
+			maxDedupSources = 16,
+			maxEventIdsPerSource = 64,
+			maxProviderEncodedBytes = 524_288,
+			maxClientResponseEstimatedBytes = 49_152,
+			maxHistoryReadCount = 32,
+		},
+		saveRequestCooldownSeconds = 30,
 	}
 end
 
@@ -208,7 +243,7 @@ function ConfigCatalogTestRunner.runAll()
 		snapshot.UpdateAvailable:Destroy()
 	end)
 
-	test("production manifests decode Wallet and expose only GlobalSave client settings", function()
+	test("production manifests decode Wallet and Statistics while exposing only GlobalSave client settings", function()
 		local snapshot = makeSnapshot({
 			wallet_config = {
 				startingBalances = {
@@ -222,6 +257,7 @@ function ConfigCatalogTestRunner.runAll()
 				snapshotRequestAttempts = 20,
 				snapshotRetryDelaySeconds = 0.5,
 			},
+			statistics_config = statisticsConfig(),
 		})
 		local catalog = ExperienceConfigCatalog.new({
 			ConfigService = {
@@ -236,12 +272,14 @@ function ConfigCatalogTestRunner.runAll()
 		})
 		catalog:Initialize()
 		assertEqual(catalog:GetRequired("Wallet").StartingBalances.Coins, 100)
+		assertEqual(catalog:GetRequired("Statistics").SnapshotTypes.Place.Retention, 8)
 		assertEqual(catalog:GetRequired("GlobalSave").AutoSaveIntervalSeconds, 60)
 
 		local bundle = catalog:GetRequired("GlobalSave")
 		assertEqual(bundle.SnapshotRequestAttempts, 20)
 		local clientBundle = catalog:GetClientBundle("Bootstrap")
 		assertEqual(clientBundle.Configs.Wallet, nil, "Wallet startup config must remain server-only")
+		assertEqual(clientBundle.Configs.Statistics, nil, "Statistics policy must remain server-only")
 		assertEqual(clientBundle.Configs.GlobalSave.AutoSaveIntervalSeconds, nil)
 
 		local client = ClientConfigCatalog.new({
@@ -262,6 +300,32 @@ function ConfigCatalogTestRunner.runAll()
 		snapshot.UpdateAvailable:Destroy()
 	end)
 
+	test("Statistics config cross-validates mandatory identifiers and aggregate dedupe capacity", function()
+		local safe = statisticsConfig()
+		local safeOk, safeModel = StatisticsConfigCodec.decode(safe)
+		assertTrue(safeOk, "practical Statistics capacity was rejected")
+		assertEqual(safeModel.Limits.MaxDedupSources, 16)
+		assertEqual(safeModel.Limits.MaxEventIdsPerSource, 64)
+
+		local identifierBoundary = statisticsConfig()
+		identifierBoundary.limits.maxStatisticIdLength = 36
+		assertTrue(StatisticsConfigCodec.decode(identifierBoundary), "canonical Wallet GUID boundary was rejected")
+		identifierBoundary.limits.maxStatisticIdLength = 35
+		assertEqual(StatisticsConfigCodec.decode(identifierBoundary), false)
+
+		local impossibleLedger = statisticsConfig()
+		impossibleLedger.limits.maxDedupSources = 32
+		impossibleLedger.limits.maxEventIdsPerSource = 512
+		assertEqual(StatisticsConfigCodec.decode(impossibleLedger), false)
+
+		local disabledCoalescing = statisticsConfig()
+		disabledCoalescing.saveRequestCooldownSeconds = 0
+		assertEqual(StatisticsConfigCodec.decode(disabledCoalescing), false)
+		local minimumCoalescing = statisticsConfig()
+		minimumCoalescing.saveRequestCooldownSeconds = 1
+		assertTrue(StatisticsConfigCodec.decode(minimumCoalescing), "safe minimum cooldown was rejected")
+	end)
+
 	test("production Wallet config rejects unknown currencies", function()
 		local snapshot = makeSnapshot({
 			wallet_config = {
@@ -277,6 +341,7 @@ function ConfigCatalogTestRunner.runAll()
 				snapshotRequestAttempts = 20,
 				snapshotRetryDelaySeconds = 0.5,
 			},
+			statistics_config = statisticsConfig(),
 		})
 		local catalog = ExperienceConfigCatalog.new({
 			ConfigService = {

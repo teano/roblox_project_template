@@ -1,15 +1,15 @@
 # Feature handoff
 
-- Feature: `TF-0003 Statistic Collection`
-- Status: `planned / none`
+- Feature: TF-0003 Statistic Collection
+- Status: ready / none
+- Session: 019fc6b9-64b0-70b0-9fb1-b3f1767cea01
+- Head: ec70a72b61912bd81e68d1ed3963282d74573651
+- Updated: 2026-08-05T10:28:08.0869992+00:00
 
 ## Summary
 
-An initial requirements-discovery task is linked. Its generated working
-document was intentionally removed and is not restored by the registry
-backfill.
+Delivered server-authoritative bounded Statistics snapshots with Global, Session, Place, and project-defined custom lifecycles; atomic operations and EventId deduplication; Wallet earned-currency adapter; Save and Teleport continuity; deny-by-default client reads; native statistics_config; documentation and ADR-0035. Published operator-assisted E2E completed 7 joins and 6 teleports with one continuous Session and monotonic Place history, followed by verified safe teardown.
 
 ## Next confirmed step
 
-Invoke `$feature-start`, regenerate and approve product requirements, then
-produce the technical specification before implementation.
+None; feature is ready.

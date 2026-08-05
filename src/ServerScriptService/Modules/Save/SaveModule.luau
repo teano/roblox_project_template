@@ -5,9 +5,14 @@ local SaveControllerBuilder = require(script.Parent.SaveControllerBuilder)
 local SaveModule = {}
 SaveModule.__index = SaveModule
 
-function SaveModule.new()
+function SaveModule.new(options: { OnControllerRemoving: ((any) -> ())? }?)
+	assert(
+		options == nil or options.OnControllerRemoving == nil or typeof(options.OnControllerRemoving) == "function",
+		"OnControllerRemoving must be a function"
+	)
 	return setmetatable({
 		_controllers = {} :: { [string]: any },
+		_onControllerRemoving = if options then options.OnControllerRemoving else nil,
 		_initialized = false,
 	}, SaveModule)
 end
@@ -35,6 +40,9 @@ function SaveModule:RemoveSaveController(controllerOrId: any, saveBeforeClose: b
 	if controller == nil then
 		return false
 	end
+	if self._onControllerRemoving ~= nil then
+		self._onControllerRemoving(controller)
+	end
 	controller:Destroy(saveBeforeClose)
 	self._controllers[id] = nil
 	return true
@@ -42,6 +50,9 @@ end
 
 function SaveModule:RemoveAllSaveControllers(saveBeforeClose: boolean?)
 	for id, controller in self._controllers do
+		if self._onControllerRemoving ~= nil then
+			self._onControllerRemoving(controller)
+		end
 		controller:Destroy(saveBeforeClose)
 		self._controllers[id] = nil
 	end

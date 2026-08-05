@@ -32,6 +32,11 @@ local VersionModule = require(Modules.Version.VersionModule)
 local MigrationModule = require(Modules.Migration.MigrationModule)
 local MigrationManifest = require(Modules.Migration.MigrationManifest)
 local WalletModule = require(Modules.Wallet.WalletModule)
+local StatisticsModule = require(Modules.Statistics.StatisticsModule)
+local WalletStatisticsController = require(Modules.Statistics.WalletStatisticsController)
+local StatisticsRequestController = require(Modules.Statistics.StatisticsRequestController)
+local StatisticsClientFactController = require(Modules.Statistics.StatisticsClientFactController)
+local StatisticsClientFactManifest = require(Modules.Statistics.StatisticsClientFactManifest)
 
 local Commands = script.Parent.Commands
 local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
@@ -44,6 +49,7 @@ local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
 local MigrationInitializationCommand = require(Commands.MigrationInitializationCommand)
 local DomainDataInitializationCommand = require(Commands.DomainDataInitializationCommand)
+local StatisticsInitializationCommand = require(Commands.StatisticsInitializationCommand)
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
 local PersistenceScheduleInitializationCommand = require(Commands.PersistenceScheduleInitializationCommand)
 
@@ -90,12 +96,16 @@ local configCatalog = ExperienceConfigCatalog.new({
 	Definitions = ServerConfigManifest.Definitions,
 	ClientBundles = ServerConfigManifest.ClientBundles,
 })
-local saveModule = SaveModule.new()
+local autoSaveModule = AutoSaveModule.new()
+local saveModule = SaveModule.new({
+	OnControllerRemoving = function(controller)
+		autoSaveModule:UnregisterController(controller)
+	end,
+})
 local baseStorage = if StorageConfig.UseMemoryStorage
 	then MemoryStorage.new()
 	else DataStoreStorage.new(StorageConfig)
 local storage = SessionLockingStorage.new(baseStorage, StorageConfig)
-local autoSaveModule = AutoSaveModule.new()
 local sessionLockModule = SessionLockModule.new(StorageConfig.LockRefreshIntervalSeconds)
 local shutdownSaveCoordinator = ShutdownSaveCoordinator.new({
 	BudgetSeconds = StorageConfig.ShutdownBudgetSeconds,
@@ -107,6 +117,25 @@ local migrationModule = MigrationModule.new(MigrationManifest.Controllers, {
 	MaxSerializedBytes = StorageConfig.SoftSerializedBytesLimit,
 })
 local walletModule = WalletModule.new(communication, configCatalog)
+local statisticsModule = StatisticsModule.new({
+	Config = configCatalog,
+	Teleport = teleportModule,
+	AutoSave = autoSaveModule,
+	PlaceId = game.PlaceId,
+})
+local walletStatisticsController = WalletStatisticsController.new({
+	Wallet = walletModule,
+	Statistics = statisticsModule,
+})
+local statisticsRequestController = StatisticsRequestController.new({
+	Statistics = statisticsModule,
+	Communication = communication,
+})
+local statisticsClientFactController = StatisticsClientFactController.new({
+	Statistics = statisticsModule,
+	Communication = communication,
+	Definitions = StatisticsClientFactManifest,
+})
 
 local services = {
 	Assets = assetRegistry,
@@ -124,6 +153,7 @@ local services = {
 	Version = versionModule,
 	Migration = migrationModule,
 	Wallet = walletModule,
+	Statistics = statisticsModule,
 }
 
 local commands = {
@@ -134,6 +164,12 @@ local commands = {
 	TeleportInitializationCommand.new(teleportModule),
 	TeleportValidationPadInitializationCommand.new(teleportValidationPad),
 	ConfigInitializationCommand.new(configCatalog),
+	StatisticsInitializationCommand.new({
+		Statistics = statisticsModule,
+		WalletController = walletStatisticsController,
+		RequestController = statisticsRequestController,
+		ClientFactController = statisticsClientFactController,
+	}),
 	SaveInitializationCommand.new(saveModule),
 	MigrationInitializationCommand.new(migrationModule),
 	DomainDataInitializationCommand.new(versionModule, walletModule),
@@ -151,6 +187,7 @@ local commands = {
 		ShutdownSaveCoordinator = shutdownSaveCoordinator,
 		VersionModule = versionModule,
 		WalletModule = walletModule,
+		StatisticsModule = statisticsModule,
 	}),
 	PersistenceScheduleInitializationCommand.new(autoSaveModule, sessionLockModule, playersModule),
 }

@@ -46,6 +46,7 @@ The template currently requires:
 |---|---|---|
 | `wallet_config` | `JSON` | one-time starting balances for a new Wallet |
 | `global_save_config` | `JSON` | autosave, snapshot timeout, and client retry policy |
+| `statistics_config` | `JSON` | statistic snapshot types, retention, projection, limits, and save cooldown |
 
 For each config:
 

@@ -62,19 +62,21 @@ function Command.new(deps: {
 	ShutdownSaveCoordinator: any,
 	VersionModule: any,
 	WalletModule: any,
+	StatisticsModule: any,
 	Logger: any?,
 })
 	return setmetatable({
 		Id = "GlobalSave",
-		DependsOn = { "DomainData", "Teleport" },
+		DependsOn = { "DomainData", "Teleport", "Statistics" },
 		_deps = deps,
 		_logger = deps.Logger or Logger.new("GlobalSave", "info"),
 	}, Command)
 end
 
-function Command.GetOrderedProviders(walletModule: any, versionModule: any): { any }
+function Command.GetOrderedProviders(walletModule: any, statisticsModule: any, versionModule: any): { any }
 	return {
 		walletModule,
+		statisticsModule,
 		versionModule,
 	}
 end
@@ -186,10 +188,11 @@ function Command:Initialize(context: any)
 			return `{deps.StorageConfig.KeyPrefix}{player.UserId}`
 		end)
 		:WithSoftSerializedBytesLimit(deps.StorageConfig.SoftSerializedBytesLimit)
-	for _, provider in Command.GetOrderedProviders(deps.WalletModule, deps.VersionModule) do
+	for _, provider in Command.GetOrderedProviders(deps.WalletModule, deps.StatisticsModule, deps.VersionModule) do
 		builder:WithSaveProvider(provider)
 	end
 	local controller = builder:Build()
+	deps.StatisticsModule:BindSaveController(controller)
 
 	context.Services.GlobalSaveController = controller
 	deps.AutoSaveModule:RegisterController(controller, {
@@ -268,6 +271,14 @@ function Command:Initialize(context: any)
 			end
 		end)
 	end, function(player)
+		local prepared = deps.StatisticsModule:PrepareForProfileClose(player)
+		if not prepared.Ok and prepared.Code ~= "NotLoaded" then
+			self._logger:Error("statistics_close_preparation_failed", {
+				UserId = player.UserId,
+				Code = prepared.Code,
+			})
+			return
+		end
 		local result = controller:Close(player, true)
 		if not result.Ok then
 			self._logger:Error("player_close_failed", {
@@ -281,11 +292,25 @@ function Command:Initialize(context: any)
 	game:BindToClose(function()
 		deps.AutoSaveModule:Stop()
 		deps.SessionLockModule:Stop()
-		local summary = deps.ShutdownSaveCoordinator:ClosePlayers(controller, deps.PlayersModule:GetPlayers())
-		if summary.TimedOut or summary.Failed > 0 then
+		local preparedPlayers = {}
+		local preparationFailures = 0
+		for _, player in deps.PlayersModule:GetPlayers() do
+			local prepared = deps.StatisticsModule:PrepareForProfileClose(player)
+			if prepared.Ok or prepared.Code == "NotLoaded" then
+				table.insert(preparedPlayers, player)
+			else
+				preparationFailures += 1
+				self._logger:Error("statistics_shutdown_preparation_failed", {
+					UserId = player.UserId,
+					Code = prepared.Code,
+				})
+			end
+		end
+		local summary = deps.ShutdownSaveCoordinator:ClosePlayers(controller, preparedPlayers)
+		if summary.TimedOut or summary.Failed > 0 or preparationFailures > 0 then
 			self._logger:Error("shutdown_save_incomplete", {
 				Succeeded = summary.Succeeded,
-				Failed = summary.Failed,
+				Failed = summary.Failed + preparationFailures,
 				Unfinished = summary.Unfinished,
 			})
 		end
