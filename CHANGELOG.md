@@ -15,6 +15,31 @@ Git-теги описывают версии самого шаблона. Они
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-08-06
+
+### Added
+
+- Добавлен явно вызываемый repository-local skill `$csv-to-luau` для
+  детерминированного создания и полной синхронизации чистых Luau data-модулей
+  из UTF-8 CSV внутри разрешённых Rojo roots.
+- Добавлены строгий CSV-парсер, определение разделителя и типов, режимы array и
+  dictionary, typed key column, bounded preview с diff, schema, samples и
+  SHA-256 hashes, а также безопасный разбор существующего data-модуля.
+- Ячейки с comma-separated значениями автоматически преобразуются в
+  `array<string>` и рендерятся как Luau-массивы. Возможные массивы с
+  разделителями semicolon, pipe, tab или newline выводятся как ограниченные
+  кандидаты и требуют явного решения для каждой колонки; колонку можно оставить
+  строкой.
+
+### Security
+
+- Запись ограничена текущим Git/Rojo repository, отклоняет executable targets,
+  path traversal, symlink/reparse redirects и подмену source/target/parent,
+  проверяет три preview hash и выполняет same-directory atomic replace.
+- Добавлены лимиты размера, структуры, памяти, diagnostics и JSON-ответа;
+  конвертер использует только Python standard library и не требует сети или
+  внешних runtime-зависимостей.
+
 ## [0.15.0] - 2026-08-05
 
 ### Added
@@ -211,7 +236,8 @@ Git-теги описывают версии самого шаблона. Они
 - Добавлены Rojo project mapping, канонические agent rules, ADR и первые
   системные и production integration tests.
 
-[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/teano/roblox_project_template/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/teano/roblox_project_template/compare/v0.14.1...v0.15.0
 [0.14.1]: https://github.com/teano/roblox_project_template/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/teano/roblox_project_template/compare/v0.13.0...v0.14.0
