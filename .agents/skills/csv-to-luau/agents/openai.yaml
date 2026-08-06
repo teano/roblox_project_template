@@ -1,0 +1,7 @@
+interface:
+  display_name: "CSV to Luau"
+  short_description: "Convert CSV into safe Luau data modules"
+  default_prompt: "Use $csv-to-luau to convert an attached or local CSV into a repository-owned Luau data module."
+
+policy:
+  allow_implicit_invocation: false

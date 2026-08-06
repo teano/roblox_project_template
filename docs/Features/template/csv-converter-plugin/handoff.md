@@ -1,14 +1,15 @@
 # Feature handoff
 
-- Feature: TF-0005 CSV-конвертер плагин
-- Status: in_progress / active
+- Feature: TF-0006 CSV-конвертер плагин
+- Status: ready / none
+- Session: 019fd6eb-0a61-7e52-9703-217cdc6bb289
+- Head: 7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e
+- Updated: 2026-08-06T13:25:00.6332648+00:00
 
 ## Summary
 
-Started the CSV converter plugin feature. Product requirements and the
-technical specification do not exist yet, so source implementation is blocked.
+Добавлено распознавание CSV-ячеек как Luau-массивов: comma-массивы определяются автоматически, а semicolon/pipe/tab/newline предлагаются как bounded кандидаты с явным выбором разделителя.
 
 ## Next confirmed step
 
-Run the approved requirements workflow, then create and approve the technical
-specification before editing source code.
+None; feature is ready.
