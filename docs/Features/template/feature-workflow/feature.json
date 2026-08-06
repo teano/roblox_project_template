@@ -1,58 +1,30 @@
 {
-    "schemaVersion":  1,
-    "id":  "TF-0004",
-    "slug":  "feature-workflow",
-    "title":  "Feature Work Management",
-    "status":  "ready",
-    "activity":  "none",
-    "branch":  "main",
-    "baseCommit":  "94b21023f4006fc7d841605fbcb6c793ba08d00b",
-    "startedAt":  "2026-08-04T17:53:23.0299924+00:00",
-    "completedAt":  "2026-08-04T18:47:54.5642163+00:00",
-    "updatedAt":  "2026-08-04T18:47:54.5642163+00:00",
-    "activeSessionId":  null,
-    "sessions":  [
-                     {
-                         "threadId":  "019fcdbe-a7b7-7840-ad97-4574e314b10b",
-                         "hostId":  "local",
-                         "role":  "implementation",
-                         "startedAt":  "2026-08-04T17:53:23.0372244+00:00",
-                         "endedAt":  "2026-08-04T18:07:04.7079287+00:00",
-                         "startCommit":  "94b21023f4006fc7d841605fbcb6c793ba08d00b",
-                         "endCommit":  "94b21023f4006fc7d841605fbcb6c793ba08d00b",
-                         "outcome":  "completed",
-                         "summary":  "Implemented explicit start, continue, pause, and finish chat workflows with canonical manifests, synchronized dashboard, branch and writer exclusion, bounded context recovery, Codex task identity hooks, historical feature backfill, and no Git hooks."
-                     },
-                     {
-                         "threadId":  "019fce05-16d2-7060-b6fa-c9aa9a6946cb",
-                         "hostId":  "local",
-                         "role":  "implementation",
-                         "startedAt":  "2026-08-04T18:28:45.4011493+00:00",
-                         "endedAt":  "2026-08-04T18:47:54.5586660+00:00",
-                         "startCommit":  "d2494cce322bc0835a4d04e09ea54707e76f4799",
-                         "endCommit":  "d2494cce322bc0835a4d04e09ea54707e76f4799",
-                         "outcome":  "completed",
-                         "summary":  "Separated template and project feature registries while preserving one lifecycle engine, cross-namespace branch exclusion, and independent upstream ownership."
-                     }
-                 ],
-    "blockers":  [
-
-                 ],
-    "artifacts":  [
-                      "product-requirements.md",
-                      "technical-specification.md"
-                  ],
-    "verification":  {
-                         "completedAt":  "2026-08-04T18:47:54.5642163+00:00",
-                         "head":  "d2494cce322bc0835a4d04e09ea54707e76f4799",
-                         "summary":  "Passed isolated template and derived feature workflow tests; feature, dashboard, and repository layout validators; four skill validations; PowerShell, JSON, and TOML parsing; git diff check; temporary Rojo build. Studio was not required because Roblox runtime source, Rojo mappings, and the DataModel were unchanged."
-                     },
-    "recoveryLog":  [
-                        {
-                            "at":  "2026-08-04T18:28:45.3869588+00:00",
-                            "sessionId":  "019fce05-16d2-7060-b6fa-c9aa9a6946cb",
-                            "reason":  "User requested separate template and project feature registries.",
-                            "previousStatus":  "ready"
-                        }
-                    ]
+  "schemaVersion": 2,
+  "id": "TF-0004",
+  "slug": "feature-workflow",
+  "title": "Feature Work Management",
+  "status": "ready",
+  "activity": "none",
+  "branch": "main",
+  "baseCommit": "94b21023f4006fc7d841605fbcb6c793ba08d00b",
+  "startedAt": "2026-08-04T20:53:23.0299924+03:00",
+  "completedAt": "2026-08-04T21:47:54.5642163+03:00",
+  "updatedAt": "2026-08-04T21:47:54.5642163+03:00",
+  "blockers": [],
+  "artifacts": [
+    "product-requirements.md",
+    "technical-specification.md"
+  ],
+  "verification": {
+    "completedAt": "2026-08-04T21:47:54.5642163+03:00",
+    "head": "d2494cce322bc0835a4d04e09ea54707e76f4799",
+    "summary": "Passed isolated template and derived feature workflow tests; feature, dashboard, and repository layout validators; four skill validations; PowerShell, JSON, and TOML parsing; git diff check; temporary Rojo build. Studio was not required because Roblox runtime source, Rojo mappings, and the DataModel were unchanged."
+  },
+  "recoveryLog": [
+    {
+      "at": "2026-08-04T21:28:45.3869588+03:00",
+      "reason": "User requested separate template and project feature registries.",
+      "previousStatus": "ready"
+    }
+  ]
 }

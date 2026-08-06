@@ -5,6 +5,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+Import-Module (Join-Path $PSScriptRoot "FeatureWorkflow.psm1") -Force -DisableNameChecking
 
 $repositoryRoot = if ([string]::IsNullOrWhiteSpace($TargetRepositoryRoot)) {
 	(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
@@ -595,8 +596,12 @@ Test-AdrIndex `
 	-IndexPath (Join-Path $templateDirectory "README.md") `
 	-IndexRequired $true
 
-$remoteNames = @(& git -C $repositoryRoot remote)
-$isDerivedRepository = $remoteNames -contains "upstream"
+$isDerivedRepository = $false
+try {
+	$isDerivedRepository = (Get-RepositoryRole -RepositoryRoot $repositoryRoot) -eq "project"
+} catch {
+	Add-Failure $_.Exception.Message
+}
 if ($isDerivedRepository) {
 	Test-AdrIndex `
 		-ScopeName "Project" `

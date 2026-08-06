@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "TF-0002",
   "slug": "players-module",
   "title": "Players Module Production Readiness",
@@ -10,31 +10,6 @@
   "startedAt": "2026-08-04T06:20:39Z",
   "completedAt": "2026-08-04T17:02:13Z",
   "updatedAt": "2026-08-04T17:02:13Z",
-  "activeSessionId": null,
-  "sessions": [
-    {
-      "threadId": "019fcb6e-6b46-7d62-9d40-ef826b784f99",
-      "hostId": "local",
-      "role": "audit",
-      "startedAt": "2026-08-04T06:20:39Z",
-      "endedAt": "2026-08-04T12:38:22Z",
-      "startCommit": "051674b982f633997ced0d73b6bcf601c37aa861",
-      "endCommit": null,
-      "outcome": "historical",
-      "summary": "Performed the first production-readiness audit."
-    },
-    {
-      "threadId": "019fcce8-a3ac-76c0-a8c9-dcfb47aa1188",
-      "hostId": "local",
-      "role": "evidence-review",
-      "startedAt": "2026-08-04T13:13:46Z",
-      "endedAt": null,
-      "startCommit": null,
-      "endCommit": "94b21023f4006fc7d841605fbcb6c793ba08d00b",
-      "outcome": "historical",
-      "summary": "Linked evidence-recovery task associated with the committed readiness revision."
-    }
-  ],
   "blockers": [],
   "artifacts": [
     "product-requirements.md",

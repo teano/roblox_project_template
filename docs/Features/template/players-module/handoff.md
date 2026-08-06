@@ -6,8 +6,8 @@
 
 ## Summary
 
-The production-readiness revision is committed. Historical audit and evidence
-tasks are linked without treating their raw transcripts as repository state.
+The production-readiness revision is committed. The worklog preserves the
+historical audit and evidence summaries without requiring raw chat history.
 
 ## Next confirmed step
 

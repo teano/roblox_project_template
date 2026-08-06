@@ -1,7 +1,7 @@
 interface:
   display_name: "Pause Feature"
-  short_description: "Checkpoint and pause active feature work"
-  default_prompt: "Use $feature-pause to checkpoint and pause the active repository-owned feature session."
+  short_description: "Run a user-authorized feature Pause"
+  default_prompt: "Use $feature-pause only after I explicitly ask to checkpoint and pause the active repository-owned feature."
 
 policy:
   allow_implicit_invocation: false

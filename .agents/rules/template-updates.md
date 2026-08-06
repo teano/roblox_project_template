@@ -152,8 +152,9 @@ Project feature manifests, artifacts, and `docs/Features/project/README.md`
 are also project-owned and MUST NOT be replaced, regenerated from template
 features, or added to a project divergence ADR. Incoming template feature
 history applies only under `docs/Features/template/`; its generated dashboard
-must contain only `TF-####` records. After the merge, validate both namespace
-dashboards without rewriting the foreign namespace.
+must contain only `TF-####` records. Project-owned feature history uses
+`F-####` records and remains under `docs/Features/project/`. After the merge,
+validate both namespace dashboards without rewriting the foreign namespace.
 
 ## Required merge report
 

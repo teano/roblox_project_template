@@ -1,7 +1,7 @@
 interface:
   display_name: "Finish Feature"
-  short_description: "Audit, verify, and finish a project feature"
-  default_prompt: "Use $feature-finish to audit, verify, and finish the active repository-owned feature."
+  short_description: "Run a user-authorized feature Finish"
+  default_prompt: "Use $feature-finish only after I explicitly ask to document and close completed feature work."
 
 policy:
   allow_implicit_invocation: false

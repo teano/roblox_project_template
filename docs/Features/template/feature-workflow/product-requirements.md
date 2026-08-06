@@ -1,7 +1,9 @@
 # Feature Work Management — Product Requirements
 
-- Status: Approved
+- Status: Superseded by TF-0007
 - Date: 2026-08-04
+
+Current requirements: [TF-0007 product requirements](../agent-agnostic-feature-workflow/product-requirements.md).
 
 ## Outcome
 

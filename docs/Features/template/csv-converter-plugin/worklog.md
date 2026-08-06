@@ -27,7 +27,6 @@ source implementation.
 ## 2026-08-05T21:12:10.4481466+00:00 — paused
 
 - Feature: TF-0006
-- Session: 019fd36c-b364-7bf3-8667-f4ef4f95afe0
 - Head: 7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e
 
 Created and approved Russian PRD revision 1 for the project-local Codex skill csv-to-luau. Uncommitted changes are limited to the TF-0006 manifest, handoff, worklog, and new PRD. Strict PRD validation and git diff check passed. Feature workflow, index, and layout checks are blocked because TF-0005 and TF-0006 both reserve main. No Rojo build or Studio tests were run because only documentation changed. The technical specification is missing.
@@ -110,7 +109,6 @@ audit.
 ## 2026-08-06T11:14:29.4109788+00:00 — finished
 
 - Feature: TF-0006
-- Session: 019fd3ce-af17-7121-8c68-d748de0f4e44
 - Head: 7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e
 
 Delivered the reviewed four-file csv-to-luau skill with deterministic preview/apply conversion, strict CSV and safe Luau handling, bounded diagnostics, atomic single-writer replacement, and no lock/reconcile coordination protocol.
@@ -263,7 +261,6 @@ blocker was cleared for the final lifecycle transition.
 ## 2026-08-06T13:25:00.6498688+00:00 — finished
 
 - Feature: TF-0006
-- Session: 019fd6eb-0a61-7e52-9703-217cdc6bb289
 - Head: 7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e
 
 Добавлено распознавание CSV-ячеек как Luau-массивов: comma-массивы определяются автоматически, а semicolon/pipe/tab/newline предлагаются как bounded кандидаты с явным выбором разделителя.

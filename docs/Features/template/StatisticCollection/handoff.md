@@ -2,7 +2,6 @@
 
 - Feature: TF-0003 Statistic Collection
 - Status: ready / none
-- Session: 019fc6b9-64b0-70b0-9fb1-b3f1767cea01
 - Head: ec70a72b61912bd81e68d1ed3963282d74573651
 - Updated: 2026-08-05T10:28:08.0869992+00:00
 

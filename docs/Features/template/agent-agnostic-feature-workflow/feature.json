@@ -1,0 +1,37 @@
+{
+    "schemaVersion":  2,
+    "id":  "TF-0007",
+    "slug":  "agent-agnostic-feature-workflow",
+    "title":  "Agent-Agnostic Feature Workflow",
+    "status":  "ready",
+    "activity":  "none",
+    "branch":  "template-feature/tf-0007-agent-agnostic-feature-workflow",
+    "baseCommit":  "ab149070bf8dadaaa2859fa10038d98ef2d20597",
+    "startedAt":  "2026-08-06T20:10:52.0182881+03:00",
+    "completedAt":  "2026-08-06T18:39:30.2864269+00:00",
+    "updatedAt":  "2026-08-06T18:39:30.2864269+00:00",
+    "blockers":  [
+
+                 ],
+    "artifacts":  [
+                      "product-requirements.md",
+                      "technical-specification.md"
+                  ],
+    "verification":  {
+                         "completedAt":  "2026-08-06T18:39:30.2864269+00:00",
+                         "head":  "ab149070bf8dadaaa2859fa10038d98ef2d20597",
+                         "summary":  "Completed before this user-authorized Finish: PowerShell parsing passed; quick_validate passed for all four lifecycle skills; the expanded isolated feature workflow suite passed in 46.8 seconds, including authorization-gate and implicit-invocation regressions; feature workflow validation passed; the all-namespace dashboard sync check passed; repository layout validation passed; git diff --check passed with line-ending warnings only; and a temporary Rojo build passed at 854699 bytes. Studio Play was not run because runtime source, Rojo mappings, bootstrap, networking, save, Players, scene, and DataModel behavior were unchanged. The verified temp build remains outside the repository at C:\\Users\\teano\\AppData\\Local\\Temp\\tf-0007-user-state-authority-20260806-001.rbxlx because host policy rejected deletion."
+                     },
+    "recoveryLog":  [
+                        {
+                            "at":  "2026-08-06T17:46:19.7401732+00:00",
+                            "reason":  "User-authorized independent audit of the derived-project feature pipeline; fix every discovered defect within TF-0007.",
+                            "previousStatus":  "ready"
+                        },
+                        {
+                            "at":  "2026-08-06T18:21:49.1088166+00:00",
+                            "reason":  "User explicitly ordered TF-0007 reopened to enforce that only an explicit user command may change feature lifecycle state.",
+                            "previousStatus":  "ready"
+                        }
+                    ]
+}

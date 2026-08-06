@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-$script:SchemaVersion = 1
+$script:SchemaVersion = 2
 $script:FeatureRootRelative = "docs/Features"
 $script:FeatureNamespaceRoles = @("template", "project")
 $script:IndexBegin = "<!-- feature-index:begin -->"
@@ -130,10 +130,50 @@ function ConvertTo-FeatureSlug {
 function Get-RepositoryRole {
 	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
 	$remotes = (Invoke-FeatureGit -RepositoryRoot $RepositoryRoot -Arguments @("remote")).Output
-	if ($remotes -contains "upstream") {
-		return "project"
+	if ($remotes -notcontains "upstream") {
+		return "template"
 	}
-	return "template"
+
+	$upstreamUrls = Invoke-FeatureGit `
+		-RepositoryRoot $RepositoryRoot `
+		-Arguments @("remote", "get-url", "--all", "upstream")
+	$pointsToTemplate = @(
+		$upstreamUrls.Output | Where-Object {
+			$normalized = ([string]$_).Trim().TrimEnd('/', '\')
+			$normalized = [regex]::Replace($normalized, '\.git$', '', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+			$normalized -match '(?i)(?:^|[/:\\])roblox_project_template$'
+		}
+	).Count -gt 0
+	if (-not $pointsToTemplate) {
+		throw (
+			"Remote 'upstream' exists but does not point to the reusable " +
+			"roblox_project_template repository. Repository role is ambiguous."
+		)
+	}
+	return "project"
+}
+
+function Assert-FeatureRepositoryInitialized {
+	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+
+	if ((Get-RepositoryRole -RepositoryRoot $RepositoryRoot) -ne "project") {
+		return
+	}
+	$requiredPaths = @(
+		"docs/adr/project/README.md",
+		"docs/Features/project/README.md"
+	)
+	$missing = @(
+		$requiredPaths | Where-Object {
+			-not (Test-Path -LiteralPath (Join-Path $RepositoryRoot $_) -PathType Leaf)
+		}
+	)
+	if ($missing.Count -gt 0) {
+		throw (
+			"Derived-project feature work requires completed project initialization. " +
+			"Missing: $($missing -join ', '). Follow .agents/rules/project-initialization.md first."
+		)
+	}
 }
 
 function Get-NextFeatureId {
@@ -142,17 +182,38 @@ function Get-NextFeatureId {
 		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$Role
 	)
 
-	$prefix = if ($Role -eq "template") { "TF" } else { "PF" }
+	$prefix = if ($Role -eq "template") { "TF" } else { "F" }
 	$maximum = 0
 	foreach ($record in Get-FeatureManifests -RepositoryRoot $RepositoryRoot) {
 		if ($record.Namespace -ne $Role) { continue }
 		$id = [string]$record.Manifest.id
-		if ($id -match ("^{0}-(\d{{4}})$" -f $prefix)) {
+		$pattern = if ($Role -eq "template") { '^TF-(\d{4})$' } else { '^(?:F|PF)-(\d{4})$' }
+		if ($id -match $pattern) {
 			$number = [int]$Matches[1]
 			if ($number -gt $maximum) { $maximum = $number }
 		}
 	}
 	return ("{0}-{1:D4}" -f $prefix, ($maximum + 1))
+}
+
+function Get-CanonicalFeatureBranchName {
+	param(
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$NamespaceRole,
+		[Parameter(Mandatory = $true)][string]$FeatureId,
+		[Parameter(Mandatory = $true)][string]$Slug
+	)
+
+	$resolvedSlug = ConvertTo-FeatureSlug $Slug
+	if ($NamespaceRole -eq "template") {
+		if ($FeatureId -notmatch '^TF-(\d{4})$') {
+			throw "Template feature id '$FeatureId' must match TF-####."
+		}
+		return "template-feature/$($FeatureId.ToLowerInvariant())-$resolvedSlug"
+	}
+	if ($FeatureId -notmatch '^F-(\d{4})$') {
+		throw "Project feature id '$FeatureId' must match F-####."
+	}
+	return "feature/t-$($Matches[1])-$resolvedSlug"
 }
 
 function Assert-FeatureRecordWritable {
@@ -232,15 +293,14 @@ function Get-BranchLockPath {
 		$sha.Dispose()
 	}
 	$common = Get-FeatureGitCommonDirectory -RepositoryRoot $RepositoryRoot
-	return Join-Path (Join-Path $common "codex-feature-workflow/locks") ("$hash.lock")
+	return Join-Path (Join-Path $common "feature-workflow/locks") ("$hash.lock")
 }
 
 function Acquire-FeatureWriterLease {
 	param(
 		[Parameter(Mandatory = $true)][string]$RepositoryRoot,
 		[Parameter(Mandatory = $true)][string]$Branch,
-		[Parameter(Mandatory = $true)][string]$FeatureId,
-		[Parameter(Mandatory = $true)][string]$SessionId
+		[Parameter(Mandatory = $true)][string]$FeatureId
 	)
 
 	$lockPath = Get-BranchLockPath -RepositoryRoot $RepositoryRoot -Branch $Branch
@@ -249,52 +309,83 @@ function Acquire-FeatureWriterLease {
 	try {
 		New-Item -ItemType Directory -Path $lockPath -ErrorAction Stop | Out-Null
 	} catch {
-		$leasePath = Join-Path $lockPath "lease.json"
-		if (Test-Path -LiteralPath $leasePath -PathType Leaf) {
-			$lease = Get-Content -LiteralPath $leasePath -Raw | ConvertFrom-Json
-			if (
-				([string]$lease.featureId).Equals($FeatureId, [StringComparison]::Ordinal) -and
-				([string]$lease.sessionId).Equals($SessionId, [StringComparison]::Ordinal)
-			) {
-				return $lockPath
-			}
-			throw "Branch '$Branch' already has writer '$($lease.sessionId)' for feature '$($lease.featureId)'."
+		$lease = Assert-FeatureWriterLease `
+			-RepositoryRoot $RepositoryRoot `
+			-Branch $Branch `
+			-FeatureId $FeatureId `
+			-AllowDifferentOwner
+		if (-not ([string]$lease.featureId).Equals($FeatureId, [StringComparison]::Ordinal)) {
+			throw "Branch '$Branch' already has a writer lease for feature '$($lease.featureId)'."
 		}
-		throw "Branch '$Branch' has an unreadable feature writer lease at '$lockPath'."
+		return $lockPath
 	}
 
 	$lease = [ordered]@{
-		schemaVersion = 1
+		schemaVersion = 2
 		branch = $Branch
 		featureId = $FeatureId
-		sessionId = $SessionId
 		createdAt = [DateTimeOffset]::UtcNow.ToString("o")
 	}
 	Write-Utf8NoBom -Path (Join-Path $lockPath "lease.json") -Content (($lease | ConvertTo-Json -Depth 5) + [Environment]::NewLine)
 	return $lockPath
 }
 
-function Release-FeatureWriterLease {
+function Assert-FeatureWriterLease {
 	param(
 		[Parameter(Mandatory = $true)][string]$RepositoryRoot,
 		[Parameter(Mandatory = $true)][string]$Branch,
 		[Parameter(Mandatory = $true)][string]$FeatureId,
-		[Parameter(Mandatory = $true)][string]$SessionId
+		[switch]$AllowDifferentOwner
 	)
 
 	$lockPath = Get-BranchLockPath -RepositoryRoot $RepositoryRoot -Branch $Branch
-	if (-not (Test-Path -LiteralPath $lockPath -PathType Container)) { return }
 	$leasePath = Join-Path $lockPath "lease.json"
 	if (-not (Test-Path -LiteralPath $leasePath -PathType Leaf)) {
-		throw "Cannot release unreadable feature writer lease '$lockPath'."
+		throw "Branch '$Branch' has no readable feature writer lease at '$lockPath'."
 	}
-	$lease = Get-Content -LiteralPath $leasePath -Raw | ConvertFrom-Json
+	try {
+		$lease = Get-Content -LiteralPath $leasePath -Raw | ConvertFrom-Json
+	} catch {
+		throw "Branch '$Branch' has an unreadable feature writer lease at '$lockPath'."
+	}
+	$allowedProperties = @("schemaVersion", "branch", "featureId", "createdAt")
+	$actualProperties = @($lease.PSObject.Properties.Name)
+	$unexpected = @($actualProperties | Where-Object { $_ -notin $allowedProperties })
+	$missing = @($allowedProperties | Where-Object { $_ -notin $actualProperties })
+	$createdAt = [DateTimeOffset]::MinValue
 	if (
-		-not ([string]$lease.featureId).Equals($FeatureId, [StringComparison]::Ordinal) -or
-		-not ([string]$lease.sessionId).Equals($SessionId, [StringComparison]::Ordinal)
+		$lease.schemaVersion -ne 2 -or
+		$unexpected.Count -gt 0 -or
+		$missing.Count -gt 0 -or
+		-not [DateTimeOffset]::TryParse([string]$lease.createdAt, [ref]$createdAt) -or
+		-not ([string]$lease.branch).Equals($Branch, [StringComparison]::Ordinal)
 	) {
-		throw "Session '$SessionId' does not own the writer lease for '$Branch'."
+		throw "Branch '$Branch' has an invalid or legacy feature writer lease at '$lockPath'."
 	}
+	if (
+		-not $AllowDifferentOwner -and
+		-not ([string]$lease.featureId).Equals($FeatureId, [StringComparison]::Ordinal)
+	) {
+		throw "Feature '$FeatureId' does not own the writer lease for '$Branch'."
+	}
+	return $lease
+}
+
+function Release-FeatureWriterLease {
+	param(
+		[Parameter(Mandatory = $true)][string]$RepositoryRoot,
+		[Parameter(Mandatory = $true)][string]$Branch,
+		[Parameter(Mandatory = $true)][string]$FeatureId
+	)
+
+	$lockPath = Get-BranchLockPath -RepositoryRoot $RepositoryRoot -Branch $Branch
+	if (-not (Test-Path -LiteralPath $lockPath -PathType Container)) {
+		throw "Cannot release missing feature writer lease '$lockPath'."
+	}
+	Assert-FeatureWriterLease `
+		-RepositoryRoot $RepositoryRoot `
+		-Branch $Branch `
+		-FeatureId $FeatureId | Out-Null
 	Remove-Item -LiteralPath $lockPath -Recurse -Force
 }
 
@@ -320,79 +411,50 @@ function Assert-NoOtherFeatureOnBranch {
 	}
 }
 
-function Add-FeatureSession {
-	param(
-		[Parameter(Mandatory = $true)]$Manifest,
-		[Parameter(Mandatory = $true)][string]$SessionId,
-		[Parameter(Mandatory = $true)][string]$Role,
-		[Parameter(Mandatory = $true)][string]$Head
-	)
-
-	$sessions = @($Manifest.sessions)
-	$existing = @($sessions | Where-Object { $_.threadId -eq $SessionId })
-	if ($existing.Count -gt 0) {
-		$session = $existing[0]
-		$session.outcome = "active"
-		$session.endedAt = $null
-		$session.endCommit = $null
-		return
-	}
-	$sessions += [PSCustomObject][ordered]@{
-		threadId = $SessionId
-		hostId = "local"
-		role = $Role
-		startedAt = [DateTimeOffset]::UtcNow.ToString("o")
-		endedAt = $null
-		startCommit = $Head
-		endCommit = $null
-		outcome = "active"
-		summary = $null
-	}
-	$Manifest.sessions = @($sessions)
-}
-
-function Close-FeatureSession {
-	param(
-		[Parameter(Mandatory = $true)]$Manifest,
-		[Parameter(Mandatory = $true)][string]$SessionId,
-		[Parameter(Mandatory = $true)][ValidateSet("paused", "completed")][string]$Outcome,
-		[Parameter(Mandatory = $true)][string]$Head,
-		[Parameter(Mandatory = $true)][string]$Summary
-	)
-	$session = @($Manifest.sessions | Where-Object { $_.threadId -eq $SessionId }) | Select-Object -First 1
-	if ($null -eq $session) {
-		throw "Active session '$SessionId' is missing from the manifest."
-	}
-	$session.outcome = $Outcome
-	$session.endedAt = [DateTimeOffset]::UtcNow.ToString("o")
-	$session.endCommit = $Head
-	$session.summary = $Summary
+function Get-FeatureBlockerMarkdown {
+	param([Parameter(Mandatory = $true)]$Manifest)
+	$blockers = @($Manifest.blockers)
+	if ($blockers.Count -eq 0) { return "None." }
+	return (($blockers | ForEach-Object { "- $_" }) -join [Environment]::NewLine)
 }
 
 function Write-FeatureHandoff {
 	param(
 		[Parameter(Mandatory = $true)][string]$Directory,
 		[Parameter(Mandatory = $true)]$Manifest,
-		[Parameter(Mandatory = $true)][string]$SessionId,
 		[Parameter(Mandatory = $true)][string]$Head,
 		[Parameter(Mandatory = $true)][string]$Summary,
+		[Parameter(Mandatory = $true)][string]$Decisions,
+		[Parameter(Mandatory = $true)][string]$VerificationSummary,
 		[Parameter(Mandatory = $true)][AllowEmptyString()][string]$NextStep
 	)
 	$featureLabel = "$($Manifest.id) $($Manifest.title)"
+	$blockerMarkdown = Get-FeatureBlockerMarkdown -Manifest $Manifest
 	$content = @"
 # Feature handoff
 
 - Feature: $featureLabel
 - Status: $($Manifest.status) / $($Manifest.activity)
-- Session: $SessionId
 - Head: $Head
 - Updated: $([DateTimeOffset]::UtcNow.ToString("o"))
 
-## Summary
+## Result and current state
 
 $Summary
 
-## Next confirmed step
+## Important decisions and discussions
+
+$Decisions
+
+## Verification state
+
+$VerificationSummary
+
+## Blockers
+
+$blockerMarkdown
+
+## Next step
 
 $(if ([string]::IsNullOrWhiteSpace($NextStep)) { "None." } else { $NextStep })
 "@
@@ -403,10 +465,12 @@ function Append-FeatureWorklog {
 	param(
 		[Parameter(Mandatory = $true)][string]$Directory,
 		[Parameter(Mandatory = $true)]$Manifest,
-		[Parameter(Mandatory = $true)][string]$SessionId,
 		[Parameter(Mandatory = $true)][string]$Action,
 		[Parameter(Mandatory = $true)][string]$Head,
-		[Parameter(Mandatory = $true)][string]$Summary
+		[Parameter(Mandatory = $true)][string]$Summary,
+		[Parameter(Mandatory = $true)][string]$Decisions,
+		[Parameter(Mandatory = $true)][string]$VerificationSummary,
+		[Parameter(Mandatory = $true)][AllowEmptyString()][string]$NextStep
 	)
 	$path = Join-Path $Directory "worklog.md"
 	if (Test-Path -LiteralPath $path -PathType Leaf) {
@@ -414,15 +478,33 @@ function Append-FeatureWorklog {
 	} else {
 		$content = "# Feature worklog`r`n"
 	}
+	$blockerMarkdown = Get-FeatureBlockerMarkdown -Manifest $Manifest
 	$entry = @"
 
 ## $([DateTimeOffset]::UtcNow.ToString("o")) — $Action
 
 - Feature: $($Manifest.id)
-- Session: $SessionId
 - Head: $Head
 
+### Result and current state
+
 $Summary
+
+### Important decisions and discussions
+
+$Decisions
+
+### Verification state
+
+$VerificationSummary
+
+### Blockers
+
+$blockerMarkdown
+
+### Next step
+
+$(if ([string]::IsNullOrWhiteSpace($NextStep)) { "None." } else { $NextStep })
 "@
 	Write-Utf8NoBom -Path $path -Content ($content.TrimEnd() + [Environment]::NewLine + $entry.TrimEnd() + [Environment]::NewLine)
 }
@@ -445,6 +527,12 @@ function Test-FeatureManifestSet {
 	if ($repositoryRole -eq "project" -and -not (Test-Path -LiteralPath $projectRoot -PathType Container)) {
 		$errors.Add("Derived repositories must initialize docs/Features/project before feature work.")
 	}
+	if (
+		$repositoryRole -eq "project" -and
+		-not (Test-Path -LiteralPath (Join-Path $RepositoryRoot "docs/adr/project/README.md") -PathType Leaf)
+	) {
+		$errors.Add("Derived repositories must complete project ADR initialization before feature work.")
+	}
 	if (Test-Path -LiteralPath $featureRoot -PathType Container) {
 		foreach ($legacyDirectory in Get-ChildItem -LiteralPath $featureRoot -Directory) {
 			if ($legacyDirectory.Name -in @("template", "project", "_schema")) { continue }
@@ -459,44 +547,95 @@ function Test-FeatureManifestSet {
 	foreach ($record in $records) {
 		$m = $record.Manifest
 		$label = $record.Path
+		$requiredProperties = @(
+			"schemaVersion", "id", "slug", "title", "status", "activity",
+			"branch", "baseCommit", "startedAt", "completedAt", "updatedAt",
+			"blockers", "artifacts", "verification", "recoveryLog"
+		)
+		$actualProperties = @($m.PSObject.Properties.Name)
+		$missingProperties = @($requiredProperties | Where-Object { $_ -notin $actualProperties })
+		$unexpectedProperties = @($actualProperties | Where-Object { $_ -notin $requiredProperties })
+		foreach ($property in $missingProperties) {
+			$errors.Add("$label is missing required property '$property'.")
+		}
+		foreach ($property in $unexpectedProperties) {
+			$errors.Add("$label contains unsupported property '$property'.")
+		}
+		if ($missingProperties.Count -gt 0) { continue }
 		if ($m.schemaVersion -ne $script:SchemaVersion) { $errors.Add("$label has unsupported schemaVersion.") }
-		$expectedPrefix = if ($record.Namespace -eq "template") { "TF" } else { "PF" }
+		$expectedPrefix = if ($record.Namespace -eq "template") { "TF" } else { "F" }
 		if (-not ([string]$m.id -match ("^{0}-\d{{4}}$" -f $expectedPrefix))) {
 			$errors.Add("$label must use the $expectedPrefix prefix for the '$($record.Namespace)' namespace.")
+		}
+		foreach ($deprecatedProperty in @("activeSessionId", "sessions", "threadId", "hostId")) {
+			if ($null -ne $m.PSObject.Properties[$deprecatedProperty]) {
+				$errors.Add("$label contains deprecated agent/session field '$deprecatedProperty'.")
+			}
 		}
 		if ([string]::IsNullOrWhiteSpace([string]$m.title)) { $errors.Add("$label has empty title.") }
 		if (-not ([string]$m.slug -match '^[a-z0-9]+(?:-[a-z0-9]+)*$')) { $errors.Add("$label has invalid slug.") }
 		if ([string]$m.status -notin @("planned", "in_progress", "ready")) { $errors.Add("$label has invalid status.") }
 		if ([string]$m.activity -notin @("none", "active", "paused")) { $errors.Add("$label has invalid activity.") }
+		foreach ($dateProperty in @("startedAt", "completedAt", "updatedAt")) {
+			$value = $m.$dateProperty
+			if ($null -eq $value -and $dateProperty -ne "updatedAt") { continue }
+			$parsedDate = [DateTimeOffset]::MinValue
+			if (-not [DateTimeOffset]::TryParse([string]$value, [ref]$parsedDate)) {
+				$errors.Add("$label has invalid $dateProperty.")
+			}
+		}
 		if ($ids.ContainsKey([string]$m.id)) { $errors.Add("Duplicate feature id '$($m.id)'.") } else { $ids[[string]$m.id] = $true }
 		$slugKey = "$($record.Namespace)/$($m.slug)"
 		if ($slugs.ContainsKey($slugKey)) { $errors.Add("Duplicate feature slug '$slugKey'.") } else { $slugs[$slugKey] = $true }
 
 		if ($m.status -eq "planned") {
 			if ($m.activity -ne "none") { $errors.Add("Planned feature '$($m.id)' must have activity none.") }
-			if ($null -ne $m.activeSessionId) { $errors.Add("Planned feature '$($m.id)' cannot have an active session.") }
 		}
 		if ($m.status -eq "in_progress") {
+			if ($m.activity -notin @("active", "paused")) { $errors.Add("In-progress feature '$($m.id)' must be active or paused.") }
 			if ([string]::IsNullOrWhiteSpace([string]$m.branch)) { $errors.Add("In-progress feature '$($m.id)' needs a branch.") }
 			if (-not ([string]$m.baseCommit -match '^[0-9a-f]{40}$')) { $errors.Add("In-progress feature '$($m.id)' needs a full base commit.") }
-			if ($m.activity -eq "active" -and [string]::IsNullOrWhiteSpace([string]$m.activeSessionId)) { $errors.Add("Active feature '$($m.id)' needs activeSessionId.") }
-			if ($m.activity -eq "paused" -and $null -ne $m.activeSessionId) { $errors.Add("Paused feature '$($m.id)' cannot have activeSessionId.") }
 			$branchKey = [string]$m.branch
 			if ($branches.ContainsKey($branchKey)) { $errors.Add("Branch '$branchKey' has more than one in-progress feature.") } else { $branches[$branchKey] = [string]$m.id }
 		}
 		if ($m.status -eq "ready") {
 			if ($m.activity -ne "none") { $errors.Add("Ready feature '$($m.id)' must have activity none.") }
-			if ($null -ne $m.activeSessionId) { $errors.Add("Ready feature '$($m.id)' cannot have activeSessionId.") }
 			if (@($m.blockers).Count -ne 0) { $errors.Add("Ready feature '$($m.id)' cannot have blockers.") }
 			if ([string]::IsNullOrWhiteSpace([string]$m.completedAt)) { $errors.Add("Ready feature '$($m.id)' needs completedAt.") }
 		}
 
-		$sessionIds = @{}
-		foreach ($session in @($m.sessions)) {
-			$id = [string]$session.threadId
-			if ([string]::IsNullOrWhiteSpace($id)) { $errors.Add("$label contains a session without threadId."); continue }
-			if ($sessionIds.ContainsKey($id)) { $errors.Add("Feature '$($m.id)' links task '$id' more than once.") } else { $sessionIds[$id] = $true }
-			if ([string]$session.outcome -notin @("active", "paused", "completed", "interrupted", "historical")) { $errors.Add("Feature '$($m.id)' task '$id' has invalid outcome.") }
+		if ($null -ne $m.verification) {
+			$verificationProperties = @($m.verification.PSObject.Properties.Name)
+			foreach ($property in @("completedAt", "head", "summary")) {
+				if ($property -notin $verificationProperties) {
+					$errors.Add("Feature '$($m.id)' verification is missing '$property'.")
+				}
+			}
+			foreach ($property in $verificationProperties | Where-Object { $_ -notin @("completedAt", "head", "summary") }) {
+				$errors.Add("Feature '$($m.id)' verification contains unsupported property '$property'.")
+			}
+		}
+		foreach ($recovery in @($m.recoveryLog)) {
+			$recoveryProperties = @($recovery.PSObject.Properties.Name)
+			foreach ($property in @("at", "reason", "previousStatus")) {
+				if ($property -notin $recoveryProperties) {
+					$errors.Add("Feature '$($m.id)' recovery history is missing '$property'.")
+				}
+			}
+			foreach ($property in $recoveryProperties | Where-Object { $_ -notin @("at", "reason", "previousStatus") }) {
+				$errors.Add("Feature '$($m.id)' recovery history contains unsupported property '$property'.")
+			}
+		}
+		foreach ($artifactName in @("handoff.md", "worklog.md")) {
+			$artifactPath = Join-Path $record.Directory $artifactName
+			if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
+				$errors.Add("Feature '$($m.id)' is missing $artifactName.")
+				continue
+			}
+			$artifactContent = Get-Content -LiteralPath $artifactPath -Raw
+			if ([regex]::IsMatch($artifactContent, '(?mi)^-\s*(?:session|thread|task|agent)(?:\s+id)?\s*:')) {
+				$errors.Add("Feature '$($m.id)' $artifactName contains deprecated agent/session metadata.")
+			}
 		}
 	}
 	return [PSCustomObject]@{ Ok = ($errors.Count -eq 0); Errors = @($errors); Records = $records }
@@ -522,7 +661,7 @@ function Get-FeatureIndexBlock {
 	$lines.Add("")
 	$lines.Add("Всего: $($Records.Count) | Готово: $ready | В работе: $working | В плане: $planned | С блокерами: $blocked")
 	$lines.Add("")
-	$lines.Add("| ID | Фича | Состояние | Активность | Ветка | Базовый commit | Сессии | Блокеры | Обновлено |")
+	$lines.Add("| ID | Фича | Состояние | Активность | Ветка | Базовый commit | Worklog | Блокеры | Обновлено |")
 	$lines.Add("|---|---|---|---|---|---|---|---|---|")
 	$statusOrder = @{ in_progress = 0; planned = 1; ready = 2 }
 	$sorted = @($Records | Sort-Object @{ Expression = { $statusOrder[[string]$_.Manifest.status] } }, @{ Expression = { [string]$_.Manifest.id } })
@@ -532,12 +671,11 @@ function Get-FeatureIndexBlock {
 		$activity = switch ([string]$m.activity) { "active" { "Активна" }; "paused" { "Приостановлена" }; default { "—" } }
 		$base = if ([string]::IsNullOrWhiteSpace([string]$m.baseCommit)) { "—" } else { "``$(([string]$m.baseCommit).Substring(0, 8))``" }
 		$branch = if ([string]::IsNullOrWhiteSpace([string]$m.branch)) { "—" } else { "``$($m.branch)``" }
-		$sessionCount = @($m.sessions).Count
-		$sessions = if ($sessionCount -eq 0) { "—" } else { "[$sessionCount](./$($record.Folder)/worklog.md)" }
+		$worklog = "[Открыть](./$($record.Folder)/worklog.md)"
 		$blockers = if (@($m.blockers).Count -eq 0) { "—" } else { Escape-MarkdownCell (@($m.blockers) -join "; ") }
 		$title = Escape-MarkdownCell $m.title
 		$updated = if ([string]::IsNullOrWhiteSpace([string]$m.updatedAt)) { "—" } else { ([DateTimeOffset]::Parse([string]$m.updatedAt)).ToString("yyyy-MM-dd") }
-		$lines.Add("| $($m.id) | [$title](./$($record.Folder)/) | $status | $activity | $branch | $base | $sessions | $blockers | $updated |")
+		$lines.Add("| $($m.id) | [$title](./$($record.Folder)/) | $status | $activity | $branch | $base | $worklog | $blockers | $updated |")
 	}
 	$lines.Add("")
 	$lines.Add($script:IndexEnd)
@@ -601,12 +739,13 @@ $generated
 
 Export-ModuleMember -Function @(
 	"Acquire-FeatureWriterLease",
-	"Add-FeatureSession",
+	"Assert-FeatureRepositoryInitialized",
+	"Assert-FeatureWriterLease",
 	"Append-FeatureWorklog",
 	"Assert-NoOtherFeatureOnBranch",
 	"Assert-FeatureRecordWritable",
-	"Close-FeatureSession",
 	"ConvertTo-FeatureSlug",
+	"Get-CanonicalFeatureBranchName",
 	"Get-CurrentFeatureBranch",
 	"Get-FeatureHead",
 	"Get-FeatureManifests",

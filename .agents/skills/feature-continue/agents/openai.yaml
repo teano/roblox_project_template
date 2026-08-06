@@ -1,7 +1,7 @@
 interface:
   display_name: "Continue Feature"
-  short_description: "Restore context and continue feature work"
-  default_prompt: "Use $feature-continue to restore context and continue an in-progress repository-owned feature."
+  short_description: "Run a user-authorized feature Continue"
+  default_prompt: "Use $feature-continue only after I explicitly ask to resume a paused repository-owned feature."
 
 policy:
   allow_implicit_invocation: false

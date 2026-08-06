@@ -165,19 +165,35 @@ conflicts, and verification results.
 Feature implementation work is tracked through the repository feature
 workflow documented in `.agents/rules/feature-workflow.md`. Before changing
 source for a feature, explicitly invoke `$feature-start` for planned work or
-`$feature-continue` for paused work. Use `$feature-pause` to checkpoint an
-unfinished session and `$feature-finish` only after the complete feature audit,
-documentation cascade, and verification gates pass.
+`$feature-continue` for paused work. Use `$feature-pause` to checkpoint
+unfinished work and `$feature-finish` only after implementation, the complete
+feature audit, documentation cascade, and verification gates are finished.
+
+Only an explicit request in the current user message may authorize any feature
+state transition: Start, Continue, Pause, Reopen, or Finish. Agents,
+subagents, automations, completed implementation, passing checks, audit
+completion, and the end of an agent turn never authorize a transition. A
+non-lifecycle work request does not implicitly authorize Pause or Finish. When
+wording is ambiguous, keep the current feature state unchanged and ask the
+user; in particular, a bare request to stop the current response is not an
+implicit `$feature-pause`.
 
 Template feature state lives only under `docs/Features/template/`; a derived
 game creates and owns its separate state under `docs/Features/project/`.
 Each namespace has its own generated `README.md`, while
 `docs/Features/README.md` is a template-owned router. One `in_progress`
 feature across both visible namespaces reserves its named branch even while
-paused. Do not start or continue a different feature on that branch, mutate a
-foreign feature namespace, bypass a live writer lease, hand-edit a generated
-feature-index block, invent Codex task identifiers, or mark a feature ready
-while required evidence or blockers remain.
+paused. New template features use `TF-####` on
+`template-feature/tf-####-<slug>`; new derived-project features use `F-####`
+on `feature/t-####-<slug>`. Cross-chat context lives in the feature worklog;
+feature state and leases never store chat, session, task, host, or agent
+identifiers. Do not start or continue a different feature on a reserved
+branch, mutate a foreign feature namespace, bypass a feature-scoped writer
+lease, hand-edit a generated feature-index block, or mark a feature ready
+while required evidence or blockers remain. `$feature-finish` records already
+completed verification and updates the documentation cascade; it does not run
+tests, validators, builds, or Studio checks. A completed feature remains in its
+current state until the user explicitly requests Finish.
 
 ## Code intelligence
 

@@ -1,76 +1,35 @@
 {
-    "schemaVersion":  1,
-    "id":  "TF-0006",
-    "slug":  "csv-converter-plugin",
-    "title":  "CSV-конвертер плагин",
-    "status":  "ready",
-    "activity":  "none",
-    "branch":  "feature/tf-0006-csv-to-luau",
-    "baseCommit":  "15bc56c659ed826377085be6cb2b66f0bfe41b9b",
-    "startedAt":  "2026-08-05T20:02:34.9526025+00:00",
-    "completedAt":  "2026-08-06T13:25:00.6287254+00:00",
-    "updatedAt":  "2026-08-06T13:25:00.6287254+00:00",
-    "activeSessionId":  null,
-    "sessions":  [
-                     {
-                         "threadId":  "019fd36c-b364-7bf3-8667-f4ef4f95afe0",
-                         "hostId":  "local",
-                         "role":  "implementation",
-                         "startedAt":  "2026-08-05T20:02:34.9600524+00:00",
-                         "endedAt":  "2026-08-05T21:12:10.4171713+00:00",
-                         "startCommit":  "15bc56c659ed826377085be6cb2b66f0bfe41b9b",
-                         "endCommit":  "7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e",
-                         "outcome":  "paused",
-                         "summary":  "Created and approved Russian PRD revision 1 for the project-local Codex skill csv-to-luau. Uncommitted changes are limited to the TF-0006 manifest, handoff, worklog, and new PRD. Strict PRD validation and git diff check passed. Feature workflow, index, and layout checks are blocked because TF-0005 and TF-0006 both reserve main. No Rojo build or Studio tests were run because only documentation changed. The technical specification is missing."
-                     },
-                     {
-                         "threadId":  "019fd3ce-af17-7121-8c68-d748de0f4e44",
-                         "hostId":  "local",
-                         "role":  "continuation",
-                         "startedAt":  "2026-08-05T21:24:16.8669199+00:00",
-                         "endedAt":  "2026-08-06T11:14:29.3741774+00:00",
-                         "startCommit":  "7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e",
-                         "endCommit":  "7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e",
-                         "outcome":  "completed",
-                         "summary":  "Delivered the reviewed four-file csv-to-luau skill with deterministic preview/apply conversion, strict CSV and safe Luau handling, bounded diagnostics, atomic single-writer replacement, and no lock/reconcile coordination protocol."
-                     },
-                     {
-                         "threadId":  "019fd6eb-0a61-7e52-9703-217cdc6bb289",
-                         "hostId":  "local",
-                         "role":  "implementation",
-                         "startedAt":  "2026-08-06T12:00:32.2686436+00:00",
-                         "endedAt":  "2026-08-06T13:25:00.6224839+00:00",
-                         "startCommit":  "7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e",
-                         "endCommit":  "7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e",
-                         "outcome":  "completed",
-                         "summary":  "Добавлено распознавание CSV-ячеек как Luau-массивов: comma-массивы определяются автоматически, а semicolon/pipe/tab/newline предлагаются как bounded кандидаты с явным выбором разделителя."
-                     }
-                 ],
-    "blockers":  [
-
-                 ],
-    "artifacts":  [
-                      "product-requirements.md",
-                      "technical-specification.md"
-                  ],
-    "verification":  {
-                         "completedAt":  "2026-08-06T13:25:00.6287254+00:00",
-                         "head":  "7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e",
-                         "summary":  "54 tests: 53 passed, 1 non-blocking Windows symlink privilege skip; quick_validate and exact four-file package passed; supplied CSV zero diff and target SHA-256 7140c6cce8a8b5cc63cf4eedc1f3edc9741c42f66f3739c4537f8fb242bff97f; selected Studio f63c2797-a771-4d71-a097-3d2b30ea0f50 matched PlaceId 91045933836846/GameId 10596427617; exact current ModuleScript require assertions passed for 6 records/8 assets and cleanup residue=false; Luau LSP, feature workflow, all dashboards, repository layout, git diff check, two Rojo preflights, and 855864-byte temporary Rojo build with cleanup passed."
-                     },
-    "recoveryLog":  [
-                        {
-                            "at":  "2026-08-05T21:19:25.5419300+00:00",
-                            "sessionId":  "019fd36c-b364-7bf3-8667-f4ef4f95afe0",
-                            "reason":  "User requested migration of TF-0006 to a dedicated branch to resolve the duplicate main reservation.",
-                            "previousBranch":  "main",
-                            "newBranch":  "feature/tf-0006-csv-to-luau"
-                        },
-                        {
-                            "at":  "2026-08-06T12:00:32.2545599+00:00",
-                            "sessionId":  "019fd6eb-0a61-7e52-9703-217cdc6bb289",
-                            "reason":  "Добавить распознавание массивов в CSV-ячейках и генерацию Luau-массивов вместо строк с разделителями.",
-                            "previousStatus":  "ready"
-                        }
-                    ]
+  "schemaVersion": 2,
+  "id": "TF-0006",
+  "slug": "csv-converter-plugin",
+  "title": "CSV-конвертер плагин",
+  "status": "ready",
+  "activity": "none",
+  "branch": "feature/tf-0006-csv-to-luau",
+  "baseCommit": "15bc56c659ed826377085be6cb2b66f0bfe41b9b",
+  "startedAt": "2026-08-05T23:02:34.9526025+03:00",
+  "completedAt": "2026-08-06T16:25:00.6287254+03:00",
+  "updatedAt": "2026-08-06T16:25:00.6287254+03:00",
+  "blockers": [],
+  "artifacts": [
+    "product-requirements.md",
+    "technical-specification.md"
+  ],
+  "verification": {
+    "completedAt": "2026-08-06T16:25:00.6287254+03:00",
+    "head": "7935e9ad3e0daeb4aab985ae8084a6b9b9f83b7e",
+    "summary": "54 tests: 53 passed, 1 non-blocking Windows symlink privilege skip; quick_validate and exact four-file package passed; supplied CSV zero diff and target SHA-256 7140c6cce8a8b5cc63cf4eedc1f3edc9741c42f66f3739c4537f8fb242bff97f; selected Studio f63c2797-a771-4d71-a097-3d2b30ea0f50 matched PlaceId 91045933836846/GameId 10596427617; exact current ModuleScript require assertions passed for 6 records/8 assets and cleanup residue=false; Luau LSP, feature workflow, all dashboards, repository layout, git diff check, two Rojo preflights, and 855864-byte temporary Rojo build with cleanup passed."
+  },
+  "recoveryLog": [
+    {
+      "at": "2026-08-06T00:19:25.54193+03:00",
+      "reason": "User requested migration of TF-0006 to a dedicated branch to resolve the duplicate main reservation.",
+      "previousStatus": null
+    },
+    {
+      "at": "2026-08-06T15:00:32.2545599+03:00",
+      "reason": "Добавить распознавание массивов в CSV-ячейках и генерацию Luau-массивов вместо строк с разделителями.",
+      "previousStatus": "ready"
+    }
+  ]
 }

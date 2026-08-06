@@ -158,10 +158,12 @@ otherwise mandatory Rojo preflight.
     `README.md` with `scripts/sync-feature-index.ps1 -Scope Project`.
     `docs/Features/README.md` remains the template-owned router. Validate both
     dashboards without rewriting the template namespace. New game-owned
-    features use `PF-####`; inherited template features retain their immutable
+    features use `F-####` and canonical branches
+    `feature/t-####-<slug>`; inherited template features retain their immutable
     `TF-####` identifiers and remain read-only in the derived repository. Do
-    not install Git hooks; lifecycle checks are invoked through the explicit
-    feature chat commands.
+    not install Git hooks or store agent/chat identity; lifecycle actions are
+    invoked through the explicit feature commands and cross-chat context lives
+    in the repository worklog.
 13. Read `template-updates.md` so future upstream merges preserve documented
     project decisions.
 

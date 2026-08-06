@@ -2,7 +2,6 @@
 
 ## 2026-08-03 — Requirements discovery
 
-- Task: `019fc6b9-64b0-70b0-9fb1-b3f1767cea01`
 - Outcome: historical
 
 Captured initial requirements context. The generated working document was
@@ -10,7 +9,6 @@ later intentionally removed and must be regenerated before implementation.
 
 ## 2026-08-04 — PRD recovery and production hardening
 
-- Task: `019fc6b9-64b0-70b0-9fb1-b3f1767cea01`
 - Outcome: active
 
 Regenerated product requirements revision 1 and retained the previously
@@ -23,7 +21,6 @@ draft until explicit user approval.
 
 ## 2026-08-04 — PRD approval and technical specification
 
-- Task: `019fc6b9-64b0-70b0-9fb1-b3f1767cea01`
 - Outcome: active
 
 Approved product requirements revision 1 with SHA-256
@@ -35,7 +32,6 @@ and reports `draft-ok` with no open blocking questions.
 
 ## 2026-08-04 — Scope-complete engineering pass 1
 
-- Task: `019fc6b9-64b0-70b0-9fb1-b3f1767cea01`
 - Outcome: active
 
 Implemented the approved Statistic Collection slice across server/client
@@ -50,7 +46,6 @@ gate; no production readiness claim was made.
 
 ## 2026-08-05 — Specification revision 2 and review remediation
 
-- Task: `019fc6b9-64b0-70b0-9fb1-b3f1767cea01`
 - Outcome: active
 
 Approved technical specification revision 2 with SHA-256
@@ -61,7 +56,6 @@ feature to engineering convergence.
 
 ## 2026-08-05 — Engineering convergence pass 8
 
-- Task: `019fc6b9-64b0-70b0-9fb1-b3f1767cea01`
 - Outcome: active
 
 Reswept the complete approved product/evidence boundary. Isolated Wallet
@@ -83,7 +77,6 @@ external gates and no external state was changed.
 
 ## 2026-08-05 — Review remediation pass 12
 
-- Task: `019fc6b9-64b0-70b0-9fb1-b3f1767cea01`
 - Outcome: active
 
 Remediated the immutable review batch and the full-boundary follow-up findings.
@@ -113,7 +106,6 @@ published `statistics_config` fail-closed gate.
 
 ## 2026-08-05 — Authorized Experience Config and production bootstrap
 
-- Task: `019fc6b9-64b0-70b0-9fb1-b3f1767cea01`
 - Outcome: active
 
 With explicit user authorization, inspected the exact Creator Hub Experience
@@ -137,7 +129,6 @@ remain external gates.
 ## 2026-08-05T10:28:08.1072819+00:00 — finished
 
 - Feature: TF-0003
-- Session: 019fc6b9-64b0-70b0-9fb1-b3f1767cea01
 - Head: ec70a72b61912bd81e68d1ed3963282d74573651
 
 Delivered server-authoritative bounded Statistics snapshots with Global, Session, Place, and project-defined custom lifecycles; atomic operations and EventId deduplication; Wallet earned-currency adapter; Save and Teleport continuity; deny-by-default client reads; native statistics_config; documentation and ADR-0035. Published operator-assisted E2E completed 7 joins and 6 teleports with one continuous Session and monotonic Place history, followed by verified safe teardown.

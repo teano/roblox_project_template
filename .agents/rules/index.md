@@ -78,9 +78,9 @@ affects save-provider and communication contracts.
   waiting, and destruction.
 - `teleport.md`: server-authoritative session continuity, per-player attempts,
   trusted arrival origin, client projection, and safe presentation.
-- `feature-workflow.md`: owned feature namespaces, generated dashboards,
-  branch and writer exclusion, linked Codex tasks, handoff context, and
-  completion gates.
+- `feature-workflow.md`: owned feature namespaces, canonical feature branches,
+  generated dashboards, feature-scoped writer exclusion, portable worklog
+  context, user-authorized state transitions, and completion gates.
 
 ## Architecture decision records
 

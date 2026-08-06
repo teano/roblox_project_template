@@ -1,7 +1,9 @@
 # Feature Work Management — Technical Specification
 
-- Status: Approved
+- Status: Superseded by TF-0007
 - Date: 2026-08-04
+
+Current specification: [TF-0007 technical specification](../agent-agnostic-feature-workflow/technical-specification.md).
 
 ## Components
 

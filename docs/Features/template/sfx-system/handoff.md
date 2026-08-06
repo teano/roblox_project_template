@@ -2,7 +2,6 @@
 
 - Feature: TF-0005 SFX System
 - Status: in_progress / paused
-- Session: 019fd2ec-3719-77d2-b9cb-4730f86a25f4
 - Head: 14d4cf84c83b8a494984a24e9ca07632e420dd9b
 - Updated: 2026-08-05T19:42:21.8540666+00:00
 

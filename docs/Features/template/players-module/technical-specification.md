@@ -39,7 +39,7 @@ source_prd_sha256: 9c8bb37605362347af41609892dd9714203c96e9090ba1072b0ac3b303a6e
 1. текущие явные указания пользователя: не переписывать модуль; замечания runtime reviewer-ов являются только hypotheses; требуется полный production-readiness аудит с impact analysis и регрессией; specification-review findings применяются как подтверждённые source clarifications в namespace `SRF-*`;
 2. `docs/features/players-module/product-requirements.md`, revision 2, status `approved`, `approved_at: 2026-08-04T09:45:04Z`, exact-byte SHA-256 `9c8bb37605362347af41609892dd9714203c96e9090ba1072b0ac3b303a6e8fc`;
 3. позднее подтверждённые решения текущего обсуждения о terminal lifecycle, connection-only public signal surface, dedicated client waiter и обязательном порядке audit/remediation;
-4. подтверждённое обсуждение Codex task `019fa4c9-60ea-71c3-bff7-17927510b1b6`: прежний `GlobalSaveLifecycleModule` заменён полным `PlayersModule`; принят единый прямой wrapper с `GetPlayers`, `GetPlayerByUserId`, `ObservePlayers`, `PlayerAdded`, `PlayerRemoving` и existing-first delivery;
+4. подтверждённое пользовательское решение, закреплённое в PRD: прежний `GlobalSaveLifecycleModule` заменён полным `PlayersModule`; принят единый прямой wrapper с `GetPlayers`, `GetPlayerByUserId`, `ObservePlayers`, `PlayerAdded`, `PlayerRemoving` и existing-first delivery;
 5. `.agents/rules/architecture.md`, `players.md`, `signals.md`, `initialization.md`, `testing.md`, а для regression boundaries — `save-system.md`, `communication.md`, `teleport.md`;
 6. accepted template/ADR-0001, template/ADR-0005 и template/ADR-0019;
 7. `docs/InitializationAndSaveSystem.md`, `docs/Signal.md`, `docs/Communication.md`, `docs/Teleport.md`, `docs/TeleportTesting.md` и `docs/TestCoverage.md`;

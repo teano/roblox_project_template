@@ -10,7 +10,7 @@ approved_at: 2026-08-04T09:45:04Z
 
 ## Product Outcome
 
-Доказать, что серверный и клиентский `PlayersModule` как единая тестируемая граница Roblox Players production ready, стабилен и надежен во всех поддерживаемых lifecycle-сценариях. Канонические требования из обсуждения Codex task `019fa4c9-60ea-71c3-bff7-17927510b1b6`, текущие accepted rules и template ADR являются нормативной основой; замечания ревьюеров служат первыми сигналами для проверки, но не разрешением переписать модуль или автоматически признать дефект. Сначала завершается findings-first аудит всей системы и фиксируется полный inventory, затем допускается только минимальная evidence-backed ремедиация подтвержденных нарушений с полным impact analysis и регрессией всех связанных consumers.
+Доказать, что серверный и клиентский `PlayersModule` как единая тестируемая граница Roblox Players production ready, стабилен и надежен во всех поддерживаемых lifecycle-сценариях. Канонические пользовательские требования, закреплённые в этом PRD, текущие accepted rules и template ADR являются нормативной основой; замечания ревьюеров служат первыми сигналами для проверки, но не разрешением переписать модуль или автоматически признать дефект. Сначала завершается findings-first аудит всей системы и фиксируется полный inventory, затем допускается только минимальная evidence-backed ремедиация подтвержденных нарушений с полным impact analysis и регрессией всех связанных consumers.
 
 ## Target Audience
 
@@ -102,7 +102,7 @@ Production-readiness проход для reusable template с доказател
 ## Assumptions
 
 - Репозиторий является reusable template и не содержит project-owned ADR namespace.
-- Нормативный приоритет для feature: текущие явные указания пользователя и согласованные требования из Codex task `019fa4c9-60ea-71c3-bff7-17927510b1b6`, затем текущие `.agents/rules/players.md`, `.agents/rules/signals.md`, `.agents/rules/architecture.md`, `.agents/rules/testing.md`, template/ADR-0005, template/ADR-0019 и согласованная runtime documentation. Замечания ревьюеров не переопределяют эти источники без доказанного конфликта.
+- Нормативный приоритет для feature: текущие явные указания пользователя и согласованные требования, закреплённые в этом PRD, затем текущие `.agents/rules/players.md`, `.agents/rules/signals.md`, `.agents/rules/architecture.md`, `.agents/rules/testing.md`, template/ADR-0005, template/ADR-0019 и согласованная runtime documentation. Замечания ревьюеров не переопределяют эти источники без доказанного конфликта.
 - template/ADR-0005 и template/ADR-0019 остаются действующими архитектурными решениями на время аудита.
 - Shared `Signal` уже является владельцем политики callback scheduling, error isolation и traceback; аудит проверяет интеграцию, а не автоматически переносит эту ответственность в `PlayersModule`.
 - Несколько экземпляров класса сами по себе не являются production-ошибкой: tests требуют fresh instances, а production singleton-by-composition должен быть доказан отдельно.
