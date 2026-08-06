@@ -15,6 +15,43 @@ Git-теги описывают версии самого шаблона. Они
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-06
+
+### Added
+
+- Добавлены переносимые между агентами и чатами checkpoints: `worklog.md`
+  хранит результат, важные решения и обсуждения, verification evidence,
+  блокеры и следующий шаг без ссылок на transcript или task/session IDs.
+- Lifecycle сам создаёт канонические ветки: template-фичи используют
+  `TF-####` и `template-feature/tf-####-<slug>`, а фичи derived-проектов —
+  `F-####` и `feature/t-####-<slug>`.
+
+### Changed
+
+- Только явная текущая команда пользователя теперь разрешает `Start`,
+  `Continue`, `Pause`, `Reopen` или `Finish`; завершение реализации, проверки,
+  аудит, результат сабагента и конец хода не меняют состояние фичи.
+- Feature manifests и локальные writer leases переведены на agent-neutral
+  schema v2. Derived-проектам с legacy `PF-####` или schema-v1 manifests нужна
+  явная миграция собственного feature namespace при принятии нового контракта.
+- `$feature-finish` стал чистым documentation/state-finalization шагом: он
+  записывает уже полученные evidence и обновляет PRD/spec, system docs, rules
+  и ADR, но не запускает tests, validators, Rojo или Studio.
+
+### Fixed
+
+- Derived-project lifecycle теперь fail-closed проверяет URL template
+  `upstream` и завершённую project initialization, а не доверяет одному имени
+  remote и не создаёт владельческие namespace неявно.
+- `Pause` и `Finish` отклоняют wrong-branch, отсутствующий или legacy lease до
+  первой мутации; `Reopen` сохраняет историческую recorded branch и обновляет
+  переносимые handoff/worklog context.
+
+### Removed
+
+- Удалена зависимость lifecycle от `CODEX_THREAD_ID`, Codex task/session
+  ownership, session history в manifests и ссылок на сессии в dashboards.
+
 ## [0.16.0] - 2026-08-06
 
 ### Added
@@ -236,7 +273,8 @@ Git-теги описывают версии самого шаблона. Они
 - Добавлены Rojo project mapping, канонические agent rules, ADR и первые
   системные и production integration tests.
 
-[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/teano/roblox_project_template/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/teano/roblox_project_template/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/teano/roblox_project_template/compare/v0.14.1...v0.15.0
 [0.14.1]: https://github.com/teano/roblox_project_template/compare/v0.14.0...v0.14.1
