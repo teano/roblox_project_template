@@ -1514,6 +1514,60 @@ function ProductionIntegrationTestRunner.runAll()
 		assertTrue(os.clock() - startedAt < 0.1, "coordinator exceeded its global budget")
 	end)
 
+	test("shutdown retained retries and finalization share one absolute deadline", function()
+		local now = 0
+		local closeCalls = 0
+		local retryCalls = 0
+		local finalizationCalls = 0
+		local first = { UserId = 40_001 } :: any
+		local second = { UserId = 40_002 } :: any
+		local firstRuntime = {}
+		local secondRuntime = {}
+		local retained = { [firstRuntime] = true, [secondRuntime] = true }
+		local coordinator = ShutdownSaveCoordinator.new({
+			BudgetSeconds = 10,
+			MaxConcurrency = 1,
+		}, makeLogger(), {
+			Clock = function() return now end,
+			Spawn = function(callback) callback() end,
+			Wait = function() return 0 end,
+		})
+		local controller = {
+			IsRetainedCloseOwner = function(_self, _player, runtime)
+				return retained[runtime] == true
+			end,
+			RetryClose = function(_self, player, runtime, options)
+				retryCalls += 1
+				assertEqual(player, first)
+				assertEqual(runtime, firstRuntime)
+				assertEqual(options.Deadline, 10)
+				now = 10
+				return { Ok = false, Code = "ClosePreparationFailed", Error = "injected" }
+			end,
+			Close = function(_self, _player, _save, _options, _runtime)
+				closeCalls += 1
+				return { Ok = true }
+			end,
+			FinalizeRetainedClose = function()
+				finalizationCalls += 1
+				return { Ok = true }
+			end,
+		}
+		local result = coordinator:ClosePlayers(controller, {
+			{ Player = first, Runtime = firstRuntime },
+			{ Player = second, Runtime = secondRuntime },
+		})
+		assertEqual(result.Deadline, 10)
+		assertEqual(retryCalls, 1, "retained close did not start before the deadline")
+		assertEqual(finalizationCalls, 0, "exact deadline admitted fail-closed finalization")
+		assertEqual(closeCalls, 0, "exact deadline admitted a later player close")
+		assertEqual(result.Results[first].Code, "ClosePreparationFailed")
+		assertEqual(result.Results[second].Code, "DeadlineExceeded")
+		assertEqual(result.Completed, 2)
+		assertEqual(result.Failed, 2)
+		assertEqual(result.TimedOut, false)
+	end)
+
 	test("communication serializer accepts Vector3 and rejects Instances", function()
 		local vectorValid = CommunicationSerialize.validate({
 			Impulse = Vector3.new(1, 2, 3),
@@ -1871,6 +1925,7 @@ function ProductionIntegrationTestRunner.runAll()
 		local joinedPlayer = { UserId = 3_971, Parent = {} } :: any
 		local earlyRemovalPlayer = { UserId = 3_972, Parent = {} } :: any
 		local shutdownLoadingPlayer = { UserId = 3_973, Parent = {} } :: any
+		local shutdownPreparationPlayer = { UserId = 3_974, Parent = {} } :: any
 		local currentPlayers = { existingPlayer }
 		local onAdded = nil :: ((any) -> ())?
 		local onRemoving = nil :: ((any) -> ())?
@@ -1928,6 +1983,12 @@ function ProductionIntegrationTestRunner.runAll()
 		local controller = {
 			Id = SaveProtocol.GlobalControllerId,
 		}
+		local closePreparation = nil :: ((any) -> any)?
+		local retainedRuntimes = {} :: { [any]: any }
+		local lockOwnerSnapshots = 0
+		function controller:SetClosePreparation(callback)
+			closePreparation = callback
+		end
 		function controller:Load(player, _migrate)
 			loads[player] = (loads[player] or 0) + 1
 			return { Ok = true }
@@ -1939,13 +2000,49 @@ function ProductionIntegrationTestRunner.runAll()
 			end
 			closeInFlight[player] = true
 			closeStarts[player] = (closeStarts[player] or 0) + 1
+			local prepared = (closePreparation :: (any) -> any)(player)
+			if not prepared.Ok and prepared.Code ~= "NotLoaded" then
+				closeInFlight[player] = nil
+				retainedRuntimes[player] = retainedRuntimes[player] or {}
+				return prepared
+			end
 			if player == joinedPlayer then
 				while not releaseJoinedClose do
 					task.wait()
 				end
 			end
 			closeInFlight[player] = nil
+			retainedRuntimes[player] = nil
 			return { Ok = true }
+		end
+		function controller:GetLockOwners()
+			lockOwnerSnapshots += 1
+			local owners = {}
+			for player, runtime in retainedRuntimes do
+				table.insert(owners, { Player = player, Runtime = runtime })
+			end
+			return owners
+		end
+		function controller:ShouldRetryClose(player, runtime)
+			return retainedRuntimes[player] == runtime
+		end
+		function controller:IsRetainedCloseOwner(player, runtime)
+			return retainedRuntimes[player] == runtime
+		end
+		function controller:RetryClose(player, runtime)
+			if not self:ShouldRetryClose(player, runtime) then
+				return { Ok = false, Code = "CloseRetryStale" }
+			end
+			return self:Close(player, false)
+		end
+		function controller:FinalizeRetainedClose(player, runtime)
+			return self:RetryClose(player, runtime)
+		end
+		function controller:IsLoaded(_player)
+			return true
+		end
+		function controller:ApplyClientPatch(_player, _payload)
+			return { AcceptedProviders = { "ClientOwned" }, RejectedProviders = {}, Revision = 7 }
 		end
 
 		local builder = {}
@@ -1973,16 +2070,26 @@ function ProductionIntegrationTestRunner.runAll()
 
 		local shutdownPlayers = nil :: { any }?
 		local shutdownCoordinator = {}
-		function shutdownCoordinator:ClosePlayers(closeController, players)
-			shutdownPlayers = table.clone(players)
-			for _, player in players do
-				closeController:Close(player, true)
+		function shutdownCoordinator:ClosePlayers(closeController, targets)
+			shutdownPlayers = table.clone(targets)
+			local results = {}
+			local succeeded = 0
+			for _, target in targets do
+				local player = if typeof(target) == "table" and target.Player ~= nil then target.Player else target
+				local runtime = if typeof(target) == "table" then target.Runtime else nil
+				local result = if runtime ~= nil
+					then closeController:RetryClose(player, runtime)
+					else closeController:Close(player, true)
+				results[player] = result
+				if result.Ok then succeeded += 1 end
 			end
 			return {
 				TimedOut = false,
-				Failed = 0,
-				Succeeded = #players,
+				Completed = #targets,
+				Failed = #targets - succeeded,
+				Succeeded = succeeded,
 				Unfinished = 0,
+				Results = results,
 			}
 		end
 
@@ -2033,8 +2140,13 @@ function ProductionIntegrationTestRunner.runAll()
 			if player == earlyRemovalPlayer or player == shutdownLoadingPlayer then
 				return { Ok = false, Code = "NotLoaded" }
 			end
+			if player == shutdownPreparationPlayer and preparedPlayers[player] == 1 then
+				return { Ok = false, Code = "ClosePreparationFailed", Error = "injected" }
+			end
 			return { Ok = true }
 		end
+		local communicationHandlers = {}
+		local queuedMessages = {}
 		local command = GlobalSaveInitializationCommand.new({
 			SaveModule = saveModule,
 			Storage = {},
@@ -2053,7 +2165,20 @@ function ProductionIntegrationTestRunner.runAll()
 			},
 			PlayersModule = playersModule,
 			Communication = {
-				RegisterHandler = function() end,
+				RegisterHandler = function(_self, messageType, validate, handle)
+					communicationHandlers[messageType] = { Validate = validate, Handle = handle }
+				end,
+				Queue = function(_self, player, messageType, payload, requestId, options)
+					table.insert(queuedMessages, {
+						Player = player,
+						Type = messageType,
+						Payload = payload,
+						RequestId = requestId,
+						Options = options,
+					})
+					return true
+				end,
+				SetClientReady = function() end,
 			},
 			Teleport = {},
 			MigrationModule = {},
@@ -2067,7 +2192,9 @@ function ProductionIntegrationTestRunner.runAll()
 				RegisterController = function(_self, registered)
 					registeredSessionLock = registered
 				end,
-				Stop = function() end,
+				Stop = function()
+					assertTrue(lockOwnerSnapshots > 0, "shutdown stopped SessionLock before retained-owner snapshot")
+				end,
 			},
 			ShutdownSaveCoordinator = shutdownCoordinator,
 			VersionModule = { Id = "Version" },
@@ -2081,6 +2208,18 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(registeredAutoSave, controller)
 		assertEqual(registeredSessionLock, controller)
 		assertEqual(boundStatisticsController, controller)
+		local patchHandler = communicationHandlers[CommunicationProtocol.SystemMessages.SaveClientPatch]
+		assert(patchHandler ~= nil, "GlobalSave did not register the client patch handler")
+		local validPatch, validatedPatch = patchHandler.Validate({
+			ControllerId = SaveProtocol.GlobalControllerId,
+			Providers = {},
+		})
+		assertEqual(validPatch, true)
+		patchHandler.Handle(existingPlayer, validatedPatch, "patch-request")
+		assertEqual(#queuedMessages, 1)
+		assertEqual(queuedMessages[1].Type, CommunicationProtocol.SystemMessages.SaveClientPatchResult)
+		assertEqual(queuedMessages[1].Payload.ControllerId, SaveProtocol.GlobalControllerId)
+		assertEqual(queuedMessages[1].RequestId, "patch-request")
 		assert(boundClose ~= nil)
 		waitUntil(function()
 			return loads[existingPlayer] == 1
@@ -2089,15 +2228,18 @@ function ProductionIntegrationTestRunner.runAll()
 		playersModule:Add(joinedPlayer)
 		playersModule:Add(earlyRemovalPlayer)
 		playersModule:Add(shutdownLoadingPlayer)
+		playersModule:Add(shutdownPreparationPlayer)
 		waitUntil(function()
 			return loads[joinedPlayer] == 1
 				and loads[earlyRemovalPlayer] == 1
 				and loads[shutdownLoadingPlayer] == 1
+				and loads[shutdownPreparationPlayer] == 1
 		end)
 		assertEqual(loads[existingPlayer], 1, "existing player load was duplicated")
 		assertEqual(loads[joinedPlayer], 1, "joined player load was duplicated")
 		assertEqual(loads[earlyRemovalPlayer], 1, "early-removal player load was duplicated")
 		assertEqual(loads[shutdownLoadingPlayer], 1, "shutdown-loading player load was duplicated")
+		assertEqual(loads[shutdownPreparationPlayer], 1, "shutdown-preparation player load was duplicated")
 
 		playersModule:Remove(existingPlayer, false)
 		assertEqual(preparedPlayers[existingPlayer], 1, "normal removal did not prepare Statistics")
@@ -2111,6 +2253,11 @@ function ProductionIntegrationTestRunner.runAll()
 			"Statistics NotLoaded prevented the controller from cancelling the player load"
 		)
 
+		playersModule:Remove(shutdownPreparationPlayer, false)
+		assertEqual(preparedPlayers[shutdownPreparationPlayer], 1)
+		assertEqual(closeStarts[shutdownPreparationPlayer], 1)
+		assertTrue(retainedRuntimes[shutdownPreparationPlayer] ~= nil, "departed failed preparation was not retained")
+
 		local removalFinished = false
 		task.spawn(function()
 			playersModule:Remove(joinedPlayer, true)
@@ -2119,17 +2266,22 @@ function ProductionIntegrationTestRunner.runAll()
 		waitUntil(function()
 			return closeStarts[joinedPlayer] == 1
 		end)
+		local retainedShutdownRuntime = retainedRuntimes[shutdownPreparationPlayer]
 		local closeOnShutdown = boundClose :: () -> ()
 		closeOnShutdown()
 		assertEqual(getPlayersCalls, 1, "shutdown did not enumerate current PlayersModule state exactly once")
 		assert(shutdownPlayers ~= nil)
-		assertEqual(#(shutdownPlayers :: { any }), 2)
+		assertEqual(#(shutdownPlayers :: { any }), 3)
 		assertEqual((shutdownPlayers :: { any })[1], joinedPlayer)
 		assertEqual((shutdownPlayers :: { any })[2], shutdownLoadingPlayer)
+		assertEqual((shutdownPlayers :: { any })[3].Player, shutdownPreparationPlayer)
+		assertEqual((shutdownPlayers :: { any })[3].Runtime, retainedShutdownRuntime)
 		assertEqual(closeStarts[joinedPlayer], 1, "shutdown started a duplicate close")
 		assertEqual(closeJoins[joinedPlayer], 1, "shutdown did not join the in-flight removal close")
-		assertEqual(preparedPlayers[joinedPlayer], 2, "removal and shutdown did not both prepare Statistics")
+		assertEqual(preparedPlayers[joinedPlayer], 1, "joined close reran Statistics preparation")
 		assertEqual(preparedPlayers[shutdownLoadingPlayer], 1, "shutdown did not inspect loading Statistics")
+		assertEqual(preparedPlayers[shutdownPreparationPlayer], 2, "shutdown did not retry failed preparation")
+		assertEqual(closeStarts[shutdownPreparationPlayer], 2, "shutdown preparation retry did not re-enter close")
 		assertEqual(
 			closeStarts[shutdownLoadingPlayer],
 			1,

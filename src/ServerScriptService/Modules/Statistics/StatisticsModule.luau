@@ -858,7 +858,10 @@ function StatisticsModule:PrepareForProfileClose(player: Player)
 	local valid, sanitized, validationError = self:_validateMemento(candidate)
 	if not valid then
 		local result = failure("ClosePreparationFailed", validationError or "Close preparation failed")
-		self._closeResults[player] = result
+		-- A failed candidate never mutates provider data and remains retryable by
+		-- the controller-owned terminal cleanup path. Keep gameplay fail-closed
+		-- through _closing, but do not memoize a transient failure forever.
+		self._closeResults[player] = nil
 		self:_diagnose(player, "ClosePreparationFailed", "error")
 		return TableUtil.deepCopy(result)
 	end

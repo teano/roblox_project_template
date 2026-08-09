@@ -58,6 +58,27 @@ side-neutral algorithm. See [ResourceManagement.md](ResourceManagement.md).
 
 To add a system, create a side-specific command, declare its dependency, and place it in that side's manifest. Modules expose `Initialize`; they do not decide their global launch order.
 
+### TF-0005 audio composition contract
+
+The audio implementation extends the relative order without adding a second
+runner:
+
+```text
+Server: Assets -> AudioStartup -> Pooling -> Players -> Communication
+        -> AudioGraph -> OrdinarySound
+
+Client: Assets -> AudioStartup -> StartupContentPreload -> Pooling -> Players
+        -> Communication -> AudioGraph -> OrdinarySound -> Music
+```
+
+Manifest constructors pass roots and exact module names; only protected
+`AudioStartup.Initialize` resolves/requires the four raw audio modules and
+publishes immutable enabled/disabled state. Enabled and disabled hybrid
+handlers register after `Communication` and before `ClientReady`. Disabled
+handlers reject/no-op with `AudioDisabled` while owning no pools, graph,
+preload, or playback. See [AudioSystem.md](AudioSystem.md) and
+[ADR-0041](adr/template/0041-protect-audio-startup-and-keep-disabled-transport-handlers.md).
+
 `Teleport` establishes server-owned per-player session continuity and the
 client read-only lifecycle projection after `Players` and `Communication` are
 ready. Its client handlers are registered during manifest construction before
@@ -107,6 +128,17 @@ server and client. Version remains last because its `Run` is the commit point
 that advances the persisted game-version checkpoint only after every other
 provider has installed and started successfully.
 
+TF-0005 adds client-authority `AudioSettings` before `Version` and introduces
+optional provider-specific controller hooks. Server `ValidateEnvelope` receives
+`(player, envelope)`; client `ValidateEnvelope` receives `(envelope)`. Both
+return only acceptance plus an optional reason, never sanitize input, and fail
+closed before mutation on false or exception. The AudioSettings client also
+implements `ReconcileSnapshotEnvelope(envelope?)`: a missing provider or
+missing known data fields receive defaults, while unknown/invalid present data
+is rejected. Present envelope validation runs before reconciliation, and the
+returned envelope is validated again before `ValidateMemento`. Providers
+without these hooks keep the existing mandatory-envelope behavior.
+
 `wallet_config` supplies the one-time starting balances for a newly created
 Wallet provider. Wallet memento version 3 persists `IsInitialized` and the
 server-only `LastTransactionSequence`; versions 1 and 2 reconcile without
@@ -132,10 +164,28 @@ their own domain providers in both server and client commands.
 
 A future session or game-slot controller can be built independently and
 removed through `SaveModule:RemoveSaveController`. The server composition
-registers a synchronous pre-removal callback that unregisters the controller
-from `AutoSaveModule` before destruction. Unregistration is idempotent and
-clears periodic scheduling, pending requested saves, per-player state, and the
-controller's `PlayerClosed` connection.
+registers a synchronous removal callback that unregisters the controller from
+both `AutoSaveModule` and `SessionLockModule` only after terminal provider
+cleanup and server lock release succeed. A failed single or bulk removal
+retains the controller in all three registries, keeps retry scheduling and
+signals owned, and can be retried after the cleanup failure is resolved.
+Successful unregistration is idempotent and clears periodic autosave and lock
+refresh scheduling, pending requested saves, per-player state, and the
+controller's `PlayerClosed` connection. Session-lock registration is
+identity-based, so rebuilding a removed controller installs exactly one live
+scheduler entry and an already registered controller cannot be appended twice.
+String-ID removal intentionally addresses the current registry member. The
+controller-object form instead requires exact object identity, so a stale
+reference cannot remove or tear down a same-ID replacement on either side.
+
+On the client, `SaveModule` owns one `Save.ClientPatchResult` communication
+handler for its VM lifetime. Result envelopes carry `ControllerId`; the module
+resolves that ID against its live registry and then forwards the response to
+the matching controller, whose request ID gate rejects stale responses. A
+failed controller destroy retains that route for cleanup retry, while a
+successful removal revokes it. Rebuilding the ID therefore cannot retain an
+old controller closure, and multiple controller identities neither duplicate
+the fixed communication handler nor receive one another's patch results.
 
 ## Provider lifecycle
 
@@ -163,6 +213,106 @@ handoff state, or mismatched trusted session/place therefore still performs
 the normal lifecycle resolution before load success.
 
 Target mementos are reconciled and validated before runtime mutation. Current mementos are then captured before `Stop`. If any target `SetMemento` or `Run` fails, all partially installed providers are stopped and the complete previous memento set is restored before any provider is run again. A controller remains `Loaded` only when rollback fully succeeds; a cleanup or rollback failure moves it to `ApplyFailed`. Provider `Stop` must therefore be idempotent and safe after `SetMemento`, even if `Run` did not complete.
+
+The server reserves one generation-scoped lifecycle operation across the full
+yieldable `Load`, `ApplyMemento`, `ForceSave`, `Close`, Heartbeat capture,
+`FlushDirty`, or `BuildSnapshot` sequence. Snapshot projection remains inside
+the same operation. Every resumed provider hook and storage acknowledgement
+verifies that it still owns the same runtime and generation before changing
+dirty maps, the document/revision, persistence acknowledgement, lifecycle
+state, or ownership. A replacement therefore cannot start under any older
+capture/save/close, and an older continuation cannot overwrite replacement
+state, release the lock, or remove the runtime.
+
+Both save controllers track each provider that may have started independently
+of the aggregate `Running`/ready flag. A `Run` attempt is tracked before the
+call and is cleared only after a successful `Stop`. Terminal server close and
+client destroy reverse-stop that tracked set even after failed transaction
+cleanup or rollback. The server retains the runtime and session lock when a
+terminal provider stop fails, so provider work is never knowingly orphaned
+after lock release or runtime removal. Storage-release failure also retains the
+runtime and controller for retry. Server/client controller destruction reports
+explicit success only after this cleanup completes; registry removal is
+conditional on that result.
+
+A retained server runtime in `CloseFailed` is not gameplay-ready and cannot
+capture, snapshot, patch, or save provider state. It does, however, retain one
+narrow session-lock heartbeat responsibility while terminal cleanup remains
+retryable. `ShouldRefreshLock` exposes that exact scheduler predicate: a normal
+`Loaded` runtime is eligible only before close is requested, and a
+`CloseFailed` runtime is eligible only while that close request still owns the
+retained runtime. `RefreshLock` reserves the same generation-scoped lifecycle
+operation as save and close, validates runtime/state ownership after the
+storage yield, and updates its monotonic refresh timestamp only while that
+ownership remains current. A concurrent close therefore waits behind an
+already-started refresh; a later refresh cannot enter an active close; Stop or
+Release failure resumes only heartbeat ownership; and successful Release plus
+runtime removal makes all later scheduler observations no-ops. If storage
+authoritatively reports `LockLost` or `NoSessionLock`, the controller clears
+the retry-retained heartbeat flag without reopening the runtime: terminal
+provider cleanup may still be retried, but gameplay/save work and further
+heartbeat scheduling remain fail-closed.
+
+The scheduler discovers these owners from each registered controller rather
+than from the live `Players:GetPlayers()` collection. A player that has already
+crossed the real removal boundary therefore remains discoverable while its
+runtime still owns a lock or retryable terminal cleanup. Every enumerated owner
+carries its opaque runtime identity back into the refresh/retry rechecks. The
+scheduler refreshes a retained lock before cleanup and makes at most three
+automatic cleanup attempts; exhaustion leaves the runtime as a fail-closed
+terminal owner for explicit diagnosis rather than reopening gameplay or
+silently abandoning the runtime. Successful release removes the owner, so no
+later scheduler cycle can refresh it.
+
+Cleanup attempt ownership is keyed by the registered controller plus that
+opaque runtime identity, never by `Player`. Exhausting an older runtime's
+three-attempt budget therefore cannot debit a same-UserId replacement. A late
+result clears or updates only its originating runtime; reload and controller
+unregistration discard the stale budget without touching the replacement.
+The scheduler revalidates the exact registered entry after every controller
+or logger yield and before retry counters, diagnostics, retry, or fail-closed
+finalization. A yielded third attempt from an unregistered controller is
+therefore discarded, while a rebuilt entry receives a fresh full budget.
+
+The Global controller also owns one injected, provider-agnostic close-
+preparation callback. Production composition binds it to
+`StatisticsModule:PrepareForProfileClose`, so player removal and shutdown enter
+the same generation-scoped Close reservation before preparation can yield or
+fail. A preparation failure retains the runtime, pending save intent, and lock
+heartbeat while rejecting gameplay. Statistics failures are retryable because
+the rejected candidate never mutates provider data and is not memoized. After
+three unsuccessful automatic preparation retries, the scheduler performs one
+explicit fail-closed finalization that saves the still-valid current memento
+before Stop/Release; shutdown performs the same bounded handoff. Ordinary save
+failure never takes this fallback and remains no-loss/fail-closed.
+Shutdown snapshots an identity-deduplicated union of live players and exact
+controller-retained runtime owners before the heartbeat scheduler stops. The
+same worker that owns a player close also owns its bounded preparation retry
+and optional finalization under one absolute deadline, so departed retained
+owners cannot disappear merely because the live `Players` enumeration is
+empty.
+
+Close failures before provider stop are failure-atomic. A deadline while
+waiting for Saving, Capturing, Snapshotting, Applying, or any other current
+lifecycle reservation withdraws only the same runtime/request/generation close
+owner and reopens normal mutation and refresh ownership regardless of the
+transient state observed at request time. Completion or failure of the
+yieldable operation then restores `Loaded`, and a later close remains valid.
+Capture failure or any unsuccessful save result—including deadline,
+serialization, size, retry exhaustion, storage loss, and unexpected exception
+codes—instead enters retry-retained `CloseFailed`, preserves whether the close
+still requires a save, and never reaches provider Stop or storage Release.
+Owned locks keep the guarded heartbeat; authoritative `LockLost`/
+`NoSessionLock` stays fail-closed without claiming a heartbeat. Gameplay/save
+mutation remains rejected until a later close retry completes. This prevents
+both unsaved release and the contradictory `Loaded + CloseRequested` state.
+A deadline close that waits behind a retained-owner refresh restores the exact
+pre-existing close/save/preparation/heartbeat flags under the same runtime,
+close-token, and operation generation; it cannot withdraw another cleanup
+owner. Public provider mutation is separately admitted by the controller.
+Wallet rejects `Add`, `TrySpend`, and zero-delta calls while terminal cleanup
+is retained, without changing balance, transaction sequence, signals, or
+queued client state, while provider capture remains available for retry.
 
 After reconciliation and default creation, the server validates and measures
 the complete prepared persistence document before `Stop`, `SetMemento`, or
@@ -210,6 +360,15 @@ in flight, the acquired lock is released without applying provider state.
 Overlapping player-removal and shutdown closes share one result and emit one
 `PlayerClosed` notification.
 
+Client-authority patches participate in the same generation-scoped lifecycle
+reservation. Provider envelope validation, memento validation, and provider
+application may yield, so the controller rechecks runtime identity and open
+authority after each boundary. Close requests wait for an already-started
+patch, later patches cannot enter closing state, and a patch that observes a
+close request returns no accepted-provider acknowledgement. If a provider had
+already mutated before yielding, the waiting close captures that state before
+save/release rather than leaving an unowned mutation.
+
 Lock acquisition treats a live `SessionLocked` result as a possible
 cross-server teleport handoff. Production retries it with bounded exponential
 delays for up to eight attempts (9.75 seconds of configured delay) while the
@@ -242,8 +401,19 @@ JSON shapes: tables are either string-keyed dictionaries or dense arrays, and
 mixed/sparse tables, metatables, cycles, unsupported values, and non-finite
 numbers are rejected. The 3.5 MB soft limit uses the actual `JSONEncode` byte
 count rather than a heuristic estimate.
+Storage acknowledgements are accepted only when the adapter returns a table
+whose `Ok` field is a boolean. Any malformed truthy result becomes stable
+`SaveFailed`; providers stay running, the lock stays owned, and Stop/Release
+remain unreachable until a valid retry.
 
-Shutdown uses a shared 20-second deadline and at most four concurrent close workers. The deadline is propagated into save, lock release, and DataStore retry waits. No new retry begins after expiration. An already executing Roblox `UpdateAsync` cannot be force-cancelled, so the coordinator returns at the global deadline and reports unfinished players instead of serially consuming the entire shutdown window.
+Shutdown uses a shared 20-second deadline and at most four concurrent close
+workers. The deadline is propagated through preparation, capture, save,
+provider stop, lock release, retained retry, and finalization. No stage or
+retry begins at or after expiration, and retries remain inside their owning
+worker rather than escaping the concurrency cap. An already executing Roblox
+`UpdateAsync` cannot be force-cancelled, so the coordinator returns an
+immutable result snapshot at the global deadline and reports unfinished
+players instead of serially consuming the entire shutdown window.
 
 Studio uses the same controller and locking behavior over `MemoryStorage`.
 

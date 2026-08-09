@@ -240,13 +240,58 @@ function ContentPreloaderTestRunner.runAll()
 
 		local command = StartupContentPreloadCommand.new(fakePreloader)
 		assertEqual(command.Id, "StartupContentPreload")
-		assertEqual(command.DependsOn[1], "Assets")
-		command:Initialize({})
+		assertEqual(command.DependsOn[1], "AudioStartup")
+		command:Initialize({ Services = { AudioStartup = { Enabled = false } } })
 
 		assertEqual(receivedQuery.Tags[1], "Preload")
 		assertEqual(receivedQuery.Attributes, nil)
 		assertEqual(receivedOptions.RequestId, "Startup")
 		assertEqual(receivedOptions.FailurePolicy, "Warn")
+	end)
+
+	test("AudioCatalog/StartupPreloadSet", function()
+		withRegistry(function(registry, _sharedRoot, _clientRoot)
+			registry:Initialize()
+			local calls = 0
+			local receivedTargets = nil
+			local preloader = ContentPreloader.new({
+				Assets = registry,
+				ContentProvider = {
+					PreloadAsync = function(_self, targets, callback)
+						calls += 1
+						receivedTargets = table.clone(targets)
+						callback("rbxassetid://200", Enum.AssetFetchStatus.Failure)
+						callback("rbxassetid://100", Enum.AssetFetchStatus.Success)
+					end,
+				},
+				Logger = makeLogger(),
+			})
+			local preloadContentIds = table.freeze({ "rbxassetid://100", "rbxassetid://200" })
+			local command = StartupContentPreloadCommand.new(preloader)
+			local context = {
+				Services = {
+					AudioStartup = {
+						Enabled = true,
+						Catalog = {
+							GetSnapshot = function()
+								return { PreloadContentIds = preloadContentIds }
+							end,
+						},
+					},
+				},
+			}
+
+			command:Initialize(context)
+			command:Initialize(context)
+			assertEqual(calls, 1, "the production audio preload request must be sticky across command reuse")
+			assertEqual(#receivedTargets, 2)
+			assertEqual(receivedTargets[1], "rbxassetid://100", "catalog preload IDs must retain exact sorted order")
+			assertEqual(receivedTargets[2], "rbxassetid://200", "catalog preload IDs must remain unique")
+			local result = preloader:GetRequestResult("AudioCatalog.Preload.v1")
+			assertTrue(result ~= nil, "the exact production request id must publish its sticky result")
+			assertEqual(result.Failed, 1, "Warn policy must continue after a backend failure")
+			assertEqual(result.Loaded, 1)
+		end)
 	end)
 
 	test("concurrent named requests share one in-flight operation and result", function()

@@ -155,6 +155,21 @@ string.
 The complete operator checklist is documented in
 `docs/IntegrationTesting.md`.
 
+## Audio feature verification
+
+Audio implementation changes require `AudioCatalogTestRunner`,
+`AudioPlaybackTestRunner`, and `AudioIntegrationTestRunner` before the full
+`AllTestsRunner`. The focused coverage MUST include protected module-load
+failure, disabled handlers before `ClientReady`, config/catalog/routing/profile
+boundaries, audio-only and non-audio AssetKey collisions, preload identity,
+generation-safe pools, listener transform, graph publication/binding, hybrid
+Queue rejection and fanout, Music transition mutation/readiness loss,
+AudioSettings side-specific envelope hooks, client-only missing-field
+reconciliation, failure-before-mutation/rollback, and the exact 79-AC evidence
+matrix. Graph,
+network, save, player-lifecycle, mapping, or canonical-place changes also
+require the clean and multi-client Studio scenarios in `docs/AudioSystem.md`.
+
 ## Output inspection
 
 For startup/network/save changes, inspect server and client console output. Treat unexpected errors and warnings as failures. Distinguish unrelated place-local Scripts from project source, remove obsolete test objects instead of creating compatibility objects that hide their errors, and rerun from a fresh Play session to clear ModuleScript cache.

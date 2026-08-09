@@ -176,6 +176,16 @@ Tags and attributes select content; they do not establish initialization
 ordering. The manifest command's explicit `DependsOn = { "Assets" }` owns that
 ordering.
 
+### TF-0005 audio startup request
+
+The audio implementation inserts `AudioStartup` after `Assets` and makes the
+existing `StartupContentPreloadCommand` depend on that normalized state. In
+addition to request `Startup`, the same command executes exactly one sorted,
+deduplicated request `AudioCatalog.Preload.v1` with `Warn`, derived only from
+valid catalog/physical descriptors marked `Preload=true`. Invalid audio startup
+skips the request and publishes its disabled boundary; it does not create a
+second preloader or retry loop. See [AudioSystem.md](AudioSystem.md).
+
 ## Pooling
 
 Preloading must finish before a domain module warms a pool whose template
@@ -209,3 +219,10 @@ require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 
 Every result must report `failed = 0`. After startup command or manifest
 changes, inspect both client and server output in a clean Play session.
+TF-0005 preload changes additionally require `AudioCatalogTestRunner`,
+`AudioIntegrationTestRunner`, and the aggregate suite. The exact enabled
+production-path fixture is `AudioCatalog/StartupPreloadSet` in
+`ContentPreloaderTestRunner`; it proves the sorted unique
+`PreloadContentIds`, request ID `AudioCatalog.Preload.v1`, `Warn` continuation,
+and sticky reuse. Catalog-only tests do not substitute for that command-path
+fixture.

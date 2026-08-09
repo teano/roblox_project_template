@@ -5,6 +5,11 @@ local AssetTypes = require(script.Parent.AssetTypes)
 type AssetRoot = AssetTypes.AssetRoot
 type AssetQuery = AssetTypes.AssetQuery
 
+type RegistryOptions = {
+	AllowAudioDuplicateKeys: boolean?,
+	Logger: any?,
+}
+
 type Indexes = {
 	ByPath: { [string]: Instance },
 	PathByInstance: { [Instance]: string },
@@ -102,7 +107,7 @@ local function freezeListIndex(index: { [string]: { Instance } }, pathByInstance
 	table.freeze(index)
 end
 
-local function buildIndexes(roots: { AssetRoot }): Indexes
+local function buildIndexes(roots: { AssetRoot }, options: RegistryOptions?): Indexes
 	assert(#roots > 0, "AssetRegistry requires at least one explicit root")
 
 	local orderedRoots = table.clone(roots)
@@ -159,18 +164,41 @@ local function buildIndexes(roots: { AssetRoot }): Indexes
 			assert(typeof(key) == "string", `{ASSET_KEY_ATTRIBUTE} on {instance:GetFullName()} must be a string`)
 			assertValidKey(key, instance)
 			local existingByKey = byKey[key]
-			assert(
-				existingByKey == nil,
-				`Duplicate AssetKey '{key}' on {existingByKey and existingByKey:GetFullName() or "unknown"} and {instance:GetFullName()}`
-			)
-			byKey[key] = instance
+			if existingByKey ~= nil then
+				local existingPath = pathByInstance[existingByKey]
+				local audioFirstWins = options ~= nil
+					and options.AllowAudioDuplicateKeys == true
+					and existingByKey:IsA("Sound")
+					and instance:IsA("Sound")
+					and existingPath:sub(1, 14) == "Shared/Sounds/"
+					and path:sub(1, 14) == "Shared/Sounds/"
+				if audioFirstWins then
+					if options.Logger ~= nil then
+						options.Logger:Warn("CatalogConflictFirstWins", {
+							AssetKey = key,
+							WinnerPath = existingPath,
+							IgnoredPath = path,
+						})
+					end
+				else
+					error(`Duplicate AssetKey '{key}' on {existingByKey:GetFullName()} and {instance:GetFullName()}`, 0)
+				end
+			else
+				byKey[key] = instance
+			end
 		end
 	end
 
 	for _, assetRoot in orderedRoots do
-		add(assetRoot.Root, assetRoot.Namespace)
+		local candidates = { assetRoot.Root }
 		for _, descendant in assetRoot.Root:GetDescendants() do
-			add(descendant, buildPath(assetRoot.Root, assetRoot.Namespace, descendant))
+			table.insert(candidates, descendant)
+		end
+		table.sort(candidates, function(first, second)
+			return buildPath(assetRoot.Root, assetRoot.Namespace, first) < buildPath(assetRoot.Root, assetRoot.Namespace, second)
+		end)
+		for _, candidate in candidates do
+			add(candidate, buildPath(assetRoot.Root, assetRoot.Namespace, candidate))
 		end
 	end
 
@@ -240,7 +268,7 @@ local function frozenCopy(values: { Instance }?): { Instance }
 	return table.freeze(result)
 end
 
-function AssetRegistry.new(roots: { AssetRoot })
+function AssetRegistry.new(roots: { AssetRoot }, options: RegistryOptions?)
 	local copiedRoots: { AssetRoot } = {}
 	for _, assetRoot in roots do
 		table.insert(copiedRoots, {
@@ -251,6 +279,7 @@ function AssetRegistry.new(roots: { AssetRoot })
 
 	return setmetatable({
 		_roots = copiedRoots,
+		_options = options,
 		_state = "Idle",
 		_failure = nil :: string?,
 		_byPath = {} :: { [string]: Instance },
@@ -279,7 +308,7 @@ function AssetRegistry:Initialize()
 
 	self._state = "Initializing"
 	local ok, result = xpcall(function()
-		return buildIndexes(self._roots)
+		return buildIndexes(self._roots, self._options)
 	end, debug.traceback)
 	if not ok then
 		self._state = "Failed"

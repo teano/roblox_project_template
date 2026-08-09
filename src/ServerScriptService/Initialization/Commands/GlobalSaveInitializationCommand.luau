@@ -63,6 +63,7 @@ function Command.new(deps: {
 	VersionModule: any,
 	WalletModule: any,
 	StatisticsModule: any,
+	AudioSettingsModule: any,
 	Logger: any?,
 })
 	return setmetatable({
@@ -73,10 +74,14 @@ function Command.new(deps: {
 	}, Command)
 end
 
-function Command.GetOrderedProviders(walletModule: any, statisticsModule: any, versionModule: any): { any }
+function Command.GetOrderedProviders(walletModule: any, statisticsModule: any, audioSettingsModule: any, versionModule: any): { any }
+	if versionModule == nil then
+		return { walletModule, statisticsModule, audioSettingsModule }
+	end
 	return {
 		walletModule,
 		statisticsModule,
+		audioSettingsModule,
 		versionModule,
 	}
 end
@@ -179,6 +184,38 @@ function Command:HandleSnapshotRequest(controller: any, player: Player, loadTime
 	return response
 end
 
+function Command.BuildShutdownTargets(controller: any, livePlayers: { Player }): { any }
+	local owners = controller:GetLockOwners()
+	local ownerByPlayer = {}
+	for _, owner in owners do
+		ownerByPlayer[owner.Player] = owner
+	end
+
+	local targets = {}
+	local seenPlayers = {}
+	local seenRuntimes = {}
+	for _, player in livePlayers do
+		local owner = ownerByPlayer[player]
+		if owner ~= nil then
+			if not seenRuntimes[owner.Runtime] then
+				table.insert(targets, owner)
+				seenRuntimes[owner.Runtime] = true
+			end
+		else
+			table.insert(targets, player)
+		end
+		seenPlayers[player] = true
+	end
+	for _, owner in owners do
+		if not seenRuntimes[owner.Runtime] and not seenPlayers[owner.Player] then
+			table.insert(targets, owner)
+			seenRuntimes[owner.Runtime] = true
+			seenPlayers[owner.Player] = true
+		end
+	end
+	return targets
+end
+
 function Command:Initialize(context: any)
 	local deps = self._deps
 	local globalSaveConfig = deps.Config:GetRequired("GlobalSave")
@@ -188,11 +225,14 @@ function Command:Initialize(context: any)
 			return `{deps.StorageConfig.KeyPrefix}{player.UserId}`
 		end)
 		:WithSoftSerializedBytesLimit(deps.StorageConfig.SoftSerializedBytesLimit)
-	for _, provider in Command.GetOrderedProviders(deps.WalletModule, deps.StatisticsModule, deps.VersionModule) do
+	for _, provider in Command.GetOrderedProviders(deps.WalletModule, deps.StatisticsModule, deps.AudioSettingsModule, deps.VersionModule) do
 		builder:WithSaveProvider(provider)
 	end
 	local controller = builder:Build()
 	deps.StatisticsModule:BindSaveController(controller)
+	controller:SetClosePreparation(function(player)
+		return deps.StatisticsModule:PrepareForProfileClose(player)
+	end)
 
 	context.Services.GlobalSaveController = controller
 	deps.AutoSaveModule:RegisterController(controller, {
@@ -230,6 +270,7 @@ function Command:Initialize(context: any)
 		end,
 		function(player, payload, requestId)
 			local result = controller:ApplyClientPatch(player, payload)
+			result.ControllerId = payload.ControllerId
 			deps.Communication:Queue(
 				player,
 				CommunicationProtocol.SystemMessages.SaveClientPatchResult,
@@ -271,14 +312,6 @@ function Command:Initialize(context: any)
 			end
 		end)
 	end, function(player)
-		local prepared = deps.StatisticsModule:PrepareForProfileClose(player)
-		if not prepared.Ok and prepared.Code ~= "NotLoaded" then
-			self._logger:Error("statistics_close_preparation_failed", {
-				UserId = player.UserId,
-				Code = prepared.Code,
-			})
-			return
-		end
 		local result = controller:Close(player, true)
 		if not result.Ok then
 			self._logger:Error("player_close_failed", {
@@ -290,27 +323,14 @@ function Command:Initialize(context: any)
 	end)
 
 	game:BindToClose(function()
+		local shutdownTargets = Command.BuildShutdownTargets(controller, deps.PlayersModule:GetPlayers())
 		deps.AutoSaveModule:Stop()
 		deps.SessionLockModule:Stop()
-		local preparedPlayers = {}
-		local preparationFailures = 0
-		for _, player in deps.PlayersModule:GetPlayers() do
-			local prepared = deps.StatisticsModule:PrepareForProfileClose(player)
-			if prepared.Ok or prepared.Code == "NotLoaded" then
-				table.insert(preparedPlayers, player)
-			else
-				preparationFailures += 1
-				self._logger:Error("statistics_shutdown_preparation_failed", {
-					UserId = player.UserId,
-					Code = prepared.Code,
-				})
-			end
-		end
-		local summary = deps.ShutdownSaveCoordinator:ClosePlayers(controller, preparedPlayers)
-		if summary.TimedOut or summary.Failed > 0 or preparationFailures > 0 then
+		local summary = deps.ShutdownSaveCoordinator:ClosePlayers(controller, shutdownTargets)
+		if summary.TimedOut or summary.Failed > 0 then
 			self._logger:Error("shutdown_save_incomplete", {
 				Succeeded = summary.Succeeded,
-				Failed = summary.Failed + preparationFailures,
+				Failed = summary.Failed,
 				Unfinished = summary.Unfinished,
 			})
 		end

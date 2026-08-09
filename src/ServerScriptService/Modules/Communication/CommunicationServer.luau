@@ -532,6 +532,60 @@ function CommunicationServer:Queue(
 	return true
 end
 
+function CommunicationServer:QueuePresentationAtomic(
+	players: { Player },
+	messageType: string,
+	payload: any,
+	requestId: string?
+): boolean
+	local checkpoints = {} :: {
+		[Player]: {
+			Queue: { QueueEntry }?,
+			Bytes: number?,
+			DroppedPresentation: number?,
+		},
+	}
+	local playerCount = 0
+	for index, player in players do
+		assert(index >= 1 and index % 1 == 0, "players must be a dense array")
+		playerCount += 1
+		assert(checkpoints[player] == nil, "players must not contain duplicates")
+		checkpoints[player] = {
+			Queue = if self._outgoing[player] == nil then nil else table.clone(self._outgoing[player]),
+			Bytes = self._outgoingBytes[player],
+			DroppedPresentation = self._droppedPresentation[player],
+		}
+	end
+	for index = 1, playerCount do
+		assert(players[index] ~= nil, "players must be a dense array")
+	end
+
+	local function rollback()
+		for player, checkpoint in checkpoints do
+			self._outgoing[player] = checkpoint.Queue
+			self._outgoingBytes[player] = checkpoint.Bytes
+			self._droppedPresentation[player] = checkpoint.DroppedPresentation
+		end
+	end
+
+	for _, player in players do
+		local ok, queued = pcall(function()
+			return self:Queue(player, messageType, payload, requestId, {
+				Priority = CommunicationProtocol.Priorities.Presentation,
+			})
+		end)
+		if not ok then
+			rollback()
+			error(queued, 0)
+		end
+		if not queued then
+			rollback()
+			return false
+		end
+	end
+	return true
+end
+
 function CommunicationServer:BeginSnapshot(player: Player)
 	self._ready[player] = false
 	self._outgoing[player] = {}

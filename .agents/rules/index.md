@@ -33,6 +33,7 @@ affects save-provider and communication contracts.
 | New module, subsystem, service, public API, or ownership boundary | `architecture.md`, `initialization.md`, `testing.md` |
 | `AssetRegistry`, `AssetKey`, static asset lookup, asset roots, or asset folder/query contracts | `assets.md`, `architecture.md`, `initialization.md`, `rojo-project.md`, `testing.md` |
 | `ContentPreloader`, `ContentProvider`, `PreloadAsync`, preload tags/groups, startup content loading, or loading before pool warmup | `content-preloading.md`, `assets.md`, `architecture.md`, `initialization.md`, `testing.md` |
+| Audio catalog/configuration, `AudioPlayer`, `AudioEmitter`, `AudioListener`, `AudioFader`, `AudioDeviceOutput`, audio graph/routing, ordinary or Music playback, audio pools/settings/preloading, hybrid audio DTOs, `Shared/Sounds`, or `AcousticSimulationEnabled` | `audio.md`, `architecture.md`, `initialization.md`, `assets.md`, `content-preloading.md`, `resource-management.md`, `communication.md`, `save-system.md`, `domain-data.md`, `players.md`, `rojo-project.md`, `testing.md` |
 | Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |
 | `Shared/Util/Signal.luau`, module-owned local event, `Connect`, `Once`, `Fire`, `Wait`, or signal `Destroy` | `signals.md`, `architecture.md`, `testing.md`, plus every affected subsystem rule |
 | `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
@@ -73,6 +74,9 @@ affects save-provider and communication contracts.
   folder rules, and startup immutability.
 - `content-preloading.md`: the single preloading entry point, catalog-backed
   selection, named requests, progress, failure policy, and startup loading.
+- `audio.md`: local audio configuration/catalog authority, narrow AssetRegistry
+  policy, graph and acoustic ownership, playback delivery, Music, settings,
+  pooling, failure containment, authoring, and verification.
 - `resource-management.md`: pooling ownership, adapters, leases, budgets, and cleanup.
 - `signals.md`: side-local dispatch, connection lifecycle, yielding, errors,
   waiting, and destruction.

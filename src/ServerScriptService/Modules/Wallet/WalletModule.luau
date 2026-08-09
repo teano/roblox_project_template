@@ -61,12 +61,36 @@ function WalletModule.new(communication: any, configCatalog: any)
 		_communication = communication,
 		_configCatalog = configCatalog,
 		_config = nil,
+		_mutationAdmission = nil :: ((Player) -> boolean)?,
 		_data = {} :: { [Player]: { [string]: any } },
 		_running = {} :: { [Player]: boolean },
 		_committedHandlers = {} :: { any },
 		MementoChanged = Signal.new(),
 		Changed = Signal.new(),
 	}, WalletModule)
+end
+
+function WalletModule:SetMutationAdmission(callback: (Player) -> boolean)
+	assert(typeof(callback) == "function", "Wallet mutation admission callback required")
+	self._mutationAdmission = callback
+end
+
+function WalletModule:_mutationRejected(player: Player): any?
+	local admission = self._mutationAdmission
+	if admission == nil then
+		return nil
+	end
+	local callOk, accepted = xpcall(function()
+		return admission(player)
+	end, debug.traceback)
+	if callOk and accepted == true then
+		return nil
+	end
+	return {
+		Ok = false,
+		Code = "Closing",
+		Error = "Wallet mutations are unavailable while save cleanup is retained",
+	}
 end
 
 function WalletModule:Initialize()
@@ -222,6 +246,10 @@ function WalletModule:_set(player: Player, currencyId: string, newValue: number,
 	assert(isSafeBalance(newValue), "new wallet balance must be a safe non-negative integer")
 	local data = assert(self._data[player], "Wallet is not loaded")
 	assert(self._running[player], "Wallet is not running")
+	local rejected = self:_mutationRejected(player)
+	if rejected ~= nil then
+		return rejected
+	end
 	local oldValue = data[currencyId]
 	if oldValue == newValue then
 		return {
@@ -274,6 +302,10 @@ end
 function WalletModule:Add(player: Player, currencyId: string, amount: number, reason: string, metadata: any?)
 	assert(WalletConfig.CurrencyIds[currencyId] == true, `Unknown currency '{currencyId}'`)
 	assert(isSafeBalance(amount), "amount must be a safe non-negative integer")
+	local rejected = self:_mutationRejected(player)
+	if rejected ~= nil then
+		return rejected
+	end
 	local balance = assert(self:GetBalance(player, currencyId), "Wallet is not loaded")
 	if amount > WalletConfig.MaxBalance - balance then
 		return {
@@ -288,6 +320,10 @@ end
 function WalletModule:TrySpend(player: Player, currencyId: string, amount: number, reason: string, metadata: any?)
 	assert(WalletConfig.CurrencyIds[currencyId] == true, `Unknown currency '{currencyId}'`)
 	assert(isSafeBalance(amount), "amount must be a safe non-negative integer")
+	local rejected = self:_mutationRejected(player)
+	if rejected ~= nil then
+		return rejected
+	end
 	local balance = assert(self:GetBalance(player, currencyId), "Wallet is not loaded")
 	if balance < amount then
 		return {

@@ -28,10 +28,12 @@ function ClientSaveController.new(config: {
 		_logger = config.Logger or Logger.new(`Save.ClientController.{config.Id}`, "info"),
 		_revision = 0,
 		_running = false,
+		_activeProviders = {} :: { [any]: boolean },
 		_dirtyGeneration = {} :: { [string]: number },
 		_sentGeneration = {} :: { [string]: number },
 		_pendingRequestId = nil :: string?,
 		_connections = {},
+		_destroyed = false,
 		Ready = Signal.new(),
 	}, ClientSaveController)
 
@@ -49,12 +51,6 @@ function ClientSaveController.new(config: {
 		end
 	end
 
-	self._communication:RegisterHandler(
-		CommunicationProtocol.SystemMessages.SaveClientPatchResult,
-		function(payload, requestId)
-			self:_handlePatchResult(payload, requestId)
-		end
-	)
 	table.insert(self._connections, RunService.Heartbeat:Connect(function()
 		self:_flushClientDirty()
 	end))
@@ -82,7 +78,28 @@ function ClientSaveController:ApplySnapshot(snapshot: any)
 	local targetValues = {}
 	for _, provider in self._providers do
 		local envelope = snapshot.Providers[provider.Id]
-		assert(typeof(envelope) == "table", `Snapshot provider '{provider.Id}' missing`)
+		if provider.ReconcileSnapshotEnvelope ~= nil then
+			if envelope ~= nil and provider.ValidateEnvelope ~= nil then
+				local validationCallOk, envelopeAccepted = xpcall(function()
+					return provider:ValidateEnvelope(envelope)
+				end, debug.traceback)
+				assert(validationCallOk and envelopeAccepted, `Provider '{provider.Id}' snapshot invalid: InvalidSettings`)
+			end
+			local reconciliationCallOk, reconciled, reconciledEnvelope = xpcall(function()
+				local accepted, value = provider:ReconcileSnapshotEnvelope(envelope)
+				return accepted, value
+			end, debug.traceback)
+			assert(reconciliationCallOk and reconciled and reconciledEnvelope ~= nil, `Provider '{provider.Id}' snapshot invalid: InvalidSettings`)
+			envelope = reconciledEnvelope
+			if provider.ValidateEnvelope ~= nil then
+				local validationCallOk, envelopeAccepted = xpcall(function()
+					return provider:ValidateEnvelope(envelope)
+				end, debug.traceback)
+				assert(validationCallOk and envelopeAccepted, `Provider '{provider.Id}' snapshot invalid: InvalidSettings`)
+			end
+		else
+			assert(typeof(envelope) == "table", `Snapshot provider '{provider.Id}' missing`)
+		end
 		local valid, sanitized, validationError = provider:ValidateMemento(envelope.Data)
 		assert(valid, `Provider '{provider.Id}' snapshot invalid: {validationError or "unknown"}`)
 		targetValues[provider] = TableUtil.deepCopy(if sanitized ~= nil then sanitized else envelope.Data)
@@ -112,11 +129,13 @@ function ClientSaveController:ApplySnapshot(snapshot: any)
 		end,
 		Stop = function(provider)
 			provider:Stop()
+			self._activeProviders[provider] = nil
 		end,
 		SetMemento = function(provider, value)
 			provider:SetMemento(TableUtil.deepCopy(value))
 		end,
 		Run = function(provider)
+			self._activeProviders[provider] = true
 			provider:Run()
 		end,
 	})
@@ -194,7 +213,7 @@ function ClientSaveController:FlushClientChanges()
 	self:_flushClientDirty()
 end
 
-function ClientSaveController:_handlePatchResult(payload: any, requestId: string?)
+function ClientSaveController:HandlePatchResult(payload: any, requestId: string?)
 	if requestId == nil or requestId ~= self._pendingRequestId or typeof(payload) ~= "table" then
 		return
 	end
@@ -216,16 +235,39 @@ function ClientSaveController:_handlePatchResult(payload: any, requestId: string
 end
 
 function ClientSaveController:Destroy()
-	if self._running then
-		for index = #self._providers, 1, -1 do
-			self._providers[index]:Stop()
+	if self._destroyed then
+		return { Ok = true }
+	end
+	local stopErrors = {}
+	for index = #self._providers, 1, -1 do
+		local provider = self._providers[index]
+		if self._activeProviders[provider] then
+			local ok, stopError = xpcall(function()
+				provider:Stop()
+			end, debug.traceback)
+			if ok then
+				self._activeProviders[provider] = nil
+			else
+				table.insert(stopErrors, `Provider '{provider.Id}' Stop failed:\n{tostring(stopError)}`)
+			end
 		end
 	end
+	self._running = false
+	if #stopErrors > 0 then
+		self._logger:Error("provider_stop_failed", { Error = table.concat(stopErrors, "\n---\n") })
+		return {
+			Ok = false,
+			Code = "ProviderStopFailed",
+			Error = table.concat(stopErrors, "\n---\n"),
+		}
+	end
+	self._destroyed = true
 	for _, connection in self._connections do
 		connection:Disconnect()
 	end
 	table.clear(self._connections)
 	self.Ready:Destroy()
+	return { Ok = true }
 end
 
 return ClientSaveController

@@ -57,6 +57,19 @@ Required context: `docs/ExperienceConfiguration.md`,
 - MUST NOT automatically refresh and replace active domain providers without
   their explicit lifecycle policy.
 
+## Audio startup exception
+
+ADR-0041 is the only local-module exception to the Experience Config default.
+It is limited to the four reviewed modules below
+`ReplicatedStorage.Shared.Configs.Audio`: `SoundCatalog`,
+`AudioRuntimeConfig`, `RoutingConfig`, and `SpatialProfiles`. One protected
+`AudioStartup` command after `Assets` resolves and requires these modules,
+exact-validates and deep-freezes the complete candidate, and publishes either
+one immutable state or a side-disabled boundary. `AudioSafetyLimits` remains
+reviewed code outside `Configs`, and authored values cannot raise it. Audio
+config MUST NOT use Experience Config projection, live refresh, Attributes,
+ValueObjects, or network delivery. See `.agents/rules/audio.md`.
+
 ## Adding a config
 
 1. Add its server definition and pure decoder to

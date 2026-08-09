@@ -63,6 +63,22 @@ local command = InventoryInitializationCommand.new(module)
 
 The manifest owns composition and ordering; `InventoryModule` owns inventory runtime state.
 
+## Audio playback architecture
+
+- Audio startup is owned by one protected `AudioStartup` command after
+  `Assets`; manifests inject roots and constants but MUST NOT require raw audio
+  configs in constructor phase.
+- `AudioGraph` is one manifest-owned generation. The server publishes one
+  validated `ReplicatedStorage.AudioRuntime`; clients bind the exact complete
+  generation and own only local listener/output/settings edges.
+- Disabled audio owns no pools, graph, preload, or playback, but exact hybrid
+  handlers remain registered after `Communication` and reject/no-op before
+  `ClientReady` as required by ADR-0041.
+- Ordinary and Music remain separate runtime owners. Shared catalog/config
+  models do not imply shared pools, public APIs, cleanup, or network state.
+- Read `.agents/rules/audio.md` and ADR-0039, ADR-0040, and ADR-0041 for any
+  audio architecture change.
+
 ## Negative example
 
 ```lua

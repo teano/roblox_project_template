@@ -57,6 +57,16 @@ require(script.Parent.InventoryModule):Initialize()
 
 Filename ordering is not an initialization contract.
 
+## Audio initialization
+
+Audio manifests use the exact relative order and dependencies in the approved
+technical specification: `Assets -> AudioStartup`, then preload/pooling/player/
+communication owners before graph and playback. Raw audio ModuleScripts are
+loaded only inside protected `AudioStartup.Initialize`. Enabled and disabled
+hybrid handlers register after `Communication` and before `ClientReady`; a
+disabled handler is a protocol-compatible no-op/reject boundary, not a second
+bootstrap. See ADR-0041 and `.agents/rules/audio.md`.
+
 ## Verification
 
 - `SystemTestRunner`.

@@ -230,6 +230,18 @@ yielding loading to `AssetRegistry:Initialize`, `FindAll`, or a pool adapter.
 Production consumers do not call `ContentProvider:PreloadAsync()` directly.
 See [ContentPreloading.md](ContentPreloading.md).
 
+### Audio-only `AssetKey` exception
+
+The TF-0005 implementation has one reviewed exception under
+`ReplicatedStorage.Assets.Shared.Sounds`. When every candidate in an
+`AssetKey` collision is a `Sound` below canonical `Shared/Sounds`, the registry
+validates and ordinal-sorts canonical paths, assigns the key to the first
+candidate, keeps later candidates path-addressable, and reports
+`CatalogConflictFirstWins`. Any candidate outside that exact class/root,
+duplicate logical path, or other catalog error remains fatal. Raw Roblox child
+order never chooses the winner. See [AudioSystem.md](AudioSystem.md) and
+[ADR-0039](adr/template/0039-allow-deterministic-audio-only-asset-key-first-wins.md).
+
 ## Verification
 
 Run a Rojo validation build:
@@ -245,6 +257,9 @@ require(game.ServerScriptService.Tests.AssetRegistryTestRunner).runAll()
 require(game.ServerScriptService.Tests.ContentPreloaderTestRunner).runAll()
 require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 ```
+
+Also run `AudioCatalogTestRunner` and the full `AllTestsRunner`; prove the exact audio
+exception and the unchanged non-audio duplicate failure.
 
 Both results must report `failed = 0`. Inspect both server and client output
 after changes to roots, mappings, manifests, or canonical assets.

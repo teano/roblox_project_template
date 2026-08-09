@@ -17,7 +17,11 @@
         "$ignoreUnknownInstances": true,
         "Shared": {
           "$className": "Folder",
-          "$ignoreUnknownInstances": true
+          "$ignoreUnknownInstances": true,
+          "Sounds": {
+            "$className": "Folder",
+            "$ignoreUnknownInstances": true
+          }
         },
         "Client": {
           "$className": "Folder",

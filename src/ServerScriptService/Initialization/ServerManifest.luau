@@ -37,6 +37,10 @@ local WalletStatisticsController = require(Modules.Statistics.WalletStatisticsCo
 local StatisticsRequestController = require(Modules.Statistics.StatisticsRequestController)
 local StatisticsClientFactController = require(Modules.Statistics.StatisticsClientFactController)
 local StatisticsClientFactManifest = require(Modules.Statistics.StatisticsClientFactManifest)
+local AudioGraphServer = require(Modules.Audio.AudioGraphServer)
+local OrdinarySoundServer = require(Modules.Audio.OrdinarySoundServer)
+local HybridOneShotServerController = require(Modules.Audio.HybridOneShotServerController)
+local AudioSettingsModule = require(Modules.Audio.AudioSettingsModule)
 
 local Commands = script.Parent.Commands
 local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
@@ -52,6 +56,9 @@ local DomainDataInitializationCommand = require(Commands.DomainDataInitializatio
 local StatisticsInitializationCommand = require(Commands.StatisticsInitializationCommand)
 local GlobalSaveInitializationCommand = require(Commands.GlobalSaveInitializationCommand)
 local PersistenceScheduleInitializationCommand = require(Commands.PersistenceScheduleInitializationCommand)
+local AudioStartupInitializationCommand = require(Commands.AudioStartupInitializationCommand)
+local AudioGraphInitializationCommand = require(Commands.AudioGraphInitializationCommand)
+local OrdinarySoundInitializationCommand = require(Commands.OrdinarySoundInitializationCommand)
 
 local replicatedAssets = ReplicatedStorage:FindFirstChild("Assets")
 assert(replicatedAssets ~= nil and replicatedAssets:IsA("Folder"), "ReplicatedStorage.Assets must be a Folder")
@@ -59,6 +66,9 @@ local sharedAssets = replicatedAssets:FindFirstChild("Shared")
 assert(sharedAssets ~= nil and sharedAssets:IsA("Folder"), "ReplicatedStorage.Assets.Shared must be a Folder")
 local serverAssets = ServerStorage:FindFirstChild("Assets")
 assert(serverAssets ~= nil and serverAssets:IsA("Folder"), "ServerStorage.Assets must be a Folder")
+
+local initializationLogger = Logger.new("ServerInitialization", "info")
+local audioLogger = Logger.new("Audio.Server", "info")
 
 local assetRegistry = AssetRegistry.new({
 	{
@@ -69,7 +79,7 @@ local assetRegistry = AssetRegistry.new({
 		Namespace = "Server",
 		Root = serverAssets,
 	},
-})
+}, { AllowAudioDuplicateKeys = true, Logger = audioLogger })
 local poolModule = PoolModule.new()
 local playersModule = PlayersModule.new()
 local communication = CommunicationServer.new({
@@ -97,16 +107,17 @@ local configCatalog = ExperienceConfigCatalog.new({
 	ClientBundles = ServerConfigManifest.ClientBundles,
 })
 local autoSaveModule = AutoSaveModule.new()
-local saveModule = SaveModule.new({
-	OnControllerRemoving = function(controller)
-		autoSaveModule:UnregisterController(controller)
-	end,
-})
 local baseStorage = if StorageConfig.UseMemoryStorage
 	then MemoryStorage.new()
 	else DataStoreStorage.new(StorageConfig)
 local storage = SessionLockingStorage.new(baseStorage, StorageConfig)
 local sessionLockModule = SessionLockModule.new(StorageConfig.LockRefreshIntervalSeconds)
+local saveModule = SaveModule.new({
+	OnControllerRemoving = function(controller)
+		autoSaveModule:UnregisterController(controller)
+		sessionLockModule:UnregisterController(controller)
+	end,
+})
 local shutdownSaveCoordinator = ShutdownSaveCoordinator.new({
 	BudgetSeconds = StorageConfig.ShutdownBudgetSeconds,
 	MaxConcurrency = StorageConfig.ShutdownMaxConcurrency,
@@ -136,6 +147,18 @@ local statisticsClientFactController = StatisticsClientFactController.new({
 	Communication = communication,
 	Definitions = StatisticsClientFactManifest,
 })
+local audioGraph = AudioGraphServer.new(ReplicatedStorage, audioLogger)
+local ordinarySound = OrdinarySoundServer.new(poolModule, audioLogger)
+local hybridAudio = HybridOneShotServerController.new({
+	Communication = communication,
+	PlayersModule = playersModule,
+	Clock = os.clock,
+	Logger = audioLogger,
+})
+local audioSettings = AudioSettingsModule.new()
+local sharedRoot = ReplicatedStorage:FindFirstChild("Shared")
+local configsRoot = if sharedRoot then sharedRoot:FindFirstChild("Configs") else nil
+local audioConfigRoot = if configsRoot then configsRoot:FindFirstChild("Audio") else nil
 
 local services = {
 	Assets = assetRegistry,
@@ -154,13 +177,19 @@ local services = {
 	Migration = migrationModule,
 	Wallet = walletModule,
 	Statistics = statisticsModule,
+	AudioGraph = audioGraph,
+	OrdinarySound = ordinarySound,
+	AudioSettings = audioSettings,
 }
 
 local commands = {
 	AssetRegistryInitializationCommand.new(assetRegistry),
+	AudioStartupInitializationCommand.new(audioConfigRoot, assetRegistry, "Server", audioLogger, sharedAssets),
 	PoolingInitializationCommand.new(poolModule),
 	PlayersInitializationCommand.new(playersModule),
 	CommunicationInitializationCommand.new(communication),
+	AudioGraphInitializationCommand.new(audioGraph),
+	OrdinarySoundInitializationCommand.new(ordinarySound, hybridAudio),
 	TeleportInitializationCommand.new(teleportModule),
 	TeleportValidationPadInitializationCommand.new(teleportValidationPad),
 	ConfigInitializationCommand.new(configCatalog),
@@ -172,7 +201,7 @@ local commands = {
 	}),
 	SaveInitializationCommand.new(saveModule),
 	MigrationInitializationCommand.new(migrationModule),
-	DomainDataInitializationCommand.new(versionModule, walletModule),
+	DomainDataInitializationCommand.new(versionModule, walletModule, audioSettings),
 	GlobalSaveInitializationCommand.new({
 		SaveModule = saveModule,
 		Storage = storage,
@@ -188,6 +217,7 @@ local commands = {
 		VersionModule = versionModule,
 		WalletModule = walletModule,
 		StatisticsModule = statisticsModule,
+		AudioSettingsModule = audioSettings,
 	}),
 	PersistenceScheduleInitializationCommand.new(autoSaveModule, sessionLockModule, playersModule),
 }
@@ -195,5 +225,5 @@ local commands = {
 return {
 	Commands = commands,
 	Services = services,
-	Logger = Logger.new("ServerInitialization", "info"),
+	Logger = initializationLogger,
 }

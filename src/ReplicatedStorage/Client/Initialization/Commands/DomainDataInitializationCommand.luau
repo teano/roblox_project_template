@@ -6,7 +6,7 @@ Command.__index = Command
 function Command.new(modules: { any })
 	return setmetatable({
 		Id = "DomainData",
-		DependsOn = { "Save" },
+		DependsOn = { "Save", "AudioGraph" },
 		_modules = modules,
 	}, Command)
 end

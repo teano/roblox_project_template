@@ -1,0 +1,5 @@
+CueId,VariantId,PlayerType,AssetId,AssetKey,ResourcePath,Volume01,PlaybackSpeed,Looping,Preload,PlaybackRegionStart,PlaybackRegionEnd,LoopRegionStart,LoopRegionEnd,SpatialProfile,Weight,AllowClientHybrid
+Template.UI.Confirm,Default,UI,9112854440,,,1,1,false,false,,,,,,1,false
+Template.SFX.Pulse,Default,SFX,9120386436,,,0.8,1,false,false,,,,,,1,true
+Template.World.Pulse,Default,World,9118828569,,,0.8,1,false,false,,,,,WorldDefault,1,true
+Template.Music.Background,Default,Music,1837467590,,,0.5,1,true,false,,,,,,1,false

@@ -17,6 +17,7 @@ function Command.new(deps: {
 	Teleport: any,
 	Version: any,
 	Wallet: any,
+	AudioSettings: any,
 })
 	return setmetatable({
 		Id = "GlobalSave",
@@ -70,14 +71,16 @@ function Command:Initialize(context: any)
 	self._config = deps.Config:GetRequired("GlobalSave")
 	local controller = deps.SaveModule:BuildSaveController(SaveProtocol.GlobalControllerId)
 		:WithSaveProvider(deps.Wallet)
+		:WithSaveProvider(deps.AudioSettings)
 		:WithSaveProvider(deps.Version)
 		:Build()
 	self._controller = controller
 	context.Services.GlobalSaveController = controller
 
 	local gameData = GameDataClient.new(controller, {
-		deps.Version,
 		deps.Wallet,
+		deps.AudioSettings,
+		deps.Version,
 	})
 	GameDataClient.set(gameData)
 	context.Services.GameData = gameData

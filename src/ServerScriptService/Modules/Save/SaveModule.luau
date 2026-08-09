@@ -35,27 +35,37 @@ function SaveModule:GetSaveController(id: string)
 end
 
 function SaveModule:RemoveSaveController(controllerOrId: any, saveBeforeClose: boolean?)
-	local id = if typeof(controllerOrId) == "string" then controllerOrId else controllerOrId.Id
+	local removingById = typeof(controllerOrId) == "string"
+	local id = if removingById then controllerOrId else controllerOrId.Id
 	local controller = self._controllers[id]
-	if controller == nil then
+	if controller == nil or (not removingById and controller ~= controllerOrId) then
 		return false
+	end
+	local cleanup = controller:Destroy(saveBeforeClose)
+	if typeof(cleanup) ~= "table" or cleanup.Ok ~= true then
+		return false, cleanup
 	end
 	if self._onControllerRemoving ~= nil then
 		self._onControllerRemoving(controller)
 	end
-	controller:Destroy(saveBeforeClose)
 	self._controllers[id] = nil
 	return true
 end
 
 function SaveModule:RemoveAllSaveControllers(saveBeforeClose: boolean?)
-	for id, controller in self._controllers do
-		if self._onControllerRemoving ~= nil then
-			self._onControllerRemoving(controller)
-		end
-		controller:Destroy(saveBeforeClose)
-		self._controllers[id] = nil
+	local ids = {}
+	for id in self._controllers do
+		table.insert(ids, id)
 	end
+	table.sort(ids)
+	local failures = {}
+	for _, id in ids do
+		local removed, cleanup = self:RemoveSaveController(id, saveBeforeClose)
+		if not removed and self._controllers[id] ~= nil then
+			failures[id] = cleanup
+		end
+	end
+	return next(failures) == nil, failures
 end
 
 return SaveModule

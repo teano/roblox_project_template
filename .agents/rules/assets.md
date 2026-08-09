@@ -101,6 +101,17 @@ from pooling and does not own runtime object lifetimes.
 - MUST NOT author the same asset Instance or property in both Rojo source and
   `place.rbxl`.
 
+## Audio-only duplicate-key exception
+
+ADR-0039 permits deterministic first-wins only when every colliding
+`AssetKey` candidate is a `Sound` under canonical `Shared/Sounds`. Eligible
+candidates are canonical-path validated and ordinal-sorted before selection;
+later candidates remain path-addressable and emit the stable bounded audio
+diagnostic. Any other class/root combination, duplicate logical path, or
+ordinary AssetRegistry validation error remains fatal. This exception MUST be
+injected by the manifests and MUST NOT change default key semantics outside
+the exact audio root. See `.agents/rules/audio.md`.
+
 ## Adding or moving assets
 
 1. Choose `Shared`, `Client`, or `Server` from actual runtime visibility.

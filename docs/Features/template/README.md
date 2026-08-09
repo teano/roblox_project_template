@@ -6,11 +6,11 @@
 
 <!-- feature-index:begin -->
 
-Всего: 7 | Готово: 6 | В работе: 1 | В плане: 0 | С блокерами: 1
+Всего: 7 | Готово: 6 | В работе: 1 | В плане: 0 | С блокерами: 0
 
 | ID | Фича | Состояние | Активность | Ветка | Базовый commit | Worklog | Блокеры | Обновлено |
 |---|---|---|---|---|---|---|---|---|
-| TF-0005 | [SFX System](./sfx-system/) | 🟨 В работе | Приостановлена | `main` | `14d4cf84` | [Открыть](./sfx-system/worklog.md) | Product requirements are draft; PRD-OQ-001 is unresolved.; Technical specification is missing and requires an approved PRD. | 2026-08-05 |
+| TF-0005 | [SFX System](./sfx-system/) | 🟨 В работе | Активна | `template-feature/tf-0005-sfx-system` | `14d4cf84` | [Открыть](./sfx-system/worklog.md) | — | 2026-08-08 |
 | TF-0001 | [Teleport Module](./TeleportModule/) | 🟩 Готова | — | `main` | `0297a229` | [Открыть](./TeleportModule/worklog.md) | — | 2026-08-03 |
 | TF-0002 | [Players Module Production Readiness](./players-module/) | 🟩 Готова | — | `main` | `051674b9` | [Открыть](./players-module/worklog.md) | — | 2026-08-04 |
 | TF-0003 | [Statistic Collection](./StatisticCollection/) | 🟩 Готова | — | `main` | `ec70a72b` | [Открыть](./StatisticCollection/worklog.md) | — | 2026-08-05 |

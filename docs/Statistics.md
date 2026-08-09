@@ -35,6 +35,20 @@ On normal profile close, `Place` is closed into history and `Session` is moved
 to the private `PendingSession` slot. A target server continues that Session
 only when its trusted `TeleportModule:GetSession()` ID matches. External entry
 or a mismatched Teleport session starts a new Session. `Global` remains active.
+Close preparation runs inside the Global save controller's terminal lifecycle
+reservation. An invalid close candidate leaves the current provider memento
+unchanged, keeps Statistics in its mutation-rejecting closing state, and
+returns a retryable `ClosePreparationFailed` result instead of memoizing that
+failure forever. The session-lock owner performs bounded retries; a persistent
+preparation failure uses the controller's explicit fail-closed finalization to
+save the still-valid current memento before Stop and lock Release. Player
+removal, shutdown, and same-key rejoin therefore share one terminal handoff and
+cannot leave a departed gameplay-ready Statistics runtime heartbeating forever.
+Shutdown includes already-departed retained owners in the same pre-stop target
+snapshot as live players, and preparation retry/finalization shares the
+coordinator's absolute deadline and bounded worker ownership. Statistics stays
+mutation-rejecting throughout this retained interval; other Global providers
+remain capturable but their public mutation gates are also closed.
 
 ## Applying facts
 

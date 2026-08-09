@@ -116,6 +116,16 @@ walletRemote:FireClient(player, walletModule:GetMemento(player))
 
 This bypasses ordering/backpressure and replaces client runtime identity.
 
+## Audio hybrid boundary
+
+Audio hybrid uses only exact versioned Intent and Presentation entries in the
+existing registry. Both remain installed before `ClientReady` even when audio
+startup is disabled; disabled handlers exact-decode then return
+`AudioDisabled` without playback, fanout, retry, replay, or resync state.
+Client Queue rejection preserves predicted local playback, logs
+`HybridQueueRejected`, and does not retry. See ADR-0041 and
+`.agents/rules/audio.md`.
+
 ## Verification
 
 - `ProductionIntegrationTestRunner`.

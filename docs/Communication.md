@@ -110,6 +110,10 @@ Outgoing messages declare `Critical`, `State`, or `Presentation` priority.
 When a queue is under pressure, presentation messages are discarded first.
 If state can no longer fit, the queue collapses to one `ResyncRequired`
 message and refuses more state until snapshot recovery starts.
+Multi-recipient presentation fan-out uses `QueuePresentationAtomic`. It applies
+the ordinary per-recipient validation and backpressure policy but restores all
+recipient queues if any enqueue rejects, so one presentation is never partly
+accepted across its intended audience.
 
 Initial state and resync use this handshake:
 

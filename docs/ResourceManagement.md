@@ -140,6 +140,18 @@ Cleanup has deliberately different strengths:
 
 `Destroy` is idempotent. A destroyed pool rejects new acquisition.
 
+### Audio pool ownership
+
+TF-0005 uses the existing side-owned `PoolModule` registries but never shares a
+concrete pool across server/client, Ordinary/Music, player types, or wrapper
+shapes. Pending readiness occupies an active slot. Ordinary capacity completes
+oldest-first release before replacement acquire; Music stack capacity rejects
+the new request without evicting a live entry. Every audio callback captures
+the pool lease generation plus its owning playback/stack generation, and one
+completion owner performs the full AudioPlayer/emitter/wire/anchor reset. See
+[AudioSystem.md](AudioSystem.md) and
+[ADR-0040](adr/template/0040-own-audio-graph-and-acoustic-policy-at-bootstrap.md).
+
 ## Public API summary
 
 ### `Pool<T, TContext>`
@@ -252,3 +264,5 @@ require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 ```
 
 Every result must report `failed = 0`.
+Also run `AudioPlaybackTestRunner` and the complete aggregate; verify all
+per-type and side-wide object ceilings.

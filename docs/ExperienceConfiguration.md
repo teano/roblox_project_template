@@ -19,6 +19,19 @@ Configuration contracts remain reviewed code:
 This separation is equivalent to a serialized class plus serialized values:
 the contract is code, while the changing data is an Experience Config.
 
+### Audio startup exception
+
+TF-0005 is the narrow exception defined by ADR-0041. Its generated
+`SoundCatalog` and static `AudioRuntimeConfig`, `RoutingConfig`, and
+`SpatialProfiles` are Git-reviewed, startup-only Luau modules under
+`ReplicatedStorage.Shared.Configs.Audio`. Server and client independently load
+them inside protected `AudioStartup.Initialize`, exact-validate and deep-freeze
+the complete state, and never use ConfigService, client projection, live
+refresh, Attributes, or ValueObjects. Code-owned `AudioSafetyLimits` remains
+outside `Configs` and cannot be raised by authored tables. All other tunable
+configuration continues to follow this document's Experience Config boundary.
+See [AudioSystem.md](AudioSystem.md).
+
 ## Server definitions
 
 Projects extend
@@ -291,6 +304,10 @@ require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 
 The focused suite uses injected ConfigService and communication fakes. It does
 not depend on live Experience Configs.
+
+TF-0005 local-config tests belong to `AudioCatalogTestRunner` and
+`AudioIntegrationTestRunner`, not `ConfigCatalogTestRunner`; a regression test
+must also prove that non-audio configuration still uses Experience Config.
 
 For the required order of preparing a dedicated real-API environment, see
 [IntegrationTesting.md](IntegrationTesting.md).
