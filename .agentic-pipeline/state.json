@@ -1,1219 +1,2445 @@
 {
-  "schema_version": 4,
-  "contract_version": "2026-08-05-efficient-review-v2",
+  "schema_version": 8,
+  "contract_version": "2026-08-09-bounded-review-qa-v1",
   "project_root": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template",
   "feature": "sfx-system",
-  "slice_id": "tf-0005-sfx-system-v1",
+  "slice_id": "SLICE-001",
+  "development_plan_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\docs\\Features\\template\\sfx-system\\development-plan.md",
+  "development_plan_sha256": "3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0",
+  "development_mode": "single_owner",
+  "ordered_slices": [
+    "SLICE-001"
+  ],
+  "active_slice": "SLICE-001",
+  "slices": {
+    "SLICE-001": {
+      "id": "SLICE-001",
+      "dependencies": [],
+      "status": "active",
+      "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "base_product_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "base_support_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "base_evidence_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "result_revision": null,
+      "result_product_revision": null,
+      "result_support_revision": null,
+      "result_evidence_revision": null,
+      "owner_id": "eng-tf0005-spatial-owner-01",
+      "remediation_returns_by_owner": {},
+      "handoff_manifests": [],
+      "requirement_ids": [
+        "PRD-REQ-001",
+        "PRD-REQ-002",
+        "PRD-REQ-003",
+        "PRD-REQ-004",
+        "PRD-REQ-005",
+        "PRD-REQ-006",
+        "PRD-REQ-007",
+        "PRD-REQ-008",
+        "PRD-REQ-009",
+        "PRD-REQ-010",
+        "PRD-REQ-011",
+        "PRD-REQ-012",
+        "PRD-REQ-013",
+        "PRD-REQ-014",
+        "PRD-REQ-015",
+        "PRD-REQ-016",
+        "PRD-REQ-017",
+        "PRD-REQ-018",
+        "PRD-REQ-019",
+        "PRD-REQ-020",
+        "PRD-REQ-021",
+        "PRD-REQ-022",
+        "PRD-REQ-023",
+        "PRD-REQ-024",
+        "PRD-REQ-025",
+        "PRD-REQ-026",
+        "PRD-REQ-027",
+        "PRD-REQ-028",
+        "PRD-REQ-029",
+        "PRD-REQ-030",
+        "PRD-REQ-031",
+        "PRD-REQ-032",
+        "PRD-REQ-033",
+        "PRD-REQ-034",
+        "PRD-REQ-035",
+        "PRD-REQ-036",
+        "PRD-REQ-037",
+        "PRD-REQ-038",
+        "PRD-REQ-039",
+        "PRD-REQ-040",
+        "PRD-REQ-041",
+        "PRD-REQ-042",
+        "PRD-REQ-043",
+        "PRD-REQ-044",
+        "PRD-REQ-045",
+        "PRD-REQ-046",
+        "PRD-REQ-047",
+        "PRD-REQ-048",
+        "PRD-REQ-049",
+        "PRD-REQ-050"
+      ],
+      "scope_contract": {
+        "acceptance_ids": [
+          "PRD-AC-001",
+          "PRD-AC-002",
+          "PRD-AC-003",
+          "PRD-AC-004",
+          "PRD-AC-005",
+          "PRD-AC-006",
+          "PRD-AC-007",
+          "PRD-AC-008",
+          "PRD-AC-009",
+          "PRD-AC-010",
+          "PRD-AC-011",
+          "PRD-AC-012",
+          "PRD-AC-013",
+          "PRD-AC-014",
+          "PRD-AC-015",
+          "PRD-AC-016",
+          "PRD-AC-017",
+          "PRD-AC-018",
+          "PRD-AC-019",
+          "PRD-AC-020",
+          "PRD-AC-021",
+          "PRD-AC-022",
+          "PRD-AC-023",
+          "PRD-AC-024",
+          "PRD-AC-025",
+          "PRD-AC-026",
+          "PRD-AC-027",
+          "PRD-AC-028",
+          "PRD-AC-029",
+          "PRD-AC-030",
+          "PRD-AC-031",
+          "PRD-AC-032",
+          "PRD-AC-033",
+          "PRD-AC-034",
+          "PRD-AC-035",
+          "PRD-AC-036",
+          "PRD-AC-037",
+          "PRD-AC-038",
+          "PRD-AC-039",
+          "PRD-AC-040",
+          "PRD-AC-041",
+          "PRD-AC-042",
+          "PRD-AC-043",
+          "PRD-AC-044",
+          "PRD-AC-045",
+          "PRD-AC-046",
+          "PRD-AC-047",
+          "PRD-AC-048",
+          "PRD-AC-049",
+          "PRD-AC-050",
+          "PRD-AC-051",
+          "PRD-AC-052",
+          "PRD-AC-053",
+          "PRD-AC-054",
+          "PRD-AC-055",
+          "PRD-AC-056",
+          "PRD-AC-057",
+          "PRD-AC-058",
+          "PRD-AC-059",
+          "PRD-AC-060",
+          "PRD-AC-061",
+          "PRD-AC-062",
+          "PRD-AC-063",
+          "PRD-AC-064",
+          "PRD-AC-065",
+          "PRD-AC-066",
+          "PRD-AC-067",
+          "PRD-AC-068",
+          "PRD-AC-069",
+          "PRD-AC-070",
+          "PRD-AC-071",
+          "PRD-AC-072",
+          "PRD-AC-073",
+          "PRD-AC-074",
+          "PRD-AC-075",
+          "PRD-AC-076",
+          "PRD-AC-077",
+          "PRD-AC-078",
+          "PRD-AC-079"
+        ],
+        "editable_paths": [
+          ".agents/rules/audio.md",
+          "docs/adr/template/0043-fixed-spatial-anchor-composition.md",
+          "docs/adr/template/README.md",
+          "docs/AudioSystem.md",
+          "docs/AudioManualQA.md",
+          "docs/TestCoverage.md",
+          "scripts/validate-repository-layout.ps1",
+          "src/ReplicatedStorage/Shared/Audio/SpatialAnchorBindingRegistry.luau",
+          "src/ReplicatedStorage/Shared/Audio/AudioPlaybackWrapper.luau",
+          "src/ReplicatedStorage/Shared/Audio/OrdinaryPlaybackCore.luau",
+          "src/ReplicatedStorage/Client/Audio/OrdinarySoundClient.luau",
+          "src/ServerScriptService/Modules/Audio/OrdinarySoundServer.luau",
+          "src/ReplicatedStorage/Client/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+          "src/ServerScriptService/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+          "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+          "src/ServerScriptService/Initialization/ServerManifest.luau",
+          "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+          "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+          "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+          "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+          "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+          "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+          "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+          "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau"
+        ],
+        "shared_touchpoints": [
+          {
+            "id": "TP-001",
+            "path": "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+            "symbols": [
+              "OrdinarySoundInitializationCommand composition"
+            ],
+            "allowed_change": "inject Workspace and the one client-side frame driver into the existing Ordinary initialization path",
+            "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+          },
+          {
+            "id": "TP-002",
+            "path": "src/ServerScriptService/Initialization/ServerManifest.luau",
+            "symbols": [
+              "OrdinarySoundInitializationCommand composition"
+            ],
+            "allowed_change": "inject Workspace and the one server-side frame driver into the existing Ordinary initialization path",
+            "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+          },
+          {
+            "id": "TP-003",
+            "path": "scripts/validate-repository-layout.ps1",
+            "symbols": [
+              "fixed-spatial audio assertions"
+            ],
+            "allowed_change": "additive exact assertions for SpatialAnchor direct-child composition, forbidden Position properties, one side subscription and required identities",
+            "forbidden_change": "weakening or removing existing repository, Rojo, audio, QA or lifecycle assertions"
+          },
+          {
+            "id": "TP-004",
+            "path": "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+            "symbols": [
+              "AudioConfig/FixedSpatialCompositionObjectCeiling and retained catalog identities"
+            ],
+            "allowed_change": "add exact rev12 fixed-spatial ceiling evidence while preserving retained identities",
+            "forbidden_change": "relabeling historical evidence or weakening real-asset/catalog checks"
+          },
+          {
+            "id": "TP-005",
+            "path": "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+            "symbols": [
+              "AudioPlayback spatial identities"
+            ],
+            "allowed_change": "replace old topology assertions with exact fixed-anchor, Point, Attached, cleanup and public-surface evidence",
+            "forbidden_change": "weakened cleanup, synthetic pass, changed unrelated identities"
+          },
+          {
+            "id": "TP-006",
+            "path": "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+            "symbols": [
+              "AudioStatic/FixedSpatialCompositionOnly and retained integration identities"
+            ],
+            "allowed_change": "add exact static/composition evidence and necessary end-to-end assertions",
+            "forbidden_change": "weakened server-authority, preload, settings or isolation evidence"
+          },
+          {
+            "id": "TP-007",
+            "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+            "symbols": [
+              "Studio audio QA schemas"
+            ],
+            "allowed_change": "replace old playback topology observations with fixed Parent-mode SpatialAnchor fields",
+            "forbidden_change": "new remote, changed authorization boundary, unrelated schema expansion"
+          },
+          {
+            "id": "TP-008",
+            "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+            "symbols": [
+              "Studio-E2E-AUDIO-01..05 plan"
+            ],
+            "allowed_change": "replace old spatial observation instructions with exact fixed-anchor Parent-mode evidence",
+            "forbidden_change": "removed gates, changed scenario identities, automatic publish or mutation"
+          },
+          {
+            "id": "TP-009",
+            "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+            "symbols": [
+              "client QA driver spatial observation"
+            ],
+            "allowed_change": "observe direct anchor children, transform behavior and cleanup without Position properties",
+            "forbidden_change": "gameplay behavior, new transport, per-frame probe connection"
+          },
+          {
+            "id": "TP-010",
+            "path": "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+            "symbols": [
+              "server QA driver spatial observation"
+            ],
+            "allowed_change": "observe native single-lease fixed-anchor behavior and cleanup",
+            "forbidden_change": "mirror or fanout creation, new transport, gameplay authority change"
+          },
+          {
+            "id": "TP-011",
+            "path": "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau",
+            "symbols": [
+              "manual QA contract and identity assertions"
+            ],
+            "allowed_change": "validate revised fixed-spatial schemas and exact scenario identities",
+            "forbidden_change": "bypassing bridge authorization or accepting missing evidence"
+          },
+          {
+            "id": "TP-012",
+            "path": "docs/adr/template/README.md",
+            "symbols": [
+              "template ADR index"
+            ],
+            "allowed_change": "add ADR-0043 entry only after ADR-0043 is Accepted",
+            "forbidden_change": "rewriting existing ADR entries or project namespace"
+          }
+        ],
+        "excluded_components": [
+          "controller-state",
+          "approved-authority-documents",
+          "feature-lifecycle",
+          "generic-pooling",
+          "asset-registry",
+          "content-preloading",
+          "communication",
+          "save",
+          "GameData",
+          "players",
+          "Music",
+          "hybrid-one-shot",
+          "catalog",
+          "configuration",
+          "AudioGraph",
+          "bootstraps",
+          "canonical-binary-scene",
+          "generated-builds",
+          "external-dependencies"
+        ],
+        "excluded_paths": [
+          ".agentic-pipeline/**",
+          "docs/Features/template/sfx-system/product-requirements.md",
+          "docs/Features/template/sfx-system/technical-specification.md",
+          "docs/Features/template/sfx-system/feature.json",
+          "docs/Features/template/sfx-system/handoff.md",
+          "docs/Features/template/sfx-system/worklog.md",
+          "docs/Features/template/README.md",
+          "src/ReplicatedStorage/Shared/Pooling/**",
+          "src/ReplicatedStorage/Shared/Assets/**",
+          "src/ReplicatedStorage/Shared/ContentPreloading/**",
+          "src/ReplicatedStorage/Shared/Communication/**",
+          "src/ReplicatedStorage/Client/Communication/**",
+          "src/ServerScriptService/Modules/Communication/**",
+          "src/ReplicatedStorage/Shared/Save/**",
+          "src/ReplicatedStorage/Client/Save/**",
+          "src/ServerScriptService/Modules/Save/**",
+          "src/ReplicatedStorage/Shared/GameData/**",
+          "src/ReplicatedStorage/Client/GameData/**",
+          "src/ReplicatedStorage/Client/Players/**",
+          "src/ServerScriptService/Modules/Players/**",
+          "src/ReplicatedStorage/Client/Audio/MusicClient.luau",
+          "src/ReplicatedStorage/Client/Audio/HybridOneShotClientController.luau",
+          "src/ServerScriptService/Modules/Audio/HybridOneShotServerController.luau",
+          "src/ReplicatedStorage/Shared/Audio/AudioHybridCodec.luau",
+          "src/ReplicatedStorage/Client/Audio/AudioGraphClient.luau",
+          "src/ServerScriptService/Modules/Audio/AudioGraphServer.luau",
+          "src/ReplicatedStorage/Shared/Configs/Audio/SoundCatalog.luau",
+          "configs/audio/Sounds.csv",
+          "src/ReplicatedStorage/Client/Audio/AudioSettingsClient.luau",
+          "src/ReplicatedStorage/Client/Initialization/Commands/StartupContentPreloadCommand.luau",
+          "src/ServerScriptService/Bootstrap.server.luau",
+          "src/StarterPlayerScripts/Bootstrap.client.luau",
+          "src/ReplicatedStorage/Shared/Tests/AudioManualQaBridge.luau",
+          "place.rbxl",
+          "build.rbxlx",
+          "sourcemap.json"
+        ],
+        "max_product_files": 42,
+        "max_product_lines_changed": 8500,
+        "verification_scope": "Rojo preflight immediately before first source edit, ADR-0043 Accepted gate, catalog freshness preview/apply/re-preview if retained catalog inputs require generation, feature workflow and generated index validation, repository layout validation, diff and budget audit, temporary Rojo build, AudioCatalogTestRunner, AudioPlaybackTestRunner, AudioIntegrationTestRunner, AudioManualQaTestRunner, AssetRegistryTestRunner, ContentPreloaderTestRunner, ResourceManagementTestRunner, SystemTestRunner, ProductionIntegrationTestRunner, ProductionReadinessTestRunner, AllTestsRunner, clean Studio Play server/client output, Studio-E2E-AUDIO-01, Studio-E2E-AUDIO-02, Studio-E2E-AUDIO-03, Studio-E2E-AUDIO-04, Studio-E2E-AUDIO-05, safe persistence rejoin, timely IndependentFaders operator statement, Parent-mode fixed-spatial evidence",
+        "scope_baseline_revision": "8fd6bc621dd278e51086f00903a14151320b4169"
+      },
+      "scope_churn": {
+        "passes": 1,
+        "product_files_changed": 20,
+        "product_lines_changed": 4295,
+        "unique_product_files": [
+          ".agents/rules/audio.md",
+          "docs/AudioManualQA.md",
+          "docs/AudioSystem.md",
+          "docs/TestCoverage.md",
+          "docs/adr/template/0043-fixed-spatial-anchor-composition.md",
+          "docs/adr/template/README.md",
+          "scripts/validate-repository-layout.ps1",
+          "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+          "src/ReplicatedStorage/Shared/Audio/AudioPlaybackWrapper.luau",
+          "src/ReplicatedStorage/Shared/Audio/OrdinaryPlaybackCore.luau",
+          "src/ReplicatedStorage/Shared/Audio/SpatialAnchorBindingRegistry.luau",
+          "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+          "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+          "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+          "src/ServerScriptService/Initialization/ServerManifest.luau",
+          "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+          "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+          "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+          "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau",
+          "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau"
+        ],
+        "touchpoint_ids": [
+          "TP-001",
+          "TP-002",
+          "TP-003",
+          "TP-004",
+          "TP-005",
+          "TP-006",
+          "TP-007",
+          "TP-008",
+          "TP-009",
+          "TP-010",
+          "TP-011",
+          "TP-012"
+        ]
+      },
+      "scope_history": [
+        {
+          "event": "pre_edit_check",
+          "slice_id": "SLICE-001",
+          "owner_id": "eng-tf0005-spatial-owner-01",
+          "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+          "development_plan_sha256": "3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0",
+          "scope_contract": {
+            "acceptance_ids": [
+              "PRD-AC-001",
+              "PRD-AC-002",
+              "PRD-AC-003",
+              "PRD-AC-004",
+              "PRD-AC-005",
+              "PRD-AC-006",
+              "PRD-AC-007",
+              "PRD-AC-008",
+              "PRD-AC-009",
+              "PRD-AC-010",
+              "PRD-AC-011",
+              "PRD-AC-012",
+              "PRD-AC-013",
+              "PRD-AC-014",
+              "PRD-AC-015",
+              "PRD-AC-016",
+              "PRD-AC-017",
+              "PRD-AC-018",
+              "PRD-AC-019",
+              "PRD-AC-020",
+              "PRD-AC-021",
+              "PRD-AC-022",
+              "PRD-AC-023",
+              "PRD-AC-024",
+              "PRD-AC-025",
+              "PRD-AC-026",
+              "PRD-AC-027",
+              "PRD-AC-028",
+              "PRD-AC-029",
+              "PRD-AC-030",
+              "PRD-AC-031",
+              "PRD-AC-032",
+              "PRD-AC-033",
+              "PRD-AC-034",
+              "PRD-AC-035",
+              "PRD-AC-036",
+              "PRD-AC-037",
+              "PRD-AC-038",
+              "PRD-AC-039",
+              "PRD-AC-040",
+              "PRD-AC-041",
+              "PRD-AC-042",
+              "PRD-AC-043",
+              "PRD-AC-044",
+              "PRD-AC-045",
+              "PRD-AC-046",
+              "PRD-AC-047",
+              "PRD-AC-048",
+              "PRD-AC-049",
+              "PRD-AC-050",
+              "PRD-AC-051",
+              "PRD-AC-052",
+              "PRD-AC-053",
+              "PRD-AC-054",
+              "PRD-AC-055",
+              "PRD-AC-056",
+              "PRD-AC-057",
+              "PRD-AC-058",
+              "PRD-AC-059",
+              "PRD-AC-060",
+              "PRD-AC-061",
+              "PRD-AC-062",
+              "PRD-AC-063",
+              "PRD-AC-064",
+              "PRD-AC-065",
+              "PRD-AC-066",
+              "PRD-AC-067",
+              "PRD-AC-068",
+              "PRD-AC-069",
+              "PRD-AC-070",
+              "PRD-AC-071",
+              "PRD-AC-072",
+              "PRD-AC-073",
+              "PRD-AC-074",
+              "PRD-AC-075",
+              "PRD-AC-076",
+              "PRD-AC-077",
+              "PRD-AC-078",
+              "PRD-AC-079"
+            ],
+            "editable_paths": [
+              ".agents/rules/audio.md",
+              "docs/adr/template/0043-fixed-spatial-anchor-composition.md",
+              "docs/adr/template/README.md",
+              "docs/AudioSystem.md",
+              "docs/AudioManualQA.md",
+              "docs/TestCoverage.md",
+              "scripts/validate-repository-layout.ps1",
+              "src/ReplicatedStorage/Shared/Audio/SpatialAnchorBindingRegistry.luau",
+              "src/ReplicatedStorage/Shared/Audio/AudioPlaybackWrapper.luau",
+              "src/ReplicatedStorage/Shared/Audio/OrdinaryPlaybackCore.luau",
+              "src/ReplicatedStorage/Client/Audio/OrdinarySoundClient.luau",
+              "src/ServerScriptService/Modules/Audio/OrdinarySoundServer.luau",
+              "src/ReplicatedStorage/Client/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+              "src/ServerScriptService/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+              "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+              "src/ServerScriptService/Initialization/ServerManifest.luau",
+              "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+              "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+              "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+              "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+              "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+              "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+              "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+              "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau"
+            ],
+            "shared_touchpoints": [
+              {
+                "id": "TP-001",
+                "path": "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+                "symbols": [
+                  "OrdinarySoundInitializationCommand composition"
+                ],
+                "allowed_change": "inject Workspace and the one client-side frame driver into the existing Ordinary initialization path",
+                "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+              },
+              {
+                "id": "TP-002",
+                "path": "src/ServerScriptService/Initialization/ServerManifest.luau",
+                "symbols": [
+                  "OrdinarySoundInitializationCommand composition"
+                ],
+                "allowed_change": "inject Workspace and the one server-side frame driver into the existing Ordinary initialization path",
+                "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+              },
+              {
+                "id": "TP-003",
+                "path": "scripts/validate-repository-layout.ps1",
+                "symbols": [
+                  "fixed-spatial audio assertions"
+                ],
+                "allowed_change": "additive exact assertions for SpatialAnchor direct-child composition, forbidden Position properties, one side subscription and required identities",
+                "forbidden_change": "weakening or removing existing repository, Rojo, audio, QA or lifecycle assertions"
+              },
+              {
+                "id": "TP-004",
+                "path": "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+                "symbols": [
+                  "AudioConfig/FixedSpatialCompositionObjectCeiling and retained catalog identities"
+                ],
+                "allowed_change": "add exact rev12 fixed-spatial ceiling evidence while preserving retained identities",
+                "forbidden_change": "relabeling historical evidence or weakening real-asset/catalog checks"
+              },
+              {
+                "id": "TP-005",
+                "path": "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+                "symbols": [
+                  "AudioPlayback spatial identities"
+                ],
+                "allowed_change": "replace old topology assertions with exact fixed-anchor, Point, Attached, cleanup and public-surface evidence",
+                "forbidden_change": "weakened cleanup, synthetic pass, changed unrelated identities"
+              },
+              {
+                "id": "TP-006",
+                "path": "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+                "symbols": [
+                  "AudioStatic/FixedSpatialCompositionOnly and retained integration identities"
+                ],
+                "allowed_change": "add exact static/composition evidence and necessary end-to-end assertions",
+                "forbidden_change": "weakened server-authority, preload, settings or isolation evidence"
+              },
+              {
+                "id": "TP-007",
+                "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+                "symbols": [
+                  "Studio audio QA schemas"
+                ],
+                "allowed_change": "replace old playback topology observations with fixed Parent-mode SpatialAnchor fields",
+                "forbidden_change": "new remote, changed authorization boundary, unrelated schema expansion"
+              },
+              {
+                "id": "TP-008",
+                "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+                "symbols": [
+                  "Studio-E2E-AUDIO-01..05 plan"
+                ],
+                "allowed_change": "replace old spatial observation instructions with exact fixed-anchor Parent-mode evidence",
+                "forbidden_change": "removed gates, changed scenario identities, automatic publish or mutation"
+              },
+              {
+                "id": "TP-009",
+                "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+                "symbols": [
+                  "client QA driver spatial observation"
+                ],
+                "allowed_change": "observe direct anchor children, transform behavior and cleanup without Position properties",
+                "forbidden_change": "gameplay behavior, new transport, per-frame probe connection"
+              },
+              {
+                "id": "TP-010",
+                "path": "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+                "symbols": [
+                  "server QA driver spatial observation"
+                ],
+                "allowed_change": "observe native single-lease fixed-anchor behavior and cleanup",
+                "forbidden_change": "mirror or fanout creation, new transport, gameplay authority change"
+              },
+              {
+                "id": "TP-011",
+                "path": "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau",
+                "symbols": [
+                  "manual QA contract and identity assertions"
+                ],
+                "allowed_change": "validate revised fixed-spatial schemas and exact scenario identities",
+                "forbidden_change": "bypassing bridge authorization or accepting missing evidence"
+              },
+              {
+                "id": "TP-012",
+                "path": "docs/adr/template/README.md",
+                "symbols": [
+                  "template ADR index"
+                ],
+                "allowed_change": "add ADR-0043 entry only after ADR-0043 is Accepted",
+                "forbidden_change": "rewriting existing ADR entries or project namespace"
+              }
+            ],
+            "excluded_components": [
+              "controller-state",
+              "approved-authority-documents",
+              "feature-lifecycle",
+              "generic-pooling",
+              "asset-registry",
+              "content-preloading",
+              "communication",
+              "save",
+              "GameData",
+              "players",
+              "Music",
+              "hybrid-one-shot",
+              "catalog",
+              "configuration",
+              "AudioGraph",
+              "bootstraps",
+              "canonical-binary-scene",
+              "generated-builds",
+              "external-dependencies"
+            ],
+            "excluded_paths": [
+              ".agentic-pipeline/**",
+              "docs/Features/template/sfx-system/product-requirements.md",
+              "docs/Features/template/sfx-system/technical-specification.md",
+              "docs/Features/template/sfx-system/feature.json",
+              "docs/Features/template/sfx-system/handoff.md",
+              "docs/Features/template/sfx-system/worklog.md",
+              "docs/Features/template/README.md",
+              "src/ReplicatedStorage/Shared/Pooling/**",
+              "src/ReplicatedStorage/Shared/Assets/**",
+              "src/ReplicatedStorage/Shared/ContentPreloading/**",
+              "src/ReplicatedStorage/Shared/Communication/**",
+              "src/ReplicatedStorage/Client/Communication/**",
+              "src/ServerScriptService/Modules/Communication/**",
+              "src/ReplicatedStorage/Shared/Save/**",
+              "src/ReplicatedStorage/Client/Save/**",
+              "src/ServerScriptService/Modules/Save/**",
+              "src/ReplicatedStorage/Shared/GameData/**",
+              "src/ReplicatedStorage/Client/GameData/**",
+              "src/ReplicatedStorage/Client/Players/**",
+              "src/ServerScriptService/Modules/Players/**",
+              "src/ReplicatedStorage/Client/Audio/MusicClient.luau",
+              "src/ReplicatedStorage/Client/Audio/HybridOneShotClientController.luau",
+              "src/ServerScriptService/Modules/Audio/HybridOneShotServerController.luau",
+              "src/ReplicatedStorage/Shared/Audio/AudioHybridCodec.luau",
+              "src/ReplicatedStorage/Client/Audio/AudioGraphClient.luau",
+              "src/ServerScriptService/Modules/Audio/AudioGraphServer.luau",
+              "src/ReplicatedStorage/Shared/Configs/Audio/SoundCatalog.luau",
+              "configs/audio/Sounds.csv",
+              "src/ReplicatedStorage/Client/Audio/AudioSettingsClient.luau",
+              "src/ReplicatedStorage/Client/Initialization/Commands/StartupContentPreloadCommand.luau",
+              "src/ServerScriptService/Bootstrap.server.luau",
+              "src/StarterPlayerScripts/Bootstrap.client.luau",
+              "src/ReplicatedStorage/Shared/Tests/AudioManualQaBridge.luau",
+              "place.rbxl",
+              "build.rbxlx",
+              "sourcemap.json"
+            ],
+            "max_product_files": 42,
+            "max_product_lines_changed": 8500,
+            "verification_scope": "Rojo preflight immediately before first source edit, ADR-0043 Accepted gate, catalog freshness preview/apply/re-preview if retained catalog inputs require generation, feature workflow and generated index validation, repository layout validation, diff and budget audit, temporary Rojo build, AudioCatalogTestRunner, AudioPlaybackTestRunner, AudioIntegrationTestRunner, AudioManualQaTestRunner, AssetRegistryTestRunner, ContentPreloaderTestRunner, ResourceManagementTestRunner, SystemTestRunner, ProductionIntegrationTestRunner, ProductionReadinessTestRunner, AllTestsRunner, clean Studio Play server/client output, Studio-E2E-AUDIO-01, Studio-E2E-AUDIO-02, Studio-E2E-AUDIO-03, Studio-E2E-AUDIO-04, Studio-E2E-AUDIO-05, safe persistence rejoin, timely IndependentFaders operator statement, Parent-mode fixed-spatial evidence",
+            "scope_baseline_revision": "8fd6bc621dd278e51086f00903a14151320b4169"
+          },
+          "status": "passed",
+          "recorded_at": "2026-08-10T21:10:11+00:00"
+        },
+        {
+          "event": "pre_edit_check",
+          "slice_id": "SLICE-001",
+          "owner_id": "eng-tf0005-spatial-owner-01",
+          "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+          "development_plan_sha256": "3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0",
+          "scope_contract": {
+            "acceptance_ids": [
+              "PRD-AC-001",
+              "PRD-AC-002",
+              "PRD-AC-003",
+              "PRD-AC-004",
+              "PRD-AC-005",
+              "PRD-AC-006",
+              "PRD-AC-007",
+              "PRD-AC-008",
+              "PRD-AC-009",
+              "PRD-AC-010",
+              "PRD-AC-011",
+              "PRD-AC-012",
+              "PRD-AC-013",
+              "PRD-AC-014",
+              "PRD-AC-015",
+              "PRD-AC-016",
+              "PRD-AC-017",
+              "PRD-AC-018",
+              "PRD-AC-019",
+              "PRD-AC-020",
+              "PRD-AC-021",
+              "PRD-AC-022",
+              "PRD-AC-023",
+              "PRD-AC-024",
+              "PRD-AC-025",
+              "PRD-AC-026",
+              "PRD-AC-027",
+              "PRD-AC-028",
+              "PRD-AC-029",
+              "PRD-AC-030",
+              "PRD-AC-031",
+              "PRD-AC-032",
+              "PRD-AC-033",
+              "PRD-AC-034",
+              "PRD-AC-035",
+              "PRD-AC-036",
+              "PRD-AC-037",
+              "PRD-AC-038",
+              "PRD-AC-039",
+              "PRD-AC-040",
+              "PRD-AC-041",
+              "PRD-AC-042",
+              "PRD-AC-043",
+              "PRD-AC-044",
+              "PRD-AC-045",
+              "PRD-AC-046",
+              "PRD-AC-047",
+              "PRD-AC-048",
+              "PRD-AC-049",
+              "PRD-AC-050",
+              "PRD-AC-051",
+              "PRD-AC-052",
+              "PRD-AC-053",
+              "PRD-AC-054",
+              "PRD-AC-055",
+              "PRD-AC-056",
+              "PRD-AC-057",
+              "PRD-AC-058",
+              "PRD-AC-059",
+              "PRD-AC-060",
+              "PRD-AC-061",
+              "PRD-AC-062",
+              "PRD-AC-063",
+              "PRD-AC-064",
+              "PRD-AC-065",
+              "PRD-AC-066",
+              "PRD-AC-067",
+              "PRD-AC-068",
+              "PRD-AC-069",
+              "PRD-AC-070",
+              "PRD-AC-071",
+              "PRD-AC-072",
+              "PRD-AC-073",
+              "PRD-AC-074",
+              "PRD-AC-075",
+              "PRD-AC-076",
+              "PRD-AC-077",
+              "PRD-AC-078",
+              "PRD-AC-079"
+            ],
+            "editable_paths": [
+              ".agents/rules/audio.md",
+              "docs/adr/template/0043-fixed-spatial-anchor-composition.md",
+              "docs/adr/template/README.md",
+              "docs/AudioSystem.md",
+              "docs/AudioManualQA.md",
+              "docs/TestCoverage.md",
+              "scripts/validate-repository-layout.ps1",
+              "src/ReplicatedStorage/Shared/Audio/SpatialAnchorBindingRegistry.luau",
+              "src/ReplicatedStorage/Shared/Audio/AudioPlaybackWrapper.luau",
+              "src/ReplicatedStorage/Shared/Audio/OrdinaryPlaybackCore.luau",
+              "src/ReplicatedStorage/Client/Audio/OrdinarySoundClient.luau",
+              "src/ServerScriptService/Modules/Audio/OrdinarySoundServer.luau",
+              "src/ReplicatedStorage/Client/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+              "src/ServerScriptService/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+              "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+              "src/ServerScriptService/Initialization/ServerManifest.luau",
+              "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+              "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+              "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+              "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+              "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+              "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+              "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+              "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau"
+            ],
+            "shared_touchpoints": [
+              {
+                "id": "TP-001",
+                "path": "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+                "symbols": [
+                  "OrdinarySoundInitializationCommand composition"
+                ],
+                "allowed_change": "inject Workspace and the one client-side frame driver into the existing Ordinary initialization path",
+                "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+              },
+              {
+                "id": "TP-002",
+                "path": "src/ServerScriptService/Initialization/ServerManifest.luau",
+                "symbols": [
+                  "OrdinarySoundInitializationCommand composition"
+                ],
+                "allowed_change": "inject Workspace and the one server-side frame driver into the existing Ordinary initialization path",
+                "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+              },
+              {
+                "id": "TP-003",
+                "path": "scripts/validate-repository-layout.ps1",
+                "symbols": [
+                  "fixed-spatial audio assertions"
+                ],
+                "allowed_change": "additive exact assertions for SpatialAnchor direct-child composition, forbidden Position properties, one side subscription and required identities",
+                "forbidden_change": "weakening or removing existing repository, Rojo, audio, QA or lifecycle assertions"
+              },
+              {
+                "id": "TP-004",
+                "path": "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+                "symbols": [
+                  "AudioConfig/FixedSpatialCompositionObjectCeiling and retained catalog identities"
+                ],
+                "allowed_change": "add exact rev12 fixed-spatial ceiling evidence while preserving retained identities",
+                "forbidden_change": "relabeling historical evidence or weakening real-asset/catalog checks"
+              },
+              {
+                "id": "TP-005",
+                "path": "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+                "symbols": [
+                  "AudioPlayback spatial identities"
+                ],
+                "allowed_change": "replace old topology assertions with exact fixed-anchor, Point, Attached, cleanup and public-surface evidence",
+                "forbidden_change": "weakened cleanup, synthetic pass, changed unrelated identities"
+              },
+              {
+                "id": "TP-006",
+                "path": "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+                "symbols": [
+                  "AudioStatic/FixedSpatialCompositionOnly and retained integration identities"
+                ],
+                "allowed_change": "add exact static/composition evidence and necessary end-to-end assertions",
+                "forbidden_change": "weakened server-authority, preload, settings or isolation evidence"
+              },
+              {
+                "id": "TP-007",
+                "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+                "symbols": [
+                  "Studio audio QA schemas"
+                ],
+                "allowed_change": "replace old playback topology observations with fixed Parent-mode SpatialAnchor fields",
+                "forbidden_change": "new remote, changed authorization boundary, unrelated schema expansion"
+              },
+              {
+                "id": "TP-008",
+                "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+                "symbols": [
+                  "Studio-E2E-AUDIO-01..05 plan"
+                ],
+                "allowed_change": "replace old spatial observation instructions with exact fixed-anchor Parent-mode evidence",
+                "forbidden_change": "removed gates, changed scenario identities, automatic publish or mutation"
+              },
+              {
+                "id": "TP-009",
+                "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+                "symbols": [
+                  "client QA driver spatial observation"
+                ],
+                "allowed_change": "observe direct anchor children, transform behavior and cleanup without Position properties",
+                "forbidden_change": "gameplay behavior, new transport, per-frame probe connection"
+              },
+              {
+                "id": "TP-010",
+                "path": "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+                "symbols": [
+                  "server QA driver spatial observation"
+                ],
+                "allowed_change": "observe native single-lease fixed-anchor behavior and cleanup",
+                "forbidden_change": "mirror or fanout creation, new transport, gameplay authority change"
+              },
+              {
+                "id": "TP-011",
+                "path": "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau",
+                "symbols": [
+                  "manual QA contract and identity assertions"
+                ],
+                "allowed_change": "validate revised fixed-spatial schemas and exact scenario identities",
+                "forbidden_change": "bypassing bridge authorization or accepting missing evidence"
+              },
+              {
+                "id": "TP-012",
+                "path": "docs/adr/template/README.md",
+                "symbols": [
+                  "template ADR index"
+                ],
+                "allowed_change": "add ADR-0043 entry only after ADR-0043 is Accepted",
+                "forbidden_change": "rewriting existing ADR entries or project namespace"
+              }
+            ],
+            "excluded_components": [
+              "controller-state",
+              "approved-authority-documents",
+              "feature-lifecycle",
+              "generic-pooling",
+              "asset-registry",
+              "content-preloading",
+              "communication",
+              "save",
+              "GameData",
+              "players",
+              "Music",
+              "hybrid-one-shot",
+              "catalog",
+              "configuration",
+              "AudioGraph",
+              "bootstraps",
+              "canonical-binary-scene",
+              "generated-builds",
+              "external-dependencies"
+            ],
+            "excluded_paths": [
+              ".agentic-pipeline/**",
+              "docs/Features/template/sfx-system/product-requirements.md",
+              "docs/Features/template/sfx-system/technical-specification.md",
+              "docs/Features/template/sfx-system/feature.json",
+              "docs/Features/template/sfx-system/handoff.md",
+              "docs/Features/template/sfx-system/worklog.md",
+              "docs/Features/template/README.md",
+              "src/ReplicatedStorage/Shared/Pooling/**",
+              "src/ReplicatedStorage/Shared/Assets/**",
+              "src/ReplicatedStorage/Shared/ContentPreloading/**",
+              "src/ReplicatedStorage/Shared/Communication/**",
+              "src/ReplicatedStorage/Client/Communication/**",
+              "src/ServerScriptService/Modules/Communication/**",
+              "src/ReplicatedStorage/Shared/Save/**",
+              "src/ReplicatedStorage/Client/Save/**",
+              "src/ServerScriptService/Modules/Save/**",
+              "src/ReplicatedStorage/Shared/GameData/**",
+              "src/ReplicatedStorage/Client/GameData/**",
+              "src/ReplicatedStorage/Client/Players/**",
+              "src/ServerScriptService/Modules/Players/**",
+              "src/ReplicatedStorage/Client/Audio/MusicClient.luau",
+              "src/ReplicatedStorage/Client/Audio/HybridOneShotClientController.luau",
+              "src/ServerScriptService/Modules/Audio/HybridOneShotServerController.luau",
+              "src/ReplicatedStorage/Shared/Audio/AudioHybridCodec.luau",
+              "src/ReplicatedStorage/Client/Audio/AudioGraphClient.luau",
+              "src/ServerScriptService/Modules/Audio/AudioGraphServer.luau",
+              "src/ReplicatedStorage/Shared/Configs/Audio/SoundCatalog.luau",
+              "configs/audio/Sounds.csv",
+              "src/ReplicatedStorage/Client/Audio/AudioSettingsClient.luau",
+              "src/ReplicatedStorage/Client/Initialization/Commands/StartupContentPreloadCommand.luau",
+              "src/ServerScriptService/Bootstrap.server.luau",
+              "src/StarterPlayerScripts/Bootstrap.client.luau",
+              "src/ReplicatedStorage/Shared/Tests/AudioManualQaBridge.luau",
+              "place.rbxl",
+              "build.rbxlx",
+              "sourcemap.json"
+            ],
+            "max_product_files": 42,
+            "max_product_lines_changed": 8500,
+            "verification_scope": "Rojo preflight immediately before first source edit, ADR-0043 Accepted gate, catalog freshness preview/apply/re-preview if retained catalog inputs require generation, feature workflow and generated index validation, repository layout validation, diff and budget audit, temporary Rojo build, AudioCatalogTestRunner, AudioPlaybackTestRunner, AudioIntegrationTestRunner, AudioManualQaTestRunner, AssetRegistryTestRunner, ContentPreloaderTestRunner, ResourceManagementTestRunner, SystemTestRunner, ProductionIntegrationTestRunner, ProductionReadinessTestRunner, AllTestsRunner, clean Studio Play server/client output, Studio-E2E-AUDIO-01, Studio-E2E-AUDIO-02, Studio-E2E-AUDIO-03, Studio-E2E-AUDIO-04, Studio-E2E-AUDIO-05, safe persistence rejoin, timely IndependentFaders operator statement, Parent-mode fixed-spatial evidence",
+            "scope_baseline_revision": "8fd6bc621dd278e51086f00903a14151320b4169"
+          },
+          "status": "passed",
+          "recorded_at": "2026-08-11T03:15:51+00:00"
+        },
+        {
+          "event": "scope_pass",
+          "slice_id": "SLICE-001",
+          "owner_id": "eng-tf0005-spatial-owner-01",
+          "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+          "result_revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+          "change_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\change-manifest.json",
+          "diff_summary": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\diff-summary.json",
+          "product_files_changed": 20,
+          "product_lines_changed": 4295,
+          "recorded_at": "2026-08-11T03:17:33+00:00"
+        }
+      ],
+      "scope_pre_edit_check": null,
+      "full_convergence_waves": 1,
+      "max_full_convergence_waves": 2,
+      "research": {
+        "status": "complete",
+        "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+        "bundles": [
+          {
+            "brief_id": "RESEARCH-001",
+            "researcher_id": "research-tf0005-parent-spatial-01",
+            "status": "complete",
+            "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+            "brief_sha256": "4c874bec0fdfa6ec9b9f697e310694bb47c22146ff3a3537d579328637d53b8a",
+            "bundle_sha256": "4db0727f220d3885bebd00425143e5acdabda024d129f7dbd1cd0aadb4484b65",
+            "path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\research\\research-001-parent-positioning.json",
+            "seed_paths": [
+              "docs/Features/template/sfx-system/technical-specification.md",
+              "src/ReplicatedStorage/Shared/Audio/AudioPlaybackWrapper.luau"
+            ]
+          },
+          {
+            "brief_id": "RESEARCH-002",
+            "researcher_id": "research-tf0005-composition-route-01",
+            "status": "complete",
+            "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+            "brief_sha256": "eb1f1a233c9985228f72a286a8983b01552764a7d993731e02d48e701b5b202a",
+            "bundle_sha256": "12f264e9f0f5abad453c2619950178ef2aecbad993211fa2fafbcb3f036faf0f",
+            "path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\research\\research-002-composition-route.json",
+            "seed_paths": [
+              "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+              "src/ServerScriptService/Initialization/ServerManifest.luau"
+            ]
+          },
+          {
+            "brief_id": "RESEARCH-003",
+            "researcher_id": "research-tf0005-dirty-inventory-01",
+            "status": "complete",
+            "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+            "brief_sha256": "e23483c7058af8dac823d0e2e0477609419b89b6a1706f9661ba651718445fc0",
+            "bundle_sha256": "ba24f156031d1b870c475964f2b75a98e1cfdf90085eb8bc6ad26cf85c817f27",
+            "path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\research\\research-003-dirty-inventory.json",
+            "seed_paths": [
+              "docs/Features/template/sfx-system/development-plan.md",
+              "docs/Features/template/sfx-system/handoff.md"
+            ]
+          }
+        ],
+        "reason": null,
+        "completed_at": "2026-08-10T21:09:57+00:00"
+      },
+      "sealed_at": null
+    }
+  },
+  "owner_by_slice": {
+    "SLICE-001": "eng-tf0005-spatial-owner-01"
+  },
+  "integration_owner": "eng-tf0005-spatial-owner-01",
+  "handoff_manifests": [],
+  "remediation_queue": [],
+  "active_remediation_batch": null,
+  "execution_stage": "implementation",
+  "scope_guard": {
+    "status": "passed",
+    "hold": null,
+    "history": [
+      {
+        "event": "pre_edit_check",
+        "slice_id": "SLICE-001",
+        "owner_id": "eng-tf0005-spatial-owner-01",
+        "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+        "development_plan_sha256": "3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0",
+        "scope_contract": {
+          "acceptance_ids": [
+            "PRD-AC-001",
+            "PRD-AC-002",
+            "PRD-AC-003",
+            "PRD-AC-004",
+            "PRD-AC-005",
+            "PRD-AC-006",
+            "PRD-AC-007",
+            "PRD-AC-008",
+            "PRD-AC-009",
+            "PRD-AC-010",
+            "PRD-AC-011",
+            "PRD-AC-012",
+            "PRD-AC-013",
+            "PRD-AC-014",
+            "PRD-AC-015",
+            "PRD-AC-016",
+            "PRD-AC-017",
+            "PRD-AC-018",
+            "PRD-AC-019",
+            "PRD-AC-020",
+            "PRD-AC-021",
+            "PRD-AC-022",
+            "PRD-AC-023",
+            "PRD-AC-024",
+            "PRD-AC-025",
+            "PRD-AC-026",
+            "PRD-AC-027",
+            "PRD-AC-028",
+            "PRD-AC-029",
+            "PRD-AC-030",
+            "PRD-AC-031",
+            "PRD-AC-032",
+            "PRD-AC-033",
+            "PRD-AC-034",
+            "PRD-AC-035",
+            "PRD-AC-036",
+            "PRD-AC-037",
+            "PRD-AC-038",
+            "PRD-AC-039",
+            "PRD-AC-040",
+            "PRD-AC-041",
+            "PRD-AC-042",
+            "PRD-AC-043",
+            "PRD-AC-044",
+            "PRD-AC-045",
+            "PRD-AC-046",
+            "PRD-AC-047",
+            "PRD-AC-048",
+            "PRD-AC-049",
+            "PRD-AC-050",
+            "PRD-AC-051",
+            "PRD-AC-052",
+            "PRD-AC-053",
+            "PRD-AC-054",
+            "PRD-AC-055",
+            "PRD-AC-056",
+            "PRD-AC-057",
+            "PRD-AC-058",
+            "PRD-AC-059",
+            "PRD-AC-060",
+            "PRD-AC-061",
+            "PRD-AC-062",
+            "PRD-AC-063",
+            "PRD-AC-064",
+            "PRD-AC-065",
+            "PRD-AC-066",
+            "PRD-AC-067",
+            "PRD-AC-068",
+            "PRD-AC-069",
+            "PRD-AC-070",
+            "PRD-AC-071",
+            "PRD-AC-072",
+            "PRD-AC-073",
+            "PRD-AC-074",
+            "PRD-AC-075",
+            "PRD-AC-076",
+            "PRD-AC-077",
+            "PRD-AC-078",
+            "PRD-AC-079"
+          ],
+          "editable_paths": [
+            ".agents/rules/audio.md",
+            "docs/adr/template/0043-fixed-spatial-anchor-composition.md",
+            "docs/adr/template/README.md",
+            "docs/AudioSystem.md",
+            "docs/AudioManualQA.md",
+            "docs/TestCoverage.md",
+            "scripts/validate-repository-layout.ps1",
+            "src/ReplicatedStorage/Shared/Audio/SpatialAnchorBindingRegistry.luau",
+            "src/ReplicatedStorage/Shared/Audio/AudioPlaybackWrapper.luau",
+            "src/ReplicatedStorage/Shared/Audio/OrdinaryPlaybackCore.luau",
+            "src/ReplicatedStorage/Client/Audio/OrdinarySoundClient.luau",
+            "src/ServerScriptService/Modules/Audio/OrdinarySoundServer.luau",
+            "src/ReplicatedStorage/Client/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+            "src/ServerScriptService/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+            "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+            "src/ServerScriptService/Initialization/ServerManifest.luau",
+            "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+            "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+            "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+            "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+            "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+            "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+            "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+            "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau"
+          ],
+          "shared_touchpoints": [
+            {
+              "id": "TP-001",
+              "path": "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+              "symbols": [
+                "OrdinarySoundInitializationCommand composition"
+              ],
+              "allowed_change": "inject Workspace and the one client-side frame driver into the existing Ordinary initialization path",
+              "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+            },
+            {
+              "id": "TP-002",
+              "path": "src/ServerScriptService/Initialization/ServerManifest.luau",
+              "symbols": [
+                "OrdinarySoundInitializationCommand composition"
+              ],
+              "allowed_change": "inject Workspace and the one server-side frame driver into the existing Ordinary initialization path",
+              "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+            },
+            {
+              "id": "TP-003",
+              "path": "scripts/validate-repository-layout.ps1",
+              "symbols": [
+                "fixed-spatial audio assertions"
+              ],
+              "allowed_change": "additive exact assertions for SpatialAnchor direct-child composition, forbidden Position properties, one side subscription and required identities",
+              "forbidden_change": "weakening or removing existing repository, Rojo, audio, QA or lifecycle assertions"
+            },
+            {
+              "id": "TP-004",
+              "path": "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+              "symbols": [
+                "AudioConfig/FixedSpatialCompositionObjectCeiling and retained catalog identities"
+              ],
+              "allowed_change": "add exact rev12 fixed-spatial ceiling evidence while preserving retained identities",
+              "forbidden_change": "relabeling historical evidence or weakening real-asset/catalog checks"
+            },
+            {
+              "id": "TP-005",
+              "path": "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+              "symbols": [
+                "AudioPlayback spatial identities"
+              ],
+              "allowed_change": "replace old topology assertions with exact fixed-anchor, Point, Attached, cleanup and public-surface evidence",
+              "forbidden_change": "weakened cleanup, synthetic pass, changed unrelated identities"
+            },
+            {
+              "id": "TP-006",
+              "path": "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+              "symbols": [
+                "AudioStatic/FixedSpatialCompositionOnly and retained integration identities"
+              ],
+              "allowed_change": "add exact static/composition evidence and necessary end-to-end assertions",
+              "forbidden_change": "weakened server-authority, preload, settings or isolation evidence"
+            },
+            {
+              "id": "TP-007",
+              "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+              "symbols": [
+                "Studio audio QA schemas"
+              ],
+              "allowed_change": "replace old playback topology observations with fixed Parent-mode SpatialAnchor fields",
+              "forbidden_change": "new remote, changed authorization boundary, unrelated schema expansion"
+            },
+            {
+              "id": "TP-008",
+              "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+              "symbols": [
+                "Studio-E2E-AUDIO-01..05 plan"
+              ],
+              "allowed_change": "replace old spatial observation instructions with exact fixed-anchor Parent-mode evidence",
+              "forbidden_change": "removed gates, changed scenario identities, automatic publish or mutation"
+            },
+            {
+              "id": "TP-009",
+              "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+              "symbols": [
+                "client QA driver spatial observation"
+              ],
+              "allowed_change": "observe direct anchor children, transform behavior and cleanup without Position properties",
+              "forbidden_change": "gameplay behavior, new transport, per-frame probe connection"
+            },
+            {
+              "id": "TP-010",
+              "path": "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+              "symbols": [
+                "server QA driver spatial observation"
+              ],
+              "allowed_change": "observe native single-lease fixed-anchor behavior and cleanup",
+              "forbidden_change": "mirror or fanout creation, new transport, gameplay authority change"
+            },
+            {
+              "id": "TP-011",
+              "path": "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau",
+              "symbols": [
+                "manual QA contract and identity assertions"
+              ],
+              "allowed_change": "validate revised fixed-spatial schemas and exact scenario identities",
+              "forbidden_change": "bypassing bridge authorization or accepting missing evidence"
+            },
+            {
+              "id": "TP-012",
+              "path": "docs/adr/template/README.md",
+              "symbols": [
+                "template ADR index"
+              ],
+              "allowed_change": "add ADR-0043 entry only after ADR-0043 is Accepted",
+              "forbidden_change": "rewriting existing ADR entries or project namespace"
+            }
+          ],
+          "excluded_components": [
+            "controller-state",
+            "approved-authority-documents",
+            "feature-lifecycle",
+            "generic-pooling",
+            "asset-registry",
+            "content-preloading",
+            "communication",
+            "save",
+            "GameData",
+            "players",
+            "Music",
+            "hybrid-one-shot",
+            "catalog",
+            "configuration",
+            "AudioGraph",
+            "bootstraps",
+            "canonical-binary-scene",
+            "generated-builds",
+            "external-dependencies"
+          ],
+          "excluded_paths": [
+            ".agentic-pipeline/**",
+            "docs/Features/template/sfx-system/product-requirements.md",
+            "docs/Features/template/sfx-system/technical-specification.md",
+            "docs/Features/template/sfx-system/feature.json",
+            "docs/Features/template/sfx-system/handoff.md",
+            "docs/Features/template/sfx-system/worklog.md",
+            "docs/Features/template/README.md",
+            "src/ReplicatedStorage/Shared/Pooling/**",
+            "src/ReplicatedStorage/Shared/Assets/**",
+            "src/ReplicatedStorage/Shared/ContentPreloading/**",
+            "src/ReplicatedStorage/Shared/Communication/**",
+            "src/ReplicatedStorage/Client/Communication/**",
+            "src/ServerScriptService/Modules/Communication/**",
+            "src/ReplicatedStorage/Shared/Save/**",
+            "src/ReplicatedStorage/Client/Save/**",
+            "src/ServerScriptService/Modules/Save/**",
+            "src/ReplicatedStorage/Shared/GameData/**",
+            "src/ReplicatedStorage/Client/GameData/**",
+            "src/ReplicatedStorage/Client/Players/**",
+            "src/ServerScriptService/Modules/Players/**",
+            "src/ReplicatedStorage/Client/Audio/MusicClient.luau",
+            "src/ReplicatedStorage/Client/Audio/HybridOneShotClientController.luau",
+            "src/ServerScriptService/Modules/Audio/HybridOneShotServerController.luau",
+            "src/ReplicatedStorage/Shared/Audio/AudioHybridCodec.luau",
+            "src/ReplicatedStorage/Client/Audio/AudioGraphClient.luau",
+            "src/ServerScriptService/Modules/Audio/AudioGraphServer.luau",
+            "src/ReplicatedStorage/Shared/Configs/Audio/SoundCatalog.luau",
+            "configs/audio/Sounds.csv",
+            "src/ReplicatedStorage/Client/Audio/AudioSettingsClient.luau",
+            "src/ReplicatedStorage/Client/Initialization/Commands/StartupContentPreloadCommand.luau",
+            "src/ServerScriptService/Bootstrap.server.luau",
+            "src/StarterPlayerScripts/Bootstrap.client.luau",
+            "src/ReplicatedStorage/Shared/Tests/AudioManualQaBridge.luau",
+            "place.rbxl",
+            "build.rbxlx",
+            "sourcemap.json"
+          ],
+          "max_product_files": 42,
+          "max_product_lines_changed": 8500,
+          "verification_scope": "Rojo preflight immediately before first source edit, ADR-0043 Accepted gate, catalog freshness preview/apply/re-preview if retained catalog inputs require generation, feature workflow and generated index validation, repository layout validation, diff and budget audit, temporary Rojo build, AudioCatalogTestRunner, AudioPlaybackTestRunner, AudioIntegrationTestRunner, AudioManualQaTestRunner, AssetRegistryTestRunner, ContentPreloaderTestRunner, ResourceManagementTestRunner, SystemTestRunner, ProductionIntegrationTestRunner, ProductionReadinessTestRunner, AllTestsRunner, clean Studio Play server/client output, Studio-E2E-AUDIO-01, Studio-E2E-AUDIO-02, Studio-E2E-AUDIO-03, Studio-E2E-AUDIO-04, Studio-E2E-AUDIO-05, safe persistence rejoin, timely IndependentFaders operator statement, Parent-mode fixed-spatial evidence",
+          "scope_baseline_revision": "8fd6bc621dd278e51086f00903a14151320b4169"
+        },
+        "status": "passed",
+        "recorded_at": "2026-08-10T21:10:11+00:00"
+      },
+      {
+        "event": "pre_edit_check",
+        "slice_id": "SLICE-001",
+        "owner_id": "eng-tf0005-spatial-owner-01",
+        "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+        "development_plan_sha256": "3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0",
+        "scope_contract": {
+          "acceptance_ids": [
+            "PRD-AC-001",
+            "PRD-AC-002",
+            "PRD-AC-003",
+            "PRD-AC-004",
+            "PRD-AC-005",
+            "PRD-AC-006",
+            "PRD-AC-007",
+            "PRD-AC-008",
+            "PRD-AC-009",
+            "PRD-AC-010",
+            "PRD-AC-011",
+            "PRD-AC-012",
+            "PRD-AC-013",
+            "PRD-AC-014",
+            "PRD-AC-015",
+            "PRD-AC-016",
+            "PRD-AC-017",
+            "PRD-AC-018",
+            "PRD-AC-019",
+            "PRD-AC-020",
+            "PRD-AC-021",
+            "PRD-AC-022",
+            "PRD-AC-023",
+            "PRD-AC-024",
+            "PRD-AC-025",
+            "PRD-AC-026",
+            "PRD-AC-027",
+            "PRD-AC-028",
+            "PRD-AC-029",
+            "PRD-AC-030",
+            "PRD-AC-031",
+            "PRD-AC-032",
+            "PRD-AC-033",
+            "PRD-AC-034",
+            "PRD-AC-035",
+            "PRD-AC-036",
+            "PRD-AC-037",
+            "PRD-AC-038",
+            "PRD-AC-039",
+            "PRD-AC-040",
+            "PRD-AC-041",
+            "PRD-AC-042",
+            "PRD-AC-043",
+            "PRD-AC-044",
+            "PRD-AC-045",
+            "PRD-AC-046",
+            "PRD-AC-047",
+            "PRD-AC-048",
+            "PRD-AC-049",
+            "PRD-AC-050",
+            "PRD-AC-051",
+            "PRD-AC-052",
+            "PRD-AC-053",
+            "PRD-AC-054",
+            "PRD-AC-055",
+            "PRD-AC-056",
+            "PRD-AC-057",
+            "PRD-AC-058",
+            "PRD-AC-059",
+            "PRD-AC-060",
+            "PRD-AC-061",
+            "PRD-AC-062",
+            "PRD-AC-063",
+            "PRD-AC-064",
+            "PRD-AC-065",
+            "PRD-AC-066",
+            "PRD-AC-067",
+            "PRD-AC-068",
+            "PRD-AC-069",
+            "PRD-AC-070",
+            "PRD-AC-071",
+            "PRD-AC-072",
+            "PRD-AC-073",
+            "PRD-AC-074",
+            "PRD-AC-075",
+            "PRD-AC-076",
+            "PRD-AC-077",
+            "PRD-AC-078",
+            "PRD-AC-079"
+          ],
+          "editable_paths": [
+            ".agents/rules/audio.md",
+            "docs/adr/template/0043-fixed-spatial-anchor-composition.md",
+            "docs/adr/template/README.md",
+            "docs/AudioSystem.md",
+            "docs/AudioManualQA.md",
+            "docs/TestCoverage.md",
+            "scripts/validate-repository-layout.ps1",
+            "src/ReplicatedStorage/Shared/Audio/SpatialAnchorBindingRegistry.luau",
+            "src/ReplicatedStorage/Shared/Audio/AudioPlaybackWrapper.luau",
+            "src/ReplicatedStorage/Shared/Audio/OrdinaryPlaybackCore.luau",
+            "src/ReplicatedStorage/Client/Audio/OrdinarySoundClient.luau",
+            "src/ServerScriptService/Modules/Audio/OrdinarySoundServer.luau",
+            "src/ReplicatedStorage/Client/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+            "src/ServerScriptService/Initialization/Commands/OrdinarySoundInitializationCommand.luau",
+            "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+            "src/ServerScriptService/Initialization/ServerManifest.luau",
+            "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+            "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+            "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+            "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+            "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+            "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+            "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+            "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau"
+          ],
+          "shared_touchpoints": [
+            {
+              "id": "TP-001",
+              "path": "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+              "symbols": [
+                "OrdinarySoundInitializationCommand composition"
+              ],
+              "allowed_change": "inject Workspace and the one client-side frame driver into the existing Ordinary initialization path",
+              "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+            },
+            {
+              "id": "TP-002",
+              "path": "src/ServerScriptService/Initialization/ServerManifest.luau",
+              "symbols": [
+                "OrdinarySoundInitializationCommand composition"
+              ],
+              "allowed_change": "inject Workspace and the one server-side frame driver into the existing Ordinary initialization path",
+              "forbidden_change": "manifest order, unrelated command dependencies, bootstrap creation"
+            },
+            {
+              "id": "TP-003",
+              "path": "scripts/validate-repository-layout.ps1",
+              "symbols": [
+                "fixed-spatial audio assertions"
+              ],
+              "allowed_change": "additive exact assertions for SpatialAnchor direct-child composition, forbidden Position properties, one side subscription and required identities",
+              "forbidden_change": "weakening or removing existing repository, Rojo, audio, QA or lifecycle assertions"
+            },
+            {
+              "id": "TP-004",
+              "path": "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+              "symbols": [
+                "AudioConfig/FixedSpatialCompositionObjectCeiling and retained catalog identities"
+              ],
+              "allowed_change": "add exact rev12 fixed-spatial ceiling evidence while preserving retained identities",
+              "forbidden_change": "relabeling historical evidence or weakening real-asset/catalog checks"
+            },
+            {
+              "id": "TP-005",
+              "path": "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau",
+              "symbols": [
+                "AudioPlayback spatial identities"
+              ],
+              "allowed_change": "replace old topology assertions with exact fixed-anchor, Point, Attached, cleanup and public-surface evidence",
+              "forbidden_change": "weakened cleanup, synthetic pass, changed unrelated identities"
+            },
+            {
+              "id": "TP-006",
+              "path": "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+              "symbols": [
+                "AudioStatic/FixedSpatialCompositionOnly and retained integration identities"
+              ],
+              "allowed_change": "add exact static/composition evidence and necessary end-to-end assertions",
+              "forbidden_change": "weakened server-authority, preload, settings or isolation evidence"
+            },
+            {
+              "id": "TP-007",
+              "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+              "symbols": [
+                "Studio audio QA schemas"
+              ],
+              "allowed_change": "replace old playback topology observations with fixed Parent-mode SpatialAnchor fields",
+              "forbidden_change": "new remote, changed authorization boundary, unrelated schema expansion"
+            },
+            {
+              "id": "TP-008",
+              "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+              "symbols": [
+                "Studio-E2E-AUDIO-01..05 plan"
+              ],
+              "allowed_change": "replace old spatial observation instructions with exact fixed-anchor Parent-mode evidence",
+              "forbidden_change": "removed gates, changed scenario identities, automatic publish or mutation"
+            },
+            {
+              "id": "TP-009",
+              "path": "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+              "symbols": [
+                "client QA driver spatial observation"
+              ],
+              "allowed_change": "observe direct anchor children, transform behavior and cleanup without Position properties",
+              "forbidden_change": "gameplay behavior, new transport, per-frame probe connection"
+            },
+            {
+              "id": "TP-010",
+              "path": "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+              "symbols": [
+                "server QA driver spatial observation"
+              ],
+              "allowed_change": "observe native single-lease fixed-anchor behavior and cleanup",
+              "forbidden_change": "mirror or fanout creation, new transport, gameplay authority change"
+            },
+            {
+              "id": "TP-011",
+              "path": "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau",
+              "symbols": [
+                "manual QA contract and identity assertions"
+              ],
+              "allowed_change": "validate revised fixed-spatial schemas and exact scenario identities",
+              "forbidden_change": "bypassing bridge authorization or accepting missing evidence"
+            },
+            {
+              "id": "TP-012",
+              "path": "docs/adr/template/README.md",
+              "symbols": [
+                "template ADR index"
+              ],
+              "allowed_change": "add ADR-0043 entry only after ADR-0043 is Accepted",
+              "forbidden_change": "rewriting existing ADR entries or project namespace"
+            }
+          ],
+          "excluded_components": [
+            "controller-state",
+            "approved-authority-documents",
+            "feature-lifecycle",
+            "generic-pooling",
+            "asset-registry",
+            "content-preloading",
+            "communication",
+            "save",
+            "GameData",
+            "players",
+            "Music",
+            "hybrid-one-shot",
+            "catalog",
+            "configuration",
+            "AudioGraph",
+            "bootstraps",
+            "canonical-binary-scene",
+            "generated-builds",
+            "external-dependencies"
+          ],
+          "excluded_paths": [
+            ".agentic-pipeline/**",
+            "docs/Features/template/sfx-system/product-requirements.md",
+            "docs/Features/template/sfx-system/technical-specification.md",
+            "docs/Features/template/sfx-system/feature.json",
+            "docs/Features/template/sfx-system/handoff.md",
+            "docs/Features/template/sfx-system/worklog.md",
+            "docs/Features/template/README.md",
+            "src/ReplicatedStorage/Shared/Pooling/**",
+            "src/ReplicatedStorage/Shared/Assets/**",
+            "src/ReplicatedStorage/Shared/ContentPreloading/**",
+            "src/ReplicatedStorage/Shared/Communication/**",
+            "src/ReplicatedStorage/Client/Communication/**",
+            "src/ServerScriptService/Modules/Communication/**",
+            "src/ReplicatedStorage/Shared/Save/**",
+            "src/ReplicatedStorage/Client/Save/**",
+            "src/ServerScriptService/Modules/Save/**",
+            "src/ReplicatedStorage/Shared/GameData/**",
+            "src/ReplicatedStorage/Client/GameData/**",
+            "src/ReplicatedStorage/Client/Players/**",
+            "src/ServerScriptService/Modules/Players/**",
+            "src/ReplicatedStorage/Client/Audio/MusicClient.luau",
+            "src/ReplicatedStorage/Client/Audio/HybridOneShotClientController.luau",
+            "src/ServerScriptService/Modules/Audio/HybridOneShotServerController.luau",
+            "src/ReplicatedStorage/Shared/Audio/AudioHybridCodec.luau",
+            "src/ReplicatedStorage/Client/Audio/AudioGraphClient.luau",
+            "src/ServerScriptService/Modules/Audio/AudioGraphServer.luau",
+            "src/ReplicatedStorage/Shared/Configs/Audio/SoundCatalog.luau",
+            "configs/audio/Sounds.csv",
+            "src/ReplicatedStorage/Client/Audio/AudioSettingsClient.luau",
+            "src/ReplicatedStorage/Client/Initialization/Commands/StartupContentPreloadCommand.luau",
+            "src/ServerScriptService/Bootstrap.server.luau",
+            "src/StarterPlayerScripts/Bootstrap.client.luau",
+            "src/ReplicatedStorage/Shared/Tests/AudioManualQaBridge.luau",
+            "place.rbxl",
+            "build.rbxlx",
+            "sourcemap.json"
+          ],
+          "max_product_files": 42,
+          "max_product_lines_changed": 8500,
+          "verification_scope": "Rojo preflight immediately before first source edit, ADR-0043 Accepted gate, catalog freshness preview/apply/re-preview if retained catalog inputs require generation, feature workflow and generated index validation, repository layout validation, diff and budget audit, temporary Rojo build, AudioCatalogTestRunner, AudioPlaybackTestRunner, AudioIntegrationTestRunner, AudioManualQaTestRunner, AssetRegistryTestRunner, ContentPreloaderTestRunner, ResourceManagementTestRunner, SystemTestRunner, ProductionIntegrationTestRunner, ProductionReadinessTestRunner, AllTestsRunner, clean Studio Play server/client output, Studio-E2E-AUDIO-01, Studio-E2E-AUDIO-02, Studio-E2E-AUDIO-03, Studio-E2E-AUDIO-04, Studio-E2E-AUDIO-05, safe persistence rejoin, timely IndependentFaders operator statement, Parent-mode fixed-spatial evidence",
+          "scope_baseline_revision": "8fd6bc621dd278e51086f00903a14151320b4169"
+        },
+        "status": "passed",
+        "recorded_at": "2026-08-11T03:15:51+00:00"
+      },
+      {
+        "event": "scope_pass",
+        "slice_id": "SLICE-001",
+        "owner_id": "eng-tf0005-spatial-owner-01",
+        "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+        "result_revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "change_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\change-manifest.json",
+        "diff_summary": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\diff-summary.json",
+        "product_files_changed": 20,
+        "product_lines_changed": 4295,
+        "recorded_at": "2026-08-11T03:17:33+00:00"
+      }
+    ],
+    "scope_churn": {
+      "passes": 1,
+      "product_files_changed": 20,
+      "product_lines_changed": 4295,
+      "unique_product_files": [
+        ".agents/rules/audio.md",
+        "docs/AudioManualQA.md",
+        "docs/AudioSystem.md",
+        "docs/TestCoverage.md",
+        "docs/adr/template/0043-fixed-spatial-anchor-composition.md",
+        "docs/adr/template/README.md",
+        "scripts/validate-repository-layout.ps1",
+        "src/ReplicatedStorage/Client/Initialization/ClientManifest.luau",
+        "src/ReplicatedStorage/Shared/Audio/AudioPlaybackWrapper.luau",
+        "src/ReplicatedStorage/Shared/Audio/OrdinaryPlaybackCore.luau",
+        "src/ReplicatedStorage/Shared/Audio/SpatialAnchorBindingRegistry.luau",
+        "src/ReplicatedStorage/Shared/Tests/AudioManualQaClient.luau",
+        "src/ReplicatedStorage/Shared/Tests/AudioManualQaContracts.luau",
+        "src/ReplicatedStorage/Shared/Tests/AudioManualQaPlan.luau",
+        "src/ServerScriptService/Initialization/ServerManifest.luau",
+        "src/ServerScriptService/Tests/AudioCatalogTestRunner.luau",
+        "src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau",
+        "src/ServerScriptService/Tests/AudioManualQaServer.luau",
+        "src/ServerScriptService/Tests/AudioManualQaTestRunner.luau",
+        "src/ServerScriptService/Tests/AudioPlaybackTestRunner.luau"
+      ],
+      "touchpoint_ids": [
+        "TP-001",
+        "TP-002",
+        "TP-003",
+        "TP-004",
+        "TP-005",
+        "TP-006",
+        "TP-007",
+        "TP-008",
+        "TP-009",
+        "TP-010",
+        "TP-011",
+        "TP-012"
+      ]
+    },
+    "rebaseline_history": []
+  },
+  "finding_triage": null,
   "requirements_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\docs\\Features\\template\\sfx-system\\product-requirements.md",
-  "requirements_revision": "3",
-  "requirements_sha256": "cb79c583a0f1a0f4e8c568103b3ca354057c08776ae5b56ff7fd291d87b49fa0",
+  "requirements_revision": "4",
+  "requirements_sha256": "9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde",
   "spec_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\docs\\Features\\template\\sfx-system\\technical-specification.md",
-  "spec_sha256": "bd8e88795a9cbf807ff2747c606433e356e41e6d406c5ed85f4fad2c6f38eaf9",
+  "spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
   "tests_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system",
-  "phase": "qa",
-  "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-  "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-  "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-  "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-  "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-12\\coverage-manifest.json",
-  "last_engineer_run_id": "eng-tf0005-sfx-owner-06-scope-rebaseline-run",
-  "last_engineer_outcome": "clean",
+  "phase": "ready",
+  "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+  "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+  "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+  "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+  "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\coverage-manifest.json",
+  "last_engineer_run_id": "eng-tf0005-spatial-pass-01",
+  "last_engineer_outcome": "changed",
   "machine_checks": {
     "status": "pass",
-    "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-    "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-    "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-    "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-06\\scope-rebaseline\\verification-report.md",
-    "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-12\\coverage-manifest.json"
+    "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+    "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+    "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+    "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\verification-report.md",
+    "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\coverage-manifest.json"
   },
   "engineer_clean": {
-    "run_id": "eng-tf0005-sfx-owner-06-scope-rebaseline-run",
-    "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-    "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-    "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-    "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
+    "source": "parallel_read_only_convergence",
+    "run_ids": [
+      "conv-run-config-01",
+      "conv-run-persistence-01",
+      "conv-run-integration-01"
+    ],
+    "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+    "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+    "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+    "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
     "audit_complete": true,
-    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-06\\scope-rebaseline\\verification-report.md",
-    "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-12\\coverage-manifest.json",
-    "recorded_at": "2026-08-08T06:05:45+00:00"
+    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\convergence-wave-1-decision.md",
+    "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\coverage-manifest.json",
+    "recorded_at": "2026-08-11T03:35:47+00:00"
   },
-  "engineering_owner_id": "eng-tf0005-sfx-owner-06",
+  "engineering_owner_id": "eng-tf0005-spatial-owner-01",
   "engineer_runs": [
     {
-      "run_id": "eng-tf0005-sfx-owner-01-initial",
-      "owner_id": "eng-tf0005-sfx-owner-01",
-      "input_revision": null,
-      "input_product_revision": null,
-      "input_support_revision": null,
-      "input_evidence_revision": null,
-      "revision": "f734c70a2940a2bb8fd2f2fb4cd340c16082ca6a32e0329fd200934d5d35d01f",
-      "product_revision": "a12ad59d2fb33bc5f2c9e2a98f351ac8e4af3b0d8c288e9c179c38450234622e",
-      "support_revision": "8a97e0dbc5afd954d4d5ca9220495fa1a269f77a72af90ef6fc2ae3c84c7c2f4",
-      "evidence_revision": "0d22dbc27cb1ea121d1d675c80d250a06c6e977248d2787c79fbd6c69358f400",
+      "run_id": "eng-tf0005-spatial-pass-01",
+      "owner_id": "eng-tf0005-spatial-owner-01",
+      "input_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "input_product_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "input_support_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "input_evidence_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+      "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
       "change_class": "product",
       "outcome": "changed",
       "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-01\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-01\\coverage-manifest.json",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\verification-report.md",
+      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\coverage-manifest.json",
       "production_change_scope": "local",
-      "production_files_changed": 45,
-      "production_lines_changed": 0,
+      "production_files_changed": 20,
+      "production_lines_changed": 4295,
       "scope_approval": null,
       "resolved_findings": [],
+      "slice_id": "SLICE-001",
+      "base_revision": "8fd6bc621dd278e51086f00903a14151320b4169",
+      "handoff_manifest": null,
+      "change_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\change-manifest.json",
+      "diff_summary": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-spatial-owner-01\\diff-summary.json",
       "audit_complete": true,
-      "recorded_at": "2026-08-07T15:37:03+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-02-convergence-w1",
-      "owner_id": "eng-tf0005-sfx-owner-02",
-      "input_revision": "f734c70a2940a2bb8fd2f2fb4cd340c16082ca6a32e0329fd200934d5d35d01f",
-      "input_product_revision": "a12ad59d2fb33bc5f2c9e2a98f351ac8e4af3b0d8c288e9c179c38450234622e",
-      "input_support_revision": "8a97e0dbc5afd954d4d5ca9220495fa1a269f77a72af90ef6fc2ae3c84c7c2f4",
-      "input_evidence_revision": "0d22dbc27cb1ea121d1d675c80d250a06c6e977248d2787c79fbd6c69358f400",
-      "revision": "7c6f5bab94c2fdc7b9a1c54d0c777cc48af530e3b9af48a901d58349a4d04117",
-      "product_revision": "9b740888732a1c26e226d79848048f7686e23651b926652a3db7e519ff2b8d0b",
-      "support_revision": "e6f91e031c5b11552d31f028774a105da30ddb62e87fa9ce5f0192280b0e2baf",
-      "evidence_revision": "3b164e73b4943f52adbfdf9c1ef911b070d6da53a3ed7238a0f570ee82fe1249",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-02\\convergence-wave-1\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-02\\convergence-wave-1\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W1-001",
-        "CONV-W1-002",
-        "CONV-W1-003",
-        "CONV-W1-004",
-        "CONV-W1-005",
-        "CONV-W1-006",
-        "CONV-W1-007",
-        "CONV-W1-008",
-        "CONV-W1-009",
-        "CONV-W1-010",
-        "CONV-W1-011",
-        "CONV-W1-012",
-        "CONV-W1-013",
-        "CONV-W1-014"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-07T17:04:50+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-02-convergence-w2",
-      "owner_id": "eng-tf0005-sfx-owner-02",
-      "input_revision": "7c6f5bab94c2fdc7b9a1c54d0c777cc48af530e3b9af48a901d58349a4d04117",
-      "input_product_revision": "9b740888732a1c26e226d79848048f7686e23651b926652a3db7e519ff2b8d0b",
-      "input_support_revision": "e6f91e031c5b11552d31f028774a105da30ddb62e87fa9ce5f0192280b0e2baf",
-      "input_evidence_revision": "3b164e73b4943f52adbfdf9c1ef911b070d6da53a3ed7238a0f570ee82fe1249",
-      "revision": "9005c8e9c458451b56600ba3ab1f31948eaa4b1eb07ad2555b7c9196101401cc",
-      "product_revision": "cd3df76d6806eadf0cc05bd4e6cc4b4ee1f7b651fad0d5752df5785ad16b3714",
-      "support_revision": "b0bfd5edf135b539c3fd77040772144f8128e0b995ff0010baec61db5858c07d",
-      "evidence_revision": "c1ba3a7b9e5571afa9cda0ad12eb83d9ebe96fa37bb4ef1ca21aa5eff033bec8",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-02\\convergence-wave-2\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-02\\convergence-wave-2\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W2-001",
-        "CONV-W2-002",
-        "CONV-W2-003",
-        "CONV-W2-004",
-        "CONV-W2-005",
-        "CONV-W2-006",
-        "CONV-W2-007",
-        "CONV-W2-008"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-07T17:56:21+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-02-w3-fix3",
-      "owner_id": "eng-tf0005-sfx-owner-02",
-      "input_revision": "9005c8e9c458451b56600ba3ab1f31948eaa4b1eb07ad2555b7c9196101401cc",
-      "input_product_revision": "cd3df76d6806eadf0cc05bd4e6cc4b4ee1f7b651fad0d5752df5785ad16b3714",
-      "input_support_revision": "b0bfd5edf135b539c3fd77040772144f8128e0b995ff0010baec61db5858c07d",
-      "input_evidence_revision": "c1ba3a7b9e5571afa9cda0ad12eb83d9ebe96fa37bb4ef1ca21aa5eff033bec8",
-      "revision": "70a2f65d6b876eeaeb6a76b6295d1e116240c5983304d227f53a5a5eb8a7fec9",
-      "product_revision": "849336a7fef7846374ec66af178544ee17bcd76761480c66df713dbae52d1997",
-      "support_revision": "36d9db67a42d1f1c69789541f2f351bb729b4e95f8f3248815f0e49e33f6d8fd",
-      "evidence_revision": "db332517da5df0b7b3c1dacead47fa0bfa514113b833e67e3c875fa444bf1ed1",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-02\\convergence-wave-3\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-02\\convergence-wave-3\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W3-001",
-        "CONV-W3-002",
-        "CONV-W3-003",
-        "CONV-W3-004",
-        "CONV-W3-005",
-        "CONV-W3-006"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-07T19:06:10+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-03-w4-fix1",
-      "owner_id": "eng-tf0005-sfx-owner-03",
-      "input_revision": "70a2f65d6b876eeaeb6a76b6295d1e116240c5983304d227f53a5a5eb8a7fec9",
-      "input_product_revision": "849336a7fef7846374ec66af178544ee17bcd76761480c66df713dbae52d1997",
-      "input_support_revision": "36d9db67a42d1f1c69789541f2f351bb729b4e95f8f3248815f0e49e33f6d8fd",
-      "input_evidence_revision": "db332517da5df0b7b3c1dacead47fa0bfa514113b833e67e3c875fa444bf1ed1",
-      "revision": "8c93693fc614d4b6f5f3d12d028ff00f0992245682491d5d9ebe64d9f9b47478",
-      "product_revision": "c316758a07da6a33e06cebc0fd1eac9503e20f974c99726aa33b207f18096005",
-      "support_revision": "da897a059aeb35ca0aa8fa429b70a7855b3feede63edc8cab1ab1c2e29ebfbc6",
-      "evidence_revision": "508976eb1b45d3bae4333b06a64968af2643c75adc7202bee065caefbde1d90c",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-03\\convergence-wave-4\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-03\\convergence-wave-4\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W4-001",
-        "CONV-W4-002",
-        "CONV-W4-003",
-        "CONV-W4-004",
-        "CONV-W4-005",
-        "CONV-W4-006",
-        "CONV-W4-007"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-07T20:16:02+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-03-w5-fix2",
-      "owner_id": "eng-tf0005-sfx-owner-03",
-      "input_revision": "8c93693fc614d4b6f5f3d12d028ff00f0992245682491d5d9ebe64d9f9b47478",
-      "input_product_revision": "c316758a07da6a33e06cebc0fd1eac9503e20f974c99726aa33b207f18096005",
-      "input_support_revision": "da897a059aeb35ca0aa8fa429b70a7855b3feede63edc8cab1ab1c2e29ebfbc6",
-      "input_evidence_revision": "508976eb1b45d3bae4333b06a64968af2643c75adc7202bee065caefbde1d90c",
-      "revision": "f7c586320da41a60dc82829fb5fc5ed69c6d131139317d5df7249217513a8528",
-      "product_revision": "5862228a4da12f8d411c39bd8025746a9bccae3a1fbf46d7fe21ffafe8dd0c33",
-      "support_revision": "a28b0c2f52ca6abc77a274c99172db0f0ae670f991076d2e1ae06232b6704b21",
-      "evidence_revision": "4ff4c7bfb15247ff17b7f7ce11bcae8d7e9256e23e4e9f19d12cbbf030da0cee",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-03\\convergence-wave-5\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-03\\convergence-wave-5\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W5-001",
-        "CONV-W5-002",
-        "CONV-W5-003",
-        "CONV-W5-004",
-        "CONV-W5-005",
-        "CONV-W5-006",
-        "CONV-W5-007",
-        "CONV-W5-008"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-07T21:14:49+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-03-w6-fix3",
-      "owner_id": "eng-tf0005-sfx-owner-03",
-      "input_revision": "f7c586320da41a60dc82829fb5fc5ed69c6d131139317d5df7249217513a8528",
-      "input_product_revision": "5862228a4da12f8d411c39bd8025746a9bccae3a1fbf46d7fe21ffafe8dd0c33",
-      "input_support_revision": "a28b0c2f52ca6abc77a274c99172db0f0ae670f991076d2e1ae06232b6704b21",
-      "input_evidence_revision": "4ff4c7bfb15247ff17b7f7ce11bcae8d7e9256e23e4e9f19d12cbbf030da0cee",
-      "revision": "3b993927668cf9f54e044e468b405d5873555fd411bb3410e86a1fcab8179928",
-      "product_revision": "370a46b9ac6aeca4d880330677ca90d8da54ece3a212b9ea375c2da9d960dc1d",
-      "support_revision": "e25e763913aeb0d8eae485059ca2a0208c58aed3cec859c78e5325639cd013e4",
-      "evidence_revision": "0179ea2cdf3aea6a048deace8d18747f7aeb2e177e7dbd5539f299a86a39a888",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-03\\convergence-wave-6\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-03\\convergence-wave-6\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W6-001",
-        "CONV-W6-002",
-        "CONV-W6-003",
-        "CONV-W6-004",
-        "CONV-W6-005"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-07T22:10:50+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-04-w7-fix1",
-      "owner_id": "eng-tf0005-sfx-owner-04",
-      "input_revision": "3b993927668cf9f54e044e468b405d5873555fd411bb3410e86a1fcab8179928",
-      "input_product_revision": "370a46b9ac6aeca4d880330677ca90d8da54ece3a212b9ea375c2da9d960dc1d",
-      "input_support_revision": "e25e763913aeb0d8eae485059ca2a0208c58aed3cec859c78e5325639cd013e4",
-      "input_evidence_revision": "0179ea2cdf3aea6a048deace8d18747f7aeb2e177e7dbd5539f299a86a39a888",
-      "revision": "564dad0140fdaab193333c7e457144e5b9650c8bb014c23fedf02912ca13997f",
-      "product_revision": "e88ba99caf5a4a35b7fe0650634d61c12ee65cae6fe24bae1ee05068a22e256e",
-      "support_revision": "02f9ab0e923404717627f8916efeb503df4d7e8ef46126fda4e51f2c58d689e6",
-      "evidence_revision": "fbd03eaceaf3773e83ae8f302986866d997d72886b34e81c8c268c8ef7d37eb3",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-04\\convergence-wave-7\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-04\\convergence-wave-7\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W7-001",
-        "CONV-W7-002",
-        "CONV-W7-003",
-        "CONV-W7-004",
-        "CONV-W7-005",
-        "CONV-W7-006"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-07T23:13:09+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-04-w8-fix2",
-      "owner_id": "eng-tf0005-sfx-owner-04",
-      "input_revision": "564dad0140fdaab193333c7e457144e5b9650c8bb014c23fedf02912ca13997f",
-      "input_product_revision": "e88ba99caf5a4a35b7fe0650634d61c12ee65cae6fe24bae1ee05068a22e256e",
-      "input_support_revision": "02f9ab0e923404717627f8916efeb503df4d7e8ef46126fda4e51f2c58d689e6",
-      "input_evidence_revision": "fbd03eaceaf3773e83ae8f302986866d997d72886b34e81c8c268c8ef7d37eb3",
-      "revision": "811d94ef70cd885546604bf61d8efb7ea65553d129404b3163f3ff8e358bada5",
-      "product_revision": "3709c9f50372adf810627a14f2722b426b76dc12079d1a15a11c70dd86612462",
-      "support_revision": "572c1d5fa2addd29aa0ebbeecc5f180bda64aa89d10fb986a95c7b7cbb517a74",
-      "evidence_revision": "6e1a698fa95b5ca082f28a97b939be9121ae3ee9b61f2a6dba46b500cbeae023",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-04\\convergence-wave-8\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-04\\convergence-wave-8\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W8-001",
-        "CONV-W8-002",
-        "CONV-W8-003",
-        "CONV-W8-004"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-08T00:13:18+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-04-w9-fix3",
-      "owner_id": "eng-tf0005-sfx-owner-04",
-      "input_revision": "811d94ef70cd885546604bf61d8efb7ea65553d129404b3163f3ff8e358bada5",
-      "input_product_revision": "3709c9f50372adf810627a14f2722b426b76dc12079d1a15a11c70dd86612462",
-      "input_support_revision": "572c1d5fa2addd29aa0ebbeecc5f180bda64aa89d10fb986a95c7b7cbb517a74",
-      "input_evidence_revision": "6e1a698fa95b5ca082f28a97b939be9121ae3ee9b61f2a6dba46b500cbeae023",
-      "revision": "39baf1469a37229772bf0871f59a2bac3551460f97c6967e512b97b1fa3de164",
-      "product_revision": "d510cf38c062a81c8a380f3464b82c82e377eec2902c785a5b5aed2590b8d264",
-      "support_revision": "b7a342dc3cbff3cc74308d01f2bb6e4a24f7334177cbdd172bd026f1786e0c55",
-      "evidence_revision": "9fa9dd02f27ec9a1d9f37d8b2047185aa3c4ae9af2733c70e233f04a793c3a14",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-04\\convergence-wave-9\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-04\\convergence-wave-9\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W9-001",
-        "CONV-W9-002",
-        "CONV-W9-003"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-08T00:59:28+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-05-w10-fix1",
-      "owner_id": "eng-tf0005-sfx-owner-05",
-      "input_revision": "39baf1469a37229772bf0871f59a2bac3551460f97c6967e512b97b1fa3de164",
-      "input_product_revision": "d510cf38c062a81c8a380f3464b82c82e377eec2902c785a5b5aed2590b8d264",
-      "input_support_revision": "b7a342dc3cbff3cc74308d01f2bb6e4a24f7334177cbdd172bd026f1786e0c55",
-      "input_evidence_revision": "9fa9dd02f27ec9a1d9f37d8b2047185aa3c4ae9af2733c70e233f04a793c3a14",
-      "revision": "3e31c36cba03a8017570b5d551a417482d299a137acf95de22a8f7a4c227a564",
-      "product_revision": "5396875b3db32bde236d4911ee634c1984708354013fcfa514ab19acb658ed79",
-      "support_revision": "7ee6e9179f422fba3a48a2c10440b728ab7f23db819d7742a1a447a67e5aa716",
-      "evidence_revision": "a10f96a42eb0af792c06e79c98a04d43a70cdf009463683ee2975c3366d871ef",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-10\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-10\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W10-001",
-        "CONV-W10-002",
-        "CONV-W10-003",
-        "CONV-W10-004",
-        "CONV-W10-005"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-08T02:05:00+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-05-w11-fix2",
-      "owner_id": "eng-tf0005-sfx-owner-05",
-      "input_revision": "3e31c36cba03a8017570b5d551a417482d299a137acf95de22a8f7a4c227a564",
-      "input_product_revision": "5396875b3db32bde236d4911ee634c1984708354013fcfa514ab19acb658ed79",
-      "input_support_revision": "7ee6e9179f422fba3a48a2c10440b728ab7f23db819d7742a1a447a67e5aa716",
-      "input_evidence_revision": "a10f96a42eb0af792c06e79c98a04d43a70cdf009463683ee2975c3366d871ef",
-      "revision": "3da325ca373f16f62196b1e7536767f610bf32385d34849307b97c808ac2358d",
-      "product_revision": "e10701874f6d02f4f1d7f3eab67cf577d830b0aa6b18460715f3fde3857fd11e",
-      "support_revision": "da5529eca79dc548b504a42e77f2f39cb94d13c70041cc42c0f6ab03f971a072",
-      "evidence_revision": "b22c1212c550e274dfd347edd3391f580d3e6187fef68c8106f4bf3042bda085",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-11\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-11\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W11-001",
-        "CONV-W11-002",
-        "CONV-W11-003",
-        "CONV-W11-004",
-        "CONV-W11-005"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-08T03:22:44+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-05-wave12-run",
-      "owner_id": "eng-tf0005-sfx-owner-05",
-      "input_revision": "3da325ca373f16f62196b1e7536767f610bf32385d34849307b97c808ac2358d",
-      "input_product_revision": "e10701874f6d02f4f1d7f3eab67cf577d830b0aa6b18460715f3fde3857fd11e",
-      "input_support_revision": "da5529eca79dc548b504a42e77f2f39cb94d13c70041cc42c0f6ab03f971a072",
-      "input_evidence_revision": "b22c1212c550e274dfd347edd3391f580d3e6187fef68c8106f4bf3042bda085",
-      "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-      "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-      "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-      "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-      "change_class": "product",
-      "outcome": "changed",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-12\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-12\\coverage-manifest.json",
-      "production_change_scope": "local",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [
-        "CONV-W12-001",
-        "CONV-W12-002",
-        "CONV-W12-003",
-        "CONV-W12-004",
-        "CONV-W12-005",
-        "CONV-W12-006",
-        "CONV-W12-007"
-      ],
-      "audit_complete": true,
-      "recorded_at": "2026-08-08T05:03:01+00:00"
-    },
-    {
-      "run_id": "eng-tf0005-sfx-owner-06-scope-rebaseline-run",
-      "owner_id": "eng-tf0005-sfx-owner-06",
-      "input_revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-      "input_product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-      "input_support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-      "input_evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-      "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-      "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-      "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-      "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-      "change_class": "none",
-      "outcome": "clean",
-      "machine_checks": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-06\\scope-rebaseline\\verification-report.md",
-      "coverage_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\eng-tf0005-sfx-owner-05\\convergence-wave-12\\coverage-manifest.json",
-      "production_change_scope": "none",
-      "production_files_changed": 0,
-      "production_lines_changed": 0,
-      "scope_approval": null,
-      "resolved_findings": [],
-      "audit_complete": true,
-      "recorded_at": "2026-08-08T06:05:45+00:00"
+      "recorded_at": "2026-08-11T03:17:33+00:00"
     }
   ],
   "required_convergence_audits": 3,
   "max_convergence_waves": 2,
   "convergence": {
-    "status": "failed",
-    "wave": 13,
+    "status": "passed",
+    "wave": 1,
     "required": 3,
-    "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-    "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-    "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-    "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
+    "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+    "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+    "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+    "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
     "runs": [
       {
-        "run_id": "conv-tf0005-w13-persistence-01-run",
-        "reviewer_id": "conv-tf0005-w13-persistence-01",
-        "lens": "persistence-lifecycle",
-        "status": "fail",
-        "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-        "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-        "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-        "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\conv-tf0005-w13-persistence-01\\report.md",
-        "recorded_at": "2026-08-08T05:51:23+00:00"
-      },
-      {
-        "run_id": "conv-tf0005-w13-config-01-run",
-        "reviewer_id": "conv-tf0005-w13-config-01",
+        "run_id": "conv-run-config-01",
+        "reviewer_id": "conv-tf0005-rev12-config-01",
         "lens": "config-security-capacity",
-        "status": "fail",
-        "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-        "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-        "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-        "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\conv-tf0005-w13-config-01\\report.md",
-        "recorded_at": "2026-08-08T05:51:24+00:00"
+        "status": "pass",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+        "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+        "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-config-01\\report.md",
+        "credit_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-config-01\\component-credits.json",
+        "component_credit_ids": [
+          "RC-3485404B900D600F"
+        ],
+        "recorded_at": "2026-08-11T03:33:14+00:00"
       },
       {
-        "run_id": "conv-tf0005-w13-integration-01-run",
-        "reviewer_id": "conv-tf0005-w13-integration-01",
+        "run_id": "conv-run-persistence-01",
+        "reviewer_id": "conv-tf0005-rev12-persistence-01",
+        "lens": "persistence-lifecycle",
+        "status": "pass",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+        "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+        "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-persistence-01\\report.md",
+        "credit_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-persistence-01\\component-credits.json",
+        "component_credit_ids": [
+          "RC-8A591D349AC306CD"
+        ],
+        "recorded_at": "2026-08-11T03:33:14+00:00"
+      },
+      {
+        "run_id": "conv-run-integration-01",
+        "reviewer_id": "conv-tf0005-rev12-integration-01",
         "lens": "integration-runtime-docs",
-        "status": "fail",
-        "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-        "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-        "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-        "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\conv-tf0005-w13-integration-01\\report.md",
-        "recorded_at": "2026-08-08T05:51:25+00:00"
+        "status": "pass",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+        "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+        "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-integration-01\\report.md",
+        "credit_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-integration-01\\component-credits.json",
+        "component_credit_ids": [
+          "RC-1E95789B0D3ED4B4"
+        ],
+        "recorded_at": "2026-08-11T03:33:48+00:00"
       }
     ],
-    "decision": "rework",
-    "decision_report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\convergence-wave-13-decision.md",
-    "decided_at": "2026-08-08T05:53:32+00:00"
+    "decision": "pass",
+    "decision_report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\convergence-wave-1-decision.md",
+    "slice_ids": [
+      "SLICE-001"
+    ],
+    "trigger": "initial_implementation",
+    "counted": true,
+    "decided_at": "2026-08-11T03:35:47+00:00"
   },
   "required_reviews": 2,
   "review": {
     "status": "passed",
-    "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-    "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-    "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-    "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
+    "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+    "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+    "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+    "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
     "required": 2,
     "runs": [
       {
-        "run_id": "review-tf0005-sfx-final-architecture-01-run",
-        "reviewer_id": "review-tf0005-sfx-final-architecture-01",
-        "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-        "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-        "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-        "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
+        "run_id": "final-review-architecture-01",
+        "reviewer_id": "review-tf0005-rev12-architecture-01",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+        "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+        "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
         "status": "pass",
-        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\review-tf0005-sfx-final-architecture-01\\report.md",
-        "recorded_at": "2026-08-08T06:25:49+00:00"
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-architecture-01\\report.md",
+        "credit_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-architecture-01\\component-credits.json",
+        "component_credit_ids": [
+          "RC-8A591D349AC306CD",
+          "RC-BBC64733FE538CA0"
+        ],
+        "recorded_at": "2026-08-11T03:44:40+00:00"
       },
       {
-        "run_id": "review-tf0005-sfx-final-verification-01-run",
-        "reviewer_id": "review-tf0005-sfx-final-verification-01",
-        "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-        "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-        "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-        "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
+        "run_id": "final-review-verification-01",
+        "reviewer_id": "review-tf0005-rev12-verification-01",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+        "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+        "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
         "status": "pass",
-        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\review-tf0005-sfx-final-verification-01\\report.md",
-        "recorded_at": "2026-08-08T06:25:50+00:00"
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-verification-01\\report.md",
+        "credit_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-verification-01\\component-credits.json",
+        "component_credit_ids": [
+          "RC-3485404B900D600F",
+          "RC-5BC58047EDBEBDCF"
+        ],
+        "recorded_at": "2026-08-11T03:45:30+00:00"
       }
     ],
     "recovery_run": null,
     "decision": "pass",
-    "decision_report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\final-review-decision.md",
+    "decision_report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\final-review-decision.md",
     "decision_reason": null,
-    "decided_at": "2026-08-08T06:26:20+00:00"
+    "decided_at": "2026-08-11T03:47:55+00:00"
   },
   "review_runs": [
     {
-      "run_id": "review-tf0005-sfx-final-architecture-01-run",
-      "reviewer_id": "review-tf0005-sfx-final-architecture-01",
-      "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-      "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-      "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-      "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
+      "run_id": "final-review-architecture-01",
+      "reviewer_id": "review-tf0005-rev12-architecture-01",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+      "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
       "status": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\review-tf0005-sfx-final-architecture-01\\report.md",
-      "recorded_at": "2026-08-08T06:25:49+00:00"
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-architecture-01\\report.md",
+      "credit_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-architecture-01\\component-credits.json",
+      "component_credit_ids": [
+        "RC-8A591D349AC306CD",
+        "RC-BBC64733FE538CA0"
+      ],
+      "recorded_at": "2026-08-11T03:44:40+00:00"
     },
     {
-      "run_id": "review-tf0005-sfx-final-verification-01-run",
-      "reviewer_id": "review-tf0005-sfx-final-verification-01",
-      "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-      "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-      "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-      "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
+      "run_id": "final-review-verification-01",
+      "reviewer_id": "review-tf0005-rev12-verification-01",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+      "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
       "status": "pass",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\review-tf0005-sfx-final-verification-01\\report.md",
-      "recorded_at": "2026-08-08T06:25:50+00:00"
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-verification-01\\report.md",
+      "credit_manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-verification-01\\component-credits.json",
+      "component_credit_ids": [
+        "RC-3485404B900D600F",
+        "RC-5BC58047EDBEBDCF"
+      ],
+      "recorded_at": "2026-08-11T03:45:30+00:00"
+    }
+  ],
+  "component_review_credits": [
+    {
+      "id": "RC-3485404B900D600F",
+      "component": "sfx-system-whole-candidate",
+      "product_hash": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "contract_hash": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+      "lenses": [
+        "config-security-capacity"
+      ],
+      "review_revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reviewer_id": "conv-tf0005-rev12-config-01",
+      "review_mode": "full_convergence",
+      "source_credit_id": null,
+      "valid": true,
+      "manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-config-01\\component-credits.json",
+      "recorded_at": "2026-08-11T03:33:14+00:00"
+    },
+    {
+      "id": "RC-8A591D349AC306CD",
+      "component": "sfx-system-whole-candidate",
+      "product_hash": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "contract_hash": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+      "lenses": [
+        "persistence-lifecycle"
+      ],
+      "review_revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reviewer_id": "conv-tf0005-rev12-persistence-01",
+      "review_mode": "full_convergence",
+      "source_credit_id": null,
+      "valid": true,
+      "manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-persistence-01\\component-credits.json",
+      "recorded_at": "2026-08-11T03:33:14+00:00"
+    },
+    {
+      "id": "RC-1E95789B0D3ED4B4",
+      "component": "sfx-system-whole-candidate",
+      "product_hash": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "contract_hash": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+      "lenses": [
+        "integration-runtime-docs"
+      ],
+      "review_revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reviewer_id": "conv-tf0005-rev12-integration-01",
+      "review_mode": "full_convergence",
+      "source_credit_id": null,
+      "valid": true,
+      "manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\conv-tf0005-rev12-integration-01\\component-credits.json",
+      "recorded_at": "2026-08-11T03:33:48+00:00"
+    },
+    {
+      "id": "RC-BBC64733FE538CA0",
+      "component": "sfx-system-final-architecture-composition",
+      "product_hash": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "contract_hash": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+      "lenses": [
+        "architecture-correctness",
+        "cross-slice-composition",
+        "runtime-ownership-lifecycle"
+      ],
+      "review_revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reviewer_id": "review-tf0005-rev12-architecture-01",
+      "review_mode": "final_whole_feature_review",
+      "source_credit_id": null,
+      "valid": true,
+      "manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-architecture-01\\component-credits.json",
+      "recorded_at": "2026-08-11T03:44:40+00:00"
+    },
+    {
+      "id": "RC-5BC58047EDBEBDCF",
+      "component": "sfx-system-final-verification-traceability",
+      "product_hash": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "contract_hash": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+      "lenses": [
+        "failure-mode-security-capacity",
+        "test-adequacy",
+        "verification-traceability"
+      ],
+      "review_revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reviewer_id": "review-tf0005-rev12-verification-01",
+      "review_mode": "final_whole_feature_review",
+      "source_credit_id": null,
+      "valid": true,
+      "manifest": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\reviews\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\review-tf0005-rev12-verification-01\\component-credits.json",
+      "recorded_at": "2026-08-11T03:45:30+00:00"
     }
   ],
   "product_revalidation": null,
   "closure_review": null,
   "qa": {
-    "status": "blocked_environment",
-    "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-    "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-    "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-    "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-    "run_id": "qa-tf0005-sfx-final-01-run",
-    "worker_id": "qa-tf0005-sfx-final-01",
-    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\qa-tf0005-sfx-final-01\\report.md",
-    "pending_scenarios": [
-      "Studio-E2E-AUDIO-02/NonSpatialInvariant",
-      "Studio-E2E-AUDIO-02/PointAttenuation",
-      "Studio-E2E-AUDIO-02/AttachedFollowOrientation",
-      "Studio-E2E-AUDIO-03/CategoryIsolation",
-      "Studio-E2E-AUDIO-01/LocalOnly",
-      "Studio-E2E-AUDIO-01/HybridPrediction",
-      "Studio-E2E-AUDIO-01/ServerVariantOnce",
-      "Studio-E2E-AUDIO-03/ClientMusicSettingsSave",
-      "Studio-E2E-AUDIO-01/ServerSingleAudibleReplication",
-      "Studio-E2E-AUDIO-02/ServerAttachedReplication",
-      "Studio-E2E-AUDIO-04/IndependentMusicStacks",
-      "Studio-E2E-AUDIO-02/CharacterPositionCameraOrientation",
-      "Studio-E2E-AUDIO-03/IndependentFaders",
-      "Studio-E2E-AUDIO-01/HybridNoServerPlayer",
-      "Studio-E2E-AUDIO-04/BackgroundForegroundLifo"
-    ],
-    "reason": "Studio MCP exposes only single-client Play and no Test Server/multiclient control; safe Computer Use path is unavailable, so 15 spec-mandated two-client/save-rejoin scenarios remain pending. No product failure observed."
+    "status": "pass",
+    "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+    "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+    "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+    "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+    "run_id": "qa-tf0005-rev12-runtime-03",
+    "worker_id": "qa-tf0005-rev12-runtime-01",
+    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+    "pending_scenarios": [],
+    "reason": "User-scoped Runtime QA completed: 15 PASS, ClientMusicSettingsSave NOT_APPLICABLE by explicit user scope decision, no product findings, full cleanup.",
+    "capability_probe_id": "qa-probe-tf0005-rev12-user-scoped-ready-05",
+    "minimum_resume_actions": {}
+  },
+  "qa_capability": {
+    "status": "ready",
+    "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+    "probe_id": "qa-probe-tf0005-rev12-user-scoped-ready-05",
+    "capabilities": {
+      "studio-editor-sync": "available",
+      "single-play": "available",
+      "test-server-two-clients": "available",
+      "window-control-path": "available",
+      "logging-screenshots": "available",
+      "persistence-datastore": "not_required",
+      "publication-place-topology": "available",
+      "config-credentials": "available"
+    },
+    "minimum_resume_actions": {},
+    "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+    "probes": [
+      {
+        "probe_id": "qa-probe-tf0005-rev12-02",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "capabilities": {
+          "studio-editor-sync": "available",
+          "single-play": "available",
+          "test-server-two-clients": "planned_manual",
+          "window-control-path": "planned_manual",
+          "logging-screenshots": "available",
+          "persistence-datastore": "available",
+          "publication-place-topology": "available",
+          "config-credentials": "available"
+        },
+        "minimum_resume_actions": {},
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-probe-tf0005-rev12-02\\capability-probe.md",
+        "status": "ready",
+        "recorded_at": "2026-08-11T05:25:39+00:00"
+      },
+      {
+        "probe_id": "qa-probe-tf0005-rev12-runtime-gates-03",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "capabilities": {
+          "studio-editor-sync": "available",
+          "single-play": "available",
+          "test-server-two-clients": "blocked_user",
+          "window-control-path": "blocked_user",
+          "logging-screenshots": "available",
+          "persistence-datastore": "blocked_environment",
+          "publication-place-topology": "available",
+          "config-credentials": "available"
+        },
+        "minimum_resume_actions": {
+          "test-server-two-clients": "Start Test Server with two clients in the existing canonical Studio session, label ClientA and ClientB, and report ready",
+          "window-control-path": "Perform the requested camera zoom reset minimize refocus actions and report verbatim what is audible on each client",
+          "persistence-datastore": "Provide an approved player-save environment without Studio MemoryStorage, rejoin the same player, verify restoration, then restore original settings"
+        },
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+        "status": "blocked",
+        "recorded_at": "2026-08-11T05:42:54+00:00"
+      },
+      {
+        "probe_id": "qa-probe-tf0005-rev12-final-gates-04",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "capabilities": {
+          "studio-editor-sync": "available",
+          "single-play": "available",
+          "test-server-two-clients": "available",
+          "window-control-path": "blocked_user",
+          "logging-screenshots": "available",
+          "persistence-datastore": "blocked_environment",
+          "publication-place-topology": "available",
+          "config-credentials": "available"
+        },
+        "minimum_resume_actions": {
+          "window-control-path": "Use an operator setup that can reliably distinguish the approved 0.212-second Direct cue at near and far distances, or explicitly authorize a QA-contract update with a longer approved Direct cue",
+          "persistence-datastore": "Provide an approved player-save environment without Studio MemoryStorage, rejoin the same player, verify restoration, then restore original settings"
+        },
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+        "status": "blocked",
+        "recorded_at": "2026-08-11T09:15:16+00:00"
+      },
+      {
+        "probe_id": "qa-probe-tf0005-rev12-user-scoped-ready-05",
+        "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+        "capabilities": {
+          "studio-editor-sync": "available",
+          "single-play": "available",
+          "test-server-two-clients": "available",
+          "window-control-path": "available",
+          "logging-screenshots": "available",
+          "persistence-datastore": "not_required",
+          "publication-place-topology": "available",
+          "config-credentials": "available"
+        },
+        "minimum_resume_actions": {},
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+        "status": "ready",
+        "recorded_at": "2026-08-11T09:32:33+00:00"
+      }
+    ]
   },
   "qa_runs": [
     {
-      "run_id": "qa-tf0005-sfx-final-01-run",
-      "worker_id": "qa-tf0005-sfx-final-01",
-      "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-      "product_revision": "05f088c5f256623f34314a8e8e053f8efce68983c555ca67b05b1d17427d8b10",
-      "support_revision": "290e01adc9fc1467e6a8eb1b55bb294b9a981233e517e1d61ce9cf9f4838434f",
-      "evidence_revision": "89007d2699daa230e515e341fb16aa3a0211e98fb605077facc9b062b0bdef33",
-      "status": "blocked_environment",
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\qa-tf0005-sfx-final-01\\report.md",
+      "run_id": "qa-tf0005-rev12-runtime-01",
+      "worker_id": "qa-tf0005-rev12-runtime-01",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+      "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+      "status": "blocked_user",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
       "pending_scenarios": [
-        "Studio-E2E-AUDIO-02/NonSpatialInvariant",
-        "Studio-E2E-AUDIO-02/PointAttenuation",
-        "Studio-E2E-AUDIO-02/AttachedFollowOrientation",
-        "Studio-E2E-AUDIO-03/CategoryIsolation",
         "Studio-E2E-AUDIO-01/LocalOnly",
         "Studio-E2E-AUDIO-01/HybridPrediction",
         "Studio-E2E-AUDIO-01/ServerVariantOnce",
-        "Studio-E2E-AUDIO-03/ClientMusicSettingsSave",
         "Studio-E2E-AUDIO-01/ServerSingleAudibleReplication",
-        "Studio-E2E-AUDIO-02/ServerAttachedReplication",
-        "Studio-E2E-AUDIO-04/IndependentMusicStacks",
-        "Studio-E2E-AUDIO-02/CharacterPositionCameraOrientation",
-        "Studio-E2E-AUDIO-03/IndependentFaders",
         "Studio-E2E-AUDIO-01/HybridNoServerPlayer",
-        "Studio-E2E-AUDIO-04/BackgroundForegroundLifo"
+        "Studio-E2E-AUDIO-02/NonSpatialInvariant",
+        "Studio-E2E-AUDIO-02/PointAttenuation",
+        "Studio-E2E-AUDIO-02/AttachedFollowOrientation",
+        "Studio-E2E-AUDIO-02/ServerAttachedReplication",
+        "Studio-E2E-AUDIO-02/CharacterPositionCameraOrientation",
+        "Studio-E2E-AUDIO-03/CategoryIsolation",
+        "Studio-E2E-AUDIO-03/ClientMusicSettingsSave",
+        "Studio-E2E-AUDIO-03/IndependentFaders",
+        "Studio-E2E-AUDIO-04/IndependentMusicStacks",
+        "Studio-E2E-AUDIO-04/BackgroundForegroundLifo",
+        "Studio-E2E-AUDIO-05/CleanGraphRuntime"
       ],
-      "reason": "Studio MCP exposes only single-client Play and no Test Server/multiclient control; safe Computer Use path is unavailable, so 15 spec-mandated two-client/save-rejoin scenarios remain pending. No product failure observed.",
-      "recorded_at": "2026-08-08T06:52:44+00:00"
+      "reason": "Human Test Server two-client hearing/focus/reset observations are still required. ClientMusicSettingsSave additionally requires an approved non-Studio player-save environment because canonical Studio forces MemoryStorage; isolated GUID DataStore read/write/reload/cleanup passed.",
+      "capability_probe_id": "qa-probe-tf0005-rev12-runtime-gates-03",
+      "minimum_resume_actions": {
+        "test-server-two-clients": "Start Test Server with two clients in the existing canonical Studio session, label ClientA and ClientB, and report ready",
+        "window-control-path": "Perform the requested camera zoom reset minimize refocus actions and report verbatim what is audible on each client",
+        "persistence-datastore": "Provide an approved player-save environment without Studio MemoryStorage, rejoin the same player, verify restoration, then restore original settings"
+      },
+      "recorded_at": "2026-08-11T05:43:08+00:00"
+    },
+    {
+      "run_id": "qa-tf0005-rev12-runtime-02",
+      "worker_id": "qa-tf0005-rev12-runtime-01",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+      "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+      "status": "blocked_user",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "pending_scenarios": [
+        "Studio-E2E-AUDIO-02/NonSpatialInvariant",
+        "Studio-E2E-AUDIO-03/ClientMusicSettingsSave"
+      ],
+      "reason": "Fourteen mandatory scenarios passed with no product findings. NonSpatialInvariant remains operator-blocked because the only approved Direct cue is 0.212 seconds and was not reliably audible; ClientMusicSettingsSave remains environment-blocked because canonical Studio forces MemoryStorage.",
+      "capability_probe_id": "qa-probe-tf0005-rev12-final-gates-04",
+      "minimum_resume_actions": {
+        "window-control-path": "Use an operator setup that can reliably distinguish the approved 0.212-second Direct cue at near and far distances, or explicitly authorize a QA-contract update with a longer approved Direct cue",
+        "persistence-datastore": "Provide an approved player-save environment without Studio MemoryStorage, rejoin the same player, verify restoration, then restore original settings"
+      },
+      "recorded_at": "2026-08-11T09:15:28+00:00"
+    },
+    {
+      "run_id": "qa-tf0005-rev12-runtime-03",
+      "worker_id": "qa-tf0005-rev12-runtime-01",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "product_revision": "0408eae9b98ee1c9620a9c1c6157808237d77941cb102916ea7f85783ff7443d",
+      "support_revision": "856393c624c2451b172ea8006b336cd05cbab22f1f5665d820731fa9d695b07e",
+      "evidence_revision": "f24a827172a93c12fd61d53e50b21475536ce3efef0725111593c15c12fc90c4",
+      "status": "pass",
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "pending_scenarios": [],
+      "reason": "User-scoped Runtime QA completed: 15 PASS, ClientMusicSettingsSave NOT_APPLICABLE by explicit user scope decision, no product findings, full cleanup.",
+      "capability_probe_id": "qa-probe-tf0005-rev12-user-scoped-ready-05",
+      "minimum_resume_actions": {},
+      "recorded_at": "2026-08-11T09:32:43+00:00"
     }
   ],
   "gates": [
     {
-      "id": "qa:qa-tf0005-sfx-final-01-run",
+      "id": "qa-capability:qa-probe-tf0005-rev12-runtime-gates-03:test-server-two-clients",
+      "phase": "qa",
+      "category": "blocked_user",
+      "origin": "qa_capability_probe",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reason": "Capability probe failed: test-server-two-clients=blocked_user",
+      "minimum_resume_action": "Start Test Server with two clients in the existing canonical Studio session, label ClientA and ClientB, and report ready",
+      "pending_scenarios": [
+        "test-server-two-clients"
+      ],
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "status": "resolved",
+      "created_at": "2026-08-11T05:42:54+00:00",
+      "qa_run_id": "qa-tf0005-rev12-runtime-01",
+      "qa_report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "resolved_at": "2026-08-11T09:15:16+00:00",
+      "resolution": "Superseded by exact-revision capability probe"
+    },
+    {
+      "id": "qa-capability:qa-probe-tf0005-rev12-runtime-gates-03:window-control-path",
+      "phase": "qa",
+      "category": "blocked_user",
+      "origin": "qa_capability_probe",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reason": "Capability probe failed: window-control-path=blocked_user",
+      "minimum_resume_action": "Perform the requested camera zoom reset minimize refocus actions and report verbatim what is audible on each client",
+      "pending_scenarios": [
+        "window-control-path"
+      ],
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "status": "resolved",
+      "created_at": "2026-08-11T05:42:54+00:00",
+      "resolved_at": "2026-08-11T09:15:16+00:00",
+      "resolution": "Superseded by exact-revision capability probe"
+    },
+    {
+      "id": "qa-capability:qa-probe-tf0005-rev12-runtime-gates-03:persistence-datastore",
       "phase": "qa",
       "category": "blocked_environment",
-      "revision": "d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862",
-      "reason": "Studio MCP exposes only single-client Play and no Test Server/multiclient control; safe Computer Use path is unavailable, so 15 spec-mandated two-client/save-rejoin scenarios remain pending. No product failure observed.",
+      "origin": "qa_capability_probe",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reason": "Capability probe failed: persistence-datastore=blocked_environment",
+      "minimum_resume_action": "Provide an approved player-save environment without Studio MemoryStorage, rejoin the same player, verify restoration, then restore original settings",
       "pending_scenarios": [
-        "Studio-E2E-AUDIO-02/NonSpatialInvariant",
-        "Studio-E2E-AUDIO-02/PointAttenuation",
-        "Studio-E2E-AUDIO-02/AttachedFollowOrientation",
-        "Studio-E2E-AUDIO-03/CategoryIsolation",
-        "Studio-E2E-AUDIO-01/LocalOnly",
-        "Studio-E2E-AUDIO-01/HybridPrediction",
-        "Studio-E2E-AUDIO-01/ServerVariantOnce",
-        "Studio-E2E-AUDIO-03/ClientMusicSettingsSave",
-        "Studio-E2E-AUDIO-01/ServerSingleAudibleReplication",
-        "Studio-E2E-AUDIO-02/ServerAttachedReplication",
-        "Studio-E2E-AUDIO-04/IndependentMusicStacks",
-        "Studio-E2E-AUDIO-02/CharacterPositionCameraOrientation",
-        "Studio-E2E-AUDIO-03/IndependentFaders",
-        "Studio-E2E-AUDIO-01/HybridNoServerPlayer",
-        "Studio-E2E-AUDIO-04/BackgroundForegroundLifo"
+        "persistence-datastore"
       ],
-      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862\\qa-tf0005-sfx-final-01\\report.md",
-      "status": "open",
-      "created_at": "2026-08-08T06:52:44+00:00"
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "status": "resolved",
+      "created_at": "2026-08-11T05:42:54+00:00",
+      "resolved_at": "2026-08-11T09:15:16+00:00",
+      "resolution": "Superseded by exact-revision capability probe"
+    },
+    {
+      "id": "qa-capability:qa-probe-tf0005-rev12-final-gates-04:window-control-path",
+      "phase": "qa",
+      "category": "blocked_user",
+      "origin": "qa_capability_probe",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reason": "Capability probe failed: window-control-path=blocked_user",
+      "minimum_resume_action": "Use an operator setup that can reliably distinguish the approved 0.212-second Direct cue at near and far distances, or explicitly authorize a QA-contract update with a longer approved Direct cue",
+      "pending_scenarios": [
+        "window-control-path"
+      ],
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "status": "resolved",
+      "created_at": "2026-08-11T09:15:16+00:00",
+      "qa_run_id": "qa-tf0005-rev12-runtime-02",
+      "qa_report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "resolved_at": "2026-08-11T09:32:33+00:00",
+      "resolution": "Superseded by exact-revision capability probe"
+    },
+    {
+      "id": "qa-capability:qa-probe-tf0005-rev12-final-gates-04:persistence-datastore",
+      "phase": "qa",
+      "category": "blocked_environment",
+      "origin": "qa_capability_probe",
+      "revision": "7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58",
+      "reason": "Capability probe failed: persistence-datastore=blocked_environment",
+      "minimum_resume_action": "Provide an approved player-save environment without Studio MemoryStorage, rejoin the same player, verify restoration, then restore original settings",
+      "pending_scenarios": [
+        "persistence-datastore"
+      ],
+      "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-tf0005-rev12-runtime-01\\report.md",
+      "status": "resolved",
+      "created_at": "2026-08-11T09:15:16+00:00",
+      "resolved_at": "2026-08-11T09:32:33+00:00",
+      "resolution": "Superseded by exact-revision capability probe"
     }
   ],
   "preflight": {
     "status": "complete",
     "resource_budget_check": "pass",
     "capabilities": {
-      "source-toolchain": "available",
-      "rojo-project-sync": "available",
-      "matching-studio-runtime": "available",
-      "studio-scene-authoring": "available",
-      "deterministic-persistence": "available",
-      "multiplayer-e2e": "planned_manual",
-      "published-configuration": "not_required",
-      "credentials-publication": "not_required",
-      "external-spending": "not_required"
+      "rojo-editor-sync": "available",
+      "canonical-studio-session": "available",
+      "single-play": "available",
+      "test-server-two-clients": "planned_manual",
+      "stable-control": "available",
+      "logs-screenshots": "available",
+      "persistence-datastore": "available",
+      "publication-place-topology": "available",
+      "configuration-credentials": "available",
+      "manual-operator": "planned_manual"
     },
     "runs": [
       {
-        "run_id": "preflight-tf0005-sfx-01",
+        "run_id": "preflight-tf0005-rev12-01",
         "resource_budget_check": "pass",
         "capabilities": {
-          "source-toolchain": "available",
-          "rojo-project-sync": "available",
-          "matching-studio-runtime": "available",
-          "studio-scene-authoring": "available",
-          "deterministic-persistence": "available",
-          "multiplayer-e2e": "planned_manual",
-          "published-configuration": "not_required",
-          "credentials-publication": "not_required",
-          "external-spending": "not_required"
+          "rojo-editor-sync": "available",
+          "canonical-studio-session": "available",
+          "single-play": "available",
+          "test-server-two-clients": "planned_manual",
+          "stable-control": "available",
+          "logs-screenshots": "available",
+          "persistence-datastore": "blocked_user",
+          "publication-place-topology": "available",
+          "configuration-credentials": "blocked_user",
+          "manual-operator": "planned_manual"
         },
-        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\verification\\director-preflight-01.md",
-        "recorded_at": "2026-08-07T13:55:15+00:00"
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\preflight\\sfx-system-rev12-preflight.md",
+        "recorded_at": "2026-08-10T20:59:02+00:00"
+      },
+      {
+        "run_id": "preflight-tf0005-rev12-user-authorized-02",
+        "resource_budget_check": "pass",
+        "capabilities": {
+          "persistence-datastore": "available",
+          "configuration-credentials": "available"
+        },
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\sfx-system\\qa\\7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58\\qa-probe-tf0005-rev12-02\\capability-probe.md",
+        "recorded_at": "2026-08-11T05:25:58+00:00"
       }
     ]
   },
   "worker_budget": {
-    "status": "checkpoint_required",
-    "completed_workers": 48,
+    "status": "running",
+    "completed_workers": 10,
     "worker_ids": [
-      "eng-tf0005-sfx-owner-01",
-      "conv-tf0005-w1-persistence-01",
-      "conv-tf0005-w1-config-01",
-      "conv-tf0005-w1-integration-01",
-      "eng-tf0005-sfx-owner-02",
-      "conv-tf0005-w2-persistence-01",
-      "conv-tf0005-w2-config-01",
-      "conv-tf0005-w2-integration-01",
-      "conv-tf0005-w3-persistence-01",
-      "conv-tf0005-w3-config-01",
-      "conv-tf0005-w3-integration-01",
-      "conv-tf0005-w4-persistence-01",
-      "conv-tf0005-w4-config-01",
-      "conv-tf0005-w4-integration-01",
-      "eng-tf0005-sfx-owner-03",
-      "conv-tf0005-w5-persistence-01",
-      "conv-tf0005-w5-config-01",
-      "conv-tf0005-w5-integration-01",
-      "conv-tf0005-w6-persistence-01",
-      "conv-tf0005-w6-config-01",
-      "conv-tf0005-w6-integration-01",
-      "conv-tf0005-w7-persistence-01",
-      "conv-tf0005-w7-config-01",
-      "conv-tf0005-w7-integration-01",
-      "eng-tf0005-sfx-owner-04",
-      "conv-tf0005-w8-persistence-01",
-      "conv-tf0005-w8-config-01",
-      "conv-tf0005-w8-integration-01",
-      "conv-tf0005-w9-persistence-01",
-      "conv-tf0005-w9-config-01",
-      "conv-tf0005-w9-integration-01",
-      "conv-tf0005-w10-persistence-01",
-      "conv-tf0005-w10-config-01",
-      "conv-tf0005-w10-integration-01",
-      "eng-tf0005-sfx-owner-05",
-      "conv-tf0005-w11-persistence-01",
-      "conv-tf0005-w11-config-01",
-      "conv-tf0005-w11-integration-01",
-      "conv-tf0005-w12-persistence-01",
-      "conv-tf0005-w12-config-01",
-      "conv-tf0005-w12-integration-01",
-      "conv-tf0005-w13-persistence-01",
-      "conv-tf0005-w13-config-01",
-      "conv-tf0005-w13-integration-01",
-      "eng-tf0005-sfx-owner-06",
-      "review-tf0005-sfx-final-architecture-01",
-      "review-tf0005-sfx-final-verification-01",
-      "qa-tf0005-sfx-final-01"
+      "research-tf0005-parent-spatial-01",
+      "research-tf0005-composition-route-01",
+      "research-tf0005-dirty-inventory-01",
+      "eng-tf0005-spatial-owner-01",
+      "conv-tf0005-rev12-config-01",
+      "conv-tf0005-rev12-persistence-01",
+      "conv-tf0005-rev12-integration-01",
+      "review-tf0005-rev12-architecture-01",
+      "review-tf0005-rev12-verification-01",
+      "qa-tf0005-rev12-runtime-01"
     ],
-    "max_workers": 48,
+    "max_workers": 14,
     "full_review_waves": 1,
     "max_full_review_waves": 2,
     "records": [
       {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-01",
+        "role": "bounded_researcher",
+        "worker_id": "research-tf0005-parent-spatial-01",
         "reused": false,
-        "recorded_at": "2026-08-07T15:37:03+00:00"
+        "recorded_at": "2026-08-10T21:09:57+00:00"
       },
       {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w1-persistence-01",
+        "role": "bounded_researcher",
+        "worker_id": "research-tf0005-composition-route-01",
         "reused": false,
-        "recorded_at": "2026-08-07T15:58:32+00:00"
+        "recorded_at": "2026-08-10T21:09:57+00:00"
       },
       {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w1-config-01",
+        "role": "bounded_researcher",
+        "worker_id": "research-tf0005-dirty-inventory-01",
         "reused": false,
-        "recorded_at": "2026-08-07T15:58:32+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w1-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T15:58:32+00:00"
+        "recorded_at": "2026-08-10T21:09:57+00:00"
       },
       {
         "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-02",
+        "worker_id": "eng-tf0005-spatial-owner-01",
         "reused": false,
-        "recorded_at": "2026-08-07T17:04:50+00:00"
+        "recorded_at": "2026-08-11T03:17:33+00:00"
       },
       {
         "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w2-persistence-01",
+        "worker_id": "conv-tf0005-rev12-config-01",
         "reused": false,
-        "recorded_at": "2026-08-07T17:26:25+00:00"
+        "recorded_at": "2026-08-11T03:33:14+00:00"
       },
       {
         "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w2-config-01",
+        "worker_id": "conv-tf0005-rev12-persistence-01",
         "reused": false,
-        "recorded_at": "2026-08-07T17:26:25+00:00"
+        "recorded_at": "2026-08-11T03:33:14+00:00"
       },
       {
         "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w2-integration-01",
+        "worker_id": "conv-tf0005-rev12-integration-01",
         "reused": false,
-        "recorded_at": "2026-08-07T17:26:25+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-02",
-        "reused": true,
-        "recorded_at": "2026-08-07T17:56:21+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w3-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T18:20:39+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w3-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T18:20:39+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w3-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T18:20:39+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-02",
-        "reused": true,
-        "recorded_at": "2026-08-07T19:06:10+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w4-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T19:32:15+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w4-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T19:32:15+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w4-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T19:32:16+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-03",
-        "reused": false,
-        "recorded_at": "2026-08-07T20:16:02+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w5-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T20:37:57+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w5-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T20:37:58+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w5-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T20:37:59+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-03",
-        "reused": true,
-        "recorded_at": "2026-08-07T21:14:49+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w6-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T21:34:48+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w6-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T21:34:49+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w6-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T21:34:50+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-03",
-        "reused": true,
-        "recorded_at": "2026-08-07T22:10:50+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w7-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T22:35:49+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w7-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T22:35:50+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w7-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T22:35:50+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-04",
-        "reused": false,
-        "recorded_at": "2026-08-07T23:13:09+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w8-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T23:36:07+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w8-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T23:36:08+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w8-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-07T23:36:35+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-04",
-        "reused": true,
-        "recorded_at": "2026-08-08T00:13:18+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w9-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T00:32:12+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w9-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T00:32:13+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w9-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T00:32:14+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-04",
-        "reused": true,
-        "recorded_at": "2026-08-08T00:59:28+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w10-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T01:23:20+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w10-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T01:23:21+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w10-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T01:23:22+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-05",
-        "reused": false,
-        "recorded_at": "2026-08-08T02:05:00+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w11-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T02:38:46+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w11-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T02:38:47+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w11-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T02:38:48+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-05",
-        "reused": true,
-        "recorded_at": "2026-08-08T03:22:44+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w12-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T04:08:38+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w12-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T04:08:39+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w12-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T04:08:40+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-05",
-        "reused": true,
-        "recorded_at": "2026-08-08T05:03:01+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w13-persistence-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T05:51:23+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w13-config-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T05:51:24+00:00"
-      },
-      {
-        "role": "convergence_audit",
-        "worker_id": "conv-tf0005-w13-integration-01",
-        "reused": false,
-        "recorded_at": "2026-08-08T05:51:25+00:00"
-      },
-      {
-        "role": "engineer",
-        "worker_id": "eng-tf0005-sfx-owner-06",
-        "reused": false,
-        "recorded_at": "2026-08-08T06:05:45+00:00"
+        "recorded_at": "2026-08-11T03:33:48+00:00"
       },
       {
         "role": "full_review",
-        "worker_id": "review-tf0005-sfx-final-architecture-01",
+        "worker_id": "review-tf0005-rev12-architecture-01",
         "reused": false,
-        "recorded_at": "2026-08-08T06:25:49+00:00"
+        "recorded_at": "2026-08-11T03:44:40+00:00"
       },
       {
         "role": "full_review",
-        "worker_id": "review-tf0005-sfx-final-verification-01",
+        "worker_id": "review-tf0005-rev12-verification-01",
         "reused": false,
-        "recorded_at": "2026-08-08T06:25:50+00:00"
+        "recorded_at": "2026-08-11T03:45:30+00:00"
       },
       {
         "role": "runtime_qa",
-        "worker_id": "qa-tf0005-sfx-final-01",
+        "worker_id": "qa-tf0005-rev12-runtime-01",
         "reused": false,
-        "recorded_at": "2026-08-08T06:52:44+00:00"
+        "recorded_at": "2026-08-11T05:43:08+00:00"
+      },
+      {
+        "role": "runtime_qa",
+        "worker_id": "qa-tf0005-rev12-runtime-01",
+        "reused": true,
+        "recorded_at": "2026-08-11T09:15:28+00:00"
+      },
+      {
+        "role": "runtime_qa",
+        "worker_id": "qa-tf0005-rev12-runtime-01",
+        "reused": true,
+        "recorded_at": "2026-08-11T09:32:43+00:00"
       }
     ],
-    "reason": "Worker budget reached 48/48; consolidate the remaining scope before spawning more workers",
-    "checkpoint_causes": [
-      "workers"
-    ],
-    "authorizations": [
-      {
-        "reason": "Wave 4 is fully normalized to seven bounded findings and the user requires a fresh engineering owner after owner-02's three fix passes. The minimum remaining configured path needs one owner-03, three fresh wave-5 convergence auditors, two immutable final reviewers, and one runtime QA worker: 7 additional unique identities. No extra full-Review wave is requested.",
-        "additional_workers": 7,
-        "additional_full_review_waves": 0,
-        "recorded_at": "2026-08-07T19:33:29+00:00"
-      },
-      {
-        "reason": "Wave 6 is normalized to five bounded findings. Owner-03 fix-pass 3/3 reuses the current worker; the minimum remaining configured path requires three fresh Wave-7 convergence auditors, two immutable final reviewers, and one runtime QA worker. No extra full-Review wave is requested.",
-        "additional_workers": 6,
-        "additional_full_review_waves": 0,
-        "recorded_at": "2026-08-07T21:37:07+00:00"
-      },
-      {
-        "reason": "Wave 8 is complete and normalized scope is bounded. One already-finished Wave-8 integration auditor still needs registration; owner-04 fix-pass 2/3 reuses the current writer; the minimum remaining path then needs three fresh Wave-9 convergence auditors, two immutable final reviewers, and one runtime QA worker. No extra full-Review wave is requested.",
-        "additional_workers": 7,
-        "additional_full_review_waves": 0,
-        "recorded_at": "2026-08-07T23:36:25+00:00"
-      },
-      {
-        "reason": "Wave 10 is normalized to five bounded findings. User-mandated owner transfer requires one fresh owner-05; the minimum configured success path then requires three fresh Wave-11 convergence auditors, two immutable final Review workers, and one runtime QA worker: 7 additional unique identities. No additional full-Review wave is requested.",
-        "additional_workers": 7,
-        "additional_full_review_waves": 0,
-        "recorded_at": "2026-08-08T01:24:54+00:00"
-      },
-      {
-        "reason": "Wave 12 is fully normalized to seven bounded findings. Owner-05 final pass 3/3 reuses the current engineer; the minimum configured success path requires three fresh Wave-13 convergence auditors, two immutable final Review workers, and one runtime QA worker: 6 additional unique identities. No extra full-Review wave is requested; any later remediation transfers to fresh owner-06 per the user-mandated three-pass limit.",
-        "additional_workers": 6,
-        "additional_full_review_waves": 0,
-        "recorded_at": "2026-08-08T04:09:58+00:00"
-      },
-      {
-        "reason": "Both final SFX Reviews passed on exact d4f5f77e with zero Critical/Major; one nonblocking C hardening residual only. The sole remaining configured worker is one fresh feature-focused runtime QA agent for the 16 manual identities. No additional engineering, convergence, or full-Review wave is authorized.",
-        "additional_workers": 1,
-        "additional_full_review_waves": 0,
-        "recorded_at": "2026-08-08T06:26:34+00:00"
-      }
-    ]
+    "reason": null,
+    "checkpoint_causes": [],
+    "authorizations": []
   },
   "iteration_control": {
     "consecutive_product_changes": 0,
     "max_consecutive_product_changes": 2,
     "status": "running",
     "reason": null,
-    "authorizations": [
-      {
-        "reason": "Director inspected the complete CONV-W1-001..014 remediation inventory: all findings are resolved, 28 focused and 234 aggregate tests pass, clean canonical Studio runtime and full 79-row resweep pass, no product decision or residual finding remains; authorize convergence wave 2.",
-        "phase": "convergence_hold",
-        "recorded_at": "2026-08-07T17:05:05+00:00"
-      },
-      {
-        "reason": "Director inspected the complete CONV-W3-001..006 remediation inventory: all six findings are resolved on frozen revision 70a2f65d, focused 40/40 and aggregate 246/246 pass, clean canonical production-only Play and all build/static/79-row gates pass, detailed cross-module boundary inventory shows no unresolved product choice or residual finding; authorize independent convergence wave 4.",
-        "phase": "convergence_hold",
-        "recorded_at": "2026-08-07T19:06:19+00:00"
-      },
-      {
-        "reason": "Director inspected the complete CONV-W5-001..008 remediation: all eight findings are resolved on frozen f7c58632, focused 116/116 and aggregate 323/323 pass, exact 79/109 semantic evidence and clean canonical production Play/build/static gates pass, boundary report explicitly covers shared Save transaction/lifecycle fixes, and no unresolved product decision or residual finding remains; authorize independent convergence wave 6.",
-        "phase": "convergence_hold",
-        "recorded_at": "2026-08-07T21:14:56+00:00"
-      },
-      {
-        "reason": "Director inspected owner-04 Wave-7 remediation: all CONV-W7-001..006 are closed on frozen 564dad01; exact capture-first and registry retry ownership cases, complete config/spatial/codec matrices, and deterministic target removal are present; focused/shared regressions and aggregate 327/327 pass; separate canonical production-only Play, final builds/static/workflow gates, exact 49/25/7 inventory and 79/109 topology pass; no unresolved product choice or blocker remains. Authorize independent convergence Wave 8.",
-        "phase": "convergence_hold",
-        "recorded_at": "2026-08-07T23:13:15+00:00"
-      },
-      {
-        "reason": "Director inspected owner-04 Wave-9 remediation: all CONV-W9-001..003 are resolved on frozen 39baf146; ProductionReadiness 37/37, aggregate 328/328, separate canonical production-only Play, final Rojo build and all static/workflow/topology/provenance gates pass; exact 50/25/8 inventory and 79/109 topology are stable; no unresolved product choice, finding, gate, or residual risk remains. Authorize independent convergence Wave 10; any future remediation transfers to owner-05 because owner-04 has consumed 3/3 passes.",
-        "phase": "convergence_hold",
-        "recorded_at": "2026-08-08T01:00:45+00:00"
-      },
-      {
-        "reason": "Director inspected owner-05 Wave-11 remediation pass 2/3: all CONV-W11-001..005 are resolved on frozen 3da325ca; exact transient-operation, Statistics production removal/shutdown, runtime-generation budget, all save-failure, and full-domain catalog fixtures pass; focused/shared 330/330, aggregate 336/336, separate canonical production Play, final builds/static/workflow/CSV and exact 51/26/8 plus 79/109 gates pass; no unresolved product choice, finding, gate, or blocker remains. Authorize independent convergence Wave 12.",
-        "phase": "convergence_hold",
-        "recorded_at": "2026-08-08T03:23:10+00:00"
-      }
-    ],
-    "resume_phase": "engineering"
+    "authorizations": [],
+    "resume_phase": null
   },
   "recovery": null,
-  "created_at": "2026-08-07T13:54:28+00:00",
-  "updated_at": "2026-08-08T06:52:44+00:00",
-  "owner_transfers": [
-    {
-      "from": "eng-tf0005-sfx-owner-01",
-      "to": "eng-tf0005-sfx-owner-02",
-      "reason": "User-authorized ownership transfer because the prior Engineer exhausted its effective context during convergence wave 1 remediation; preserve its partial diff and resume from frozen reports.",
-      "recorded_at": "2026-08-07T16:17:51+00:00"
-    },
-    {
-      "from": "eng-tf0005-sfx-owner-02",
-      "to": "eng-tf0005-sfx-owner-03",
-      "reason": "User-defined limit reached: eng-tf0005-sfx-owner-02 completed three remediation fix passes. Wave 4 requires a new bounded seven-finding batch, so transfer before any fourth return.",
-      "recorded_at": "2026-08-07T19:33:46+00:00"
-    },
-    {
-      "from": "eng-tf0005-sfx-owner-03",
-      "to": "eng-tf0005-sfx-owner-04",
-      "reason": "User requires a new engineering agent after at most three remediation returns. Owner-03 completed fix-passes 1/3, 2/3, and 3/3; Wave 7 normalized six bounded findings for a fresh owner-04 fix-pass 1/3.",
-      "recorded_at": "2026-08-07T22:37:17+00:00"
-    },
-    {
-      "from": "eng-tf0005-sfx-owner-04",
-      "to": "eng-tf0005-sfx-owner-05",
-      "reason": "User requires a fresh engineer after at most three remediation returns. eng-tf0005-sfx-owner-04 completed fix passes 1/3 through 3/3; Wave 10 now has a frozen five-finding batch, so ownership transfers before any further source edit.",
-      "recorded_at": "2026-08-08T01:24:48+00:00"
-    },
-    {
-      "from": "eng-tf0005-sfx-owner-05",
-      "to": "eng-tf0005-sfx-owner-06",
-      "reason": "Owner-05 exhausted user-mandated 3/3 remediation passes. User narrowed TF-0005 to SFX and stopped generic project-wide refactoring; owner-06 is a fresh bounded no-production-change scope-rebaseline owner only.",
-      "recorded_at": "2026-08-08T05:53:56+00:00"
-    }
-  ]
+  "created_at": "2026-08-10T20:58:33+00:00",
+  "updated_at": "2026-08-11T09:32:43+00:00"
 }

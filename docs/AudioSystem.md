@@ -16,7 +16,9 @@ The durable architecture is owned by:
 - [ADR-0040](adr/template/0040-own-audio-graph-and-acoustic-policy-at-bootstrap.md)
   for graph, listener/output, and canonical acoustic ownership;
 - [ADR-0041](adr/template/0041-protect-audio-startup-and-keep-disabled-transport-handlers.md)
-  for protected local configuration loading and disabled transport handlers.
+  for protected local configuration loading and disabled transport handlers;
+- [ADR-0043](adr/template/0043-fixed-spatial-anchor-composition.md)
+  for the fixed `SpatialAnchor` composition and side-local shared transform registry.
 
 ADR-0041 supersedes ADR-0038. Read `.agents/rules/audio.md` before changing
 audio configuration, assets, graph, playback, networking, settings, tests, or
@@ -142,10 +144,15 @@ before choosing the winner. Later candidates remain path-addressable. Any
 other duplicate remains fatal under the normal AssetRegistry contract.
 
 The client builds a unique sorted preload list from valid variants/descriptors
-with `Preload=true`. Existing `StartupContentPreloadCommand` executes request
-`AudioCatalog.Preload.v1` through `ContentPreloader` with `Warn`. Audio code
-does not call `ContentProvider:PreloadAsync()` directly and adds no retry or
-second preload manager.
+with `Preload=true`. Existing `StartupContentPreloadCommand` maps those IDs, in
+the same order, to temporary unparented `Sound` targets whose `SoundId` values
+are the exact normalized IDs, then executes request
+`AudioCatalog.Preload.v1` through `ContentPreloader` with `Warn`. These
+descriptor-only carriers are never played or used by the runtime audio graph;
+they are destroyed after the synchronous request. A completed sticky result is
+reused before creating new targets. Audio code does not call
+`ContentProvider:PreloadAsync()` directly and adds no retry or second preload
+manager.
 
 ## Graph and spatial listener
 
@@ -172,19 +179,28 @@ replication order is not treated as atomic. A mismatch, replacement, missing
 child, or timeout creates a cleaned-up local no-op graph and never binds a
 partial source/output path.
 
-Every World source follows:
+Every active World source is one fixed colocated subtree under the side's
+injected `Workspace`:
 
 ```text
-AudioPlayer -> lease-owned AudioEmitter -> client AudioListener
-            -> World fader -> Master -> AudioDeviceOutput
+SpatialAnchor (anchored invisible Part)
+├─ AudioPlayer
+├─ AudioEmitter (default Parent positioning)
+└─ Wire (AudioPlayer -> AudioEmitter)
+
+AudioEmitter -> client AudioListener -> World fader -> Master
+             -> AudioDeviceOutput
 ```
 
-Point and Attached sources both set
-`AudioEmitter.PositionType=Enum.EmitterPositionType.Instance` before
-`PositionInstance`. Point uses a lease-owned nondirectional anchor. Attached
-uses the validated `PVInstance`, `Attachment`, or `Camera`, including its
-orientation for `AngleCurve`. Release clears `PositionInstance` and restores
-`PositionType=Parent` before reuse.
+Playback code never reads or writes `AudioEmitter.PositionType` or
+`AudioEmitter.PositionInstance`. Point assigns `SpatialAnchor.CFrame` once and
+has no frame registration. Attached copies `Attachment.WorldCFrame`,
+`Camera.CFrame`, or `PVInstance:GetPivot()` through one generation-tagged
+side-owned binding registry and one injected frame subscription per side.
+Release unregisters the current generation before stopping and resetting the
+subtree; stale frame callbacks are no-ops. A server-all spatial call owns one
+server lease/subtree and uses native replication without client mirrors or
+application fanout. Idle wrappers are fully reset and unparented.
 
 Each client owns one invisible anchored listener transform. The listener binds
 its immutable `PositionInstance` to that anchor; runtime never reads or writes
@@ -277,6 +293,29 @@ The implementation registers these focused suites in this order before broad sui
 2. `AudioPlaybackTestRunner`
 3. `AudioIntegrationTestRunner`
 
+`AudioManualQaTestRunner` follows the three focused suites. It validates the
+canonical collaborative plan, all 79 acceptance mappings, public-capability
+coverage, mandatory scenario identities, and fail-closed result evaluation.
+The manual client/server drivers and the agent/operator procedure are defined
+in [AudioManualQA.md](AudioManualQA.md). In Studio only, the already successful
+server/client bootstraps bind those drivers to their real initialized services
+through side-local whitelisted `BindableFunction`s. No bridge is installed in
+a live non-Studio runtime, no server/client remote is added, and service tables
+never cross the bridge. The plan runner proves the exact frozen side
+whitelists, caller-side rejection before the engine can transform metatables,
+coroutines, cycles, or mixed/sparse tables, and the raw Bindable boundary:
+cycles are engine-rejected, while metadata is stripped, a coroutine becomes
+`nil`, mixed/sparse keys are normalized, and a plain copy reaches `OnInvoke`
+without `__iter` execution. Tests also cover representable payload limits in
+both directions, deep-copy isolation, actual closure binding,
+placement/schema, and cleanup. The
+repository layout validator separately enforces the exact post-success Studio
+gate with whitespace/comment-tolerant lexical inspection, the exact reviewed
+QA inventory, absence of executable QA remote creation/calls, absence of
+`.server`/`.client` Lua or Luau files throughout Tests/QA roots, and absence of
+a non-Studio QA-driver require path; `ShouldInstall(false)` alone is not
+treated as runtime proof.
+
 Then run the complete `AllTestsRunner`, repository validators, a Rojo build,
 and a clean server/client Play. Because the feature touches graph replication,
 Communication, save, player lifecycle and canonical scene ownership, also run
@@ -287,7 +326,9 @@ fail the gate.
 
 Focused runners are executable evidence only when their recorded exact-source
 run passes. The multi-client Studio scenarios remain explicit runtime gates and
-must not be inferred from documentation or isolated tests.
+must not be inferred from documentation or isolated tests. Objective runtime
+snapshots and human hearing confirmation are recorded separately; neither may
+be fabricated from the other.
 
 The focused fixtures prove only their named deterministic paths. In particular,
 `AudioPlaybackTestRunner` executes the push/stop/end/readiness-loss/StopAll and
@@ -300,5 +341,6 @@ separate Studio E2E scenarios above.
 
 `AudioCatalog/StartupPreloadSet` executes in `ContentPreloaderTestRunner`, not
 the catalog runner: it enables the production startup command and verifies the
-exact sorted unique list, `AudioCatalog.Preload.v1`, `Warn` failure
-continuation, and sticky result reuse.
+exact sorted unique IDs on ordered `Sound.SoundId` targets,
+`AudioCatalog.Preload.v1`, callback accounting, target destruction, `Warn`
+failure continuation, and sticky result reuse without another backend call.

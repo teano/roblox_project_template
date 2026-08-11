@@ -66,14 +66,34 @@ end
 function AudioSettingsClient:GetLevel(category: string): number return assert(self._data, "AudioSettings not loaded").Levels[category] end
 function AudioSettingsClient:SetLevel(category: string, level01: number): boolean
 	if self._data == nil or typeof(level01) ~= "number" or level01 ~= level01 or level01 < 0 or level01 > 1 or self._data.Levels[category] == nil then return false end
-	if self._data.Levels[category] == level01 then return true end
-	self._data.Levels[category] = level01; self:_apply(); self.MementoChanged:Fire(); self.Changed:Fire(); return true
+	local oldValue = self._data.Levels[category]
+	if oldValue == level01 then return true end
+	self._data.Levels[category] = level01
+	self:_apply()
+	self.MementoChanged:Fire()
+	self.Changed:Fire({
+		ProviderId = self.Id,
+		Path = { "Levels", category },
+		OldValue = oldValue,
+		NewValue = level01,
+	})
+	return true
 end
 function AudioSettingsClient:IsEnabled(category: string): boolean return assert(self._data, "AudioSettings not loaded").Enabled[category] end
 function AudioSettingsClient:SetEnabled(category: string, enabled: boolean): boolean
 	if self._data == nil or typeof(enabled) ~= "boolean" or self._data.Enabled[category] == nil then return false end
-	if self._data.Enabled[category] == enabled then return true end
-	self._data.Enabled[category] = enabled; self:_apply(); self.MementoChanged:Fire(); self.Changed:Fire(); return true
+	local oldValue = self._data.Enabled[category]
+	if oldValue == enabled then return true end
+	self._data.Enabled[category] = enabled
+	self:_apply()
+	self.MementoChanged:Fire()
+	self.Changed:Fire({
+		ProviderId = self.Id,
+		Path = { "Enabled", category },
+		OldValue = oldValue,
+		NewValue = enabled,
+	})
+	return true
 end
 
 return AudioSettingsClient

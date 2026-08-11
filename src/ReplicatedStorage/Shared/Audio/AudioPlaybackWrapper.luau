@@ -5,11 +5,26 @@ AudioPlaybackWrapper.__index = AudioPlaybackWrapper
 
 function AudioPlaybackWrapper.new(playerType: string, dependencies: any?)
 	local create = if dependencies and dependencies.InstanceFactory then dependencies.InstanceFactory else Instance.new
-	local root = create("Folder")
-	root.Name = playerType .. "Playback"
+	local root = create(if playerType == "World" then "Part" else "Folder")
+	if playerType == "World" then
+		root.Name = "SpatialAnchor"
+		root.Anchored = true
+		root.CanCollide = false
+		root.CanQuery = false
+		root.CanTouch = false
+		root.Transparency = 1
+	else
+		root.Name = playerType .. "Playback"
+	end
 	local player = create("AudioPlayer")
 	player.Name = "Player"
 	player.Parent = root
+	local emitter = nil
+	if playerType == "World" then
+		emitter = create("AudioEmitter")
+		emitter.Name = "Emitter"
+		emitter.Parent = root
+	end
 	local wire = create("Wire")
 	wire.Name = "SourceWire"
 	wire.Parent = root
@@ -17,16 +32,15 @@ function AudioPlaybackWrapper.new(playerType: string, dependencies: any?)
 		Root = root,
 		Player = player,
 		Wire = wire,
-		Emitter = nil,
-		Anchor = nil,
+		Emitter = emitter,
+		Anchor = if playerType == "World" then root else nil,
 		Connection = nil,
-		TargetConnection = nil,
 		PlayerType = playerType,
 		Generation = 0,
-		_Create = create,
 		_BaseVolume = 1,
 		_TransitionGain = 1,
 		_CallbackContext = nil,
+		_BindingRegistry = nil,
 	}, AudioPlaybackWrapper)
 end
 
@@ -69,12 +83,7 @@ function AudioPlaybackWrapper:OnAcquire(context: any)
 	self.Wire.SourceInstance = player
 	if variant.PlayerType == "World" then
 		local emitter = self.Emitter
-		if emitter == nil then
-			emitter = self._Create("AudioEmitter")
-			emitter.Name = "Emitter"
-			emitter.Parent = self.Root
-			self.Emitter = emitter
-		end
+		assert(emitter ~= nil, "World wrapper must retain its AudioEmitter")
 		emitter.AudioInteractionGroup = context.InteractionGroupId
 		emitter.AcousticSimulationEnabled = context.SpatialProfile.AcousticSimulationEnabled
 		if context.SpatialProfile.DistanceCurve ~= nil then
@@ -86,27 +95,29 @@ function AudioPlaybackWrapper:OnAcquire(context: any)
 			local curve = {}
 			for _, point in context.SpatialProfile.AngleCurve do curve[point.Angle] = point.Gain01 end
 			emitter:SetAngleAttenuation(curve)
-		end
-		emitter.PositionType = Enum.EmitterPositionType.Instance
-		if context.Source.Kind == "Point" then
-			local anchor = self._Create("Part")
-			anchor.Name = "PointAnchor"
-			anchor.Anchored = true
-			anchor.CanCollide = false
-			anchor.CanQuery = false
-			anchor.CanTouch = false
-			anchor.Transparency = 1
-			anchor.Position = context.Source.Position
-			anchor.Parent = self.Root
-			self.Anchor = anchor
-			emitter.PositionInstance = anchor
 		else
-			emitter.PositionInstance = context.Source.Instance
-			self.TargetConnection = context.Source.Instance.AncestryChanged:Connect(function()
-				if self.Generation == generation and context.Source.Instance.Parent == nil then
-					notifyEnded("TargetRemoved")
-				end
-			end)
+			emitter:SetAngleAttenuation({ [0] = 1, [180] = 1 })
+		end
+		if context.Source.Kind == "Point" then
+			self.Root.CFrame = CFrame.new(context.Source.Position)
+		else
+			local bindingRegistry = context.SpatialBindingRegistry
+			assert(bindingRegistry ~= nil, "Attached playback requires SpatialAnchorBindingRegistry")
+			self._BindingRegistry = bindingRegistry
+			local registered, reason = bindingRegistry:Register(
+				self,
+				generation,
+				self.Root,
+				context.Source.Instance,
+				function()
+					return self.Generation == generation
+				end,
+				notifyEnded
+			)
+			if not registered then
+				notifyEnded(reason or "SpatialTransformFailed")
+				return
+			end
 		end
 		self.Wire.TargetInstance = emitter
 	else
@@ -203,16 +214,16 @@ function AudioPlaybackWrapper:UpdateCallbacks(onReady: any, onEnded: any)
 end
 
 function AudioPlaybackWrapper:OnRelease()
+	local generation = self.Generation
+	if self._BindingRegistry ~= nil then
+		self._BindingRegistry:Unregister(self, generation)
+		self._BindingRegistry = nil
+	end
 	self.Generation += 1
 	local rawPlayer = self.Player :: any
 	if self.Connection ~= nil then
 		self.Connection:Disconnect()
 		self.Connection = nil
-	end
-	if self.TargetConnection ~= nil then self.TargetConnection:Disconnect(); self.TargetConnection = nil end
-	if self.Emitter ~= nil then
-		self.Emitter.PositionInstance = nil
-		self.Emitter.PositionType = Enum.EmitterPositionType.Parent
 	end
 	self.Player:Stop()
 	self.Wire.SourceInstance = nil
@@ -228,13 +239,12 @@ function AudioPlaybackWrapper:OnRelease()
 	self._TransitionGain = 1
 	self._CallbackContext = nil
 	if self.Emitter ~= nil then
-		self.Emitter:Destroy()
-		self.Emitter = nil
+		self.Emitter.AudioInteractionGroup = ""
+		self.Emitter.AcousticSimulationEnabled = false
+		self.Emitter:SetDistanceAttenuation({})
+		self.Emitter:SetAngleAttenuation({ [0] = 1, [180] = 1 })
 	end
-	if self.Anchor ~= nil then
-		self.Anchor:Destroy()
-		self.Anchor = nil
-	end
+	if self.PlayerType == "World" then self.Root.CFrame = CFrame.new() end
 	self.Root.Parent = nil
 end
 

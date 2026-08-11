@@ -1,6 +1,7 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local InitializationRunner = require(ReplicatedStorage.Shared.Initialization.InitializationRunner)
 local manifest = require(ReplicatedStorage.Client.Initialization.ClientManifest)
@@ -20,3 +21,8 @@ if not result.Ok then
 end
 
 ReplicatedStorage:SetAttribute("ClientInitialized", true)
+
+if RunService:IsStudio() then
+	local AudioManualQaClient = require(ReplicatedStorage.Shared.Tests.AudioManualQaClient)
+	AudioManualQaClient.InstallBridge(manifest.Services, script)
+end

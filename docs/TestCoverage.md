@@ -33,8 +33,9 @@ clean server/client bootstrap succeeds.
 | Immutable asset catalog | paths, keys, tags, metadata, typed lookup | duplicates, overlaps, invalid scopes and types | empty/dot/control path segments, key length | `AssetRegistryTestRunner` |
 | Content preloading | catalog selectors, keys, raw IDs, caching | invalid IDs, keys, policies, backend failures | empty targets, duplicates, concurrent same-name request | `ContentPreloaderTestRunner` |
 | Audio startup and catalog (TF-0005 gate) | protected module load, exact normalized config/catalog, paths, selection, plus the enabled production preload command | physical Sounds-root absence/class mismatch, registry query faults, invalid/non-positive rows, profiles/routing, duplicate keys, and preload backend failure | profile/path/ID boundaries, client/server config parity, sorted unique preload IDs, exact request identity, Warn continuation, sticky reuse, full-domain tiny/huge order and zero/smallest-positive selection, huge-equal exact midpoint, representable high-sample tiny tail, reversed catalog order, anti-repeat, and small-weight parity | `AudioCatalogTestRunner`, `ContentPreloaderTestRunner` |
-| Audio graph, pools and playback (TF-0005 gate) | ordinary playback and all Music transition phases | target/readiness loss, invalid regions/profiles, stop/end during transitions and late callbacks | FIFO hard capacity, LIFO rejection, generation authorization, phase mutations and StopAll | `AudioPlaybackTestRunner` |
+| Audio graph, pools and playback (TF-0005 gate) | ordinary playback, fixed four-object `SpatialAnchor` composition, static Point, full-transform Attached through one side registry, native one-server-lease delivery, and all Music transition phases | target/readiness/transform loss, invalid regions/profiles, partial construction, unregister-first cleanup, stop/end during transitions and late frame/playback callbacks | FIFO hard capacity, LIFO rejection, exact object ceiling, one subscription per side, zero Point registration, generation authorization, phase mutations and StopAll | `AudioPlaybackTestRunner` |
 | Audio integration and settings (TF-0005 gate) | exact client graph/listener lifecycle, hybrid prediction/fanout, real save-controller snapshot/patch/rollback paths | graph failure, every client preflight gate, Queue rejection, hook false/exception and malformed settings | atomic recipient enqueue rollback, exact pair reuse and two independent settings controllers | `AudioIntegrationTestRunner` |
+| Collaborative Audio Studio QA (TF-0005 gate) | all public Audio capabilities and `PRD-AC-001..079` mapped to deterministic or collaborative evidence; exact live playback uses CartoonBubble, OldCarEngine, and PrayerRiver through production bootstrap services; public preload evidence uses exactly `AudioCatalog.Preload.v1` and exposes only counts plus failure `ContentId`/`Status` | wrong/missing exact catalog pair, asset ID, descriptor path/SoundId, unknown bridge request, bare human boolean, objective observation, or required operator statement cannot pass; `Bridge.Invoke` rejects unsafe caller data before transport; raw Bindable evidence proves cycles are engine-rejected, while Roblox strips metatable/frozen state, normalizes coroutines and mixed/sparse keys, copies tables, and does not execute `__iter`; every representable unsafe raw argument and every unsafe handler result rejects before handler dispatch; non-Studio and unavailable topology/backend stay closed/blocked | exact frozen client/server whitelists, side-local placement/schema, actual service-closure binding, raw and wrapped bidirectional deep-copy isolation, cleanup, exact CueId refs, accepted server one-shots without fake handles, explicit rejoin Start, exact `Studio-E2E-AUDIO-05` anchor, exact three-live-asset and 16-scenario identity, report precedence; lexer-aware repository validation independently enforces the formatting-tolerant post-success Studio-only require/install path, exact QA inventory, absence of executable remote structures, and no `.server`/`.client` Lua/Luau source in Tests/QA roots | `AudioManualQaTestRunner`, `scripts/validate-repository-layout.ps1`, plus [AudioManualQA.md](AudioManualQA.md) |
 | Experience Config catalog | atomic decode, projection, refresh | missing/unknown/unsafe values, invalid refresh, mandatory Statistics identifier mismatch, impossible dedupe capacity | min/max values, NaN/infinity, oversized projection, accepted Wallet GUID and practical dedupe boundaries | `ConfigCatalogTestRunner` |
 | Side-local signals | connect, once, wait, disconnect, destroy | listener throws and owner destruction | yielding listeners, nested dispatch, nil arguments | `SystemTestRunner` |
 | Initialization manifests | dependency order, idempotence, catalog composition | missing dependency, duplicate/malformed/out-of-order commands | concurrent callers, sticky failure, non-cancelling watchdog | `SystemTestRunner` |
@@ -64,25 +65,35 @@ require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 
 `AllTestsRunner` invokes these suites in a fixed order:
 
-1. `LoggerTestRunner`
-2. `ResourceManagementTestRunner`
-3. `AssetRegistryTestRunner`
-4. `ContentPreloaderTestRunner`
-5. `ConfigCatalogTestRunner`
-6. `StatisticsTestRunner`
-7. `TeleportModuleTestRunner`
-8. `SystemTestRunner`
-9. `ProductionIntegrationTestRunner`
-10. `ProductionReadinessTestRunner`
+1. `AudioCatalogTestRunner`
+2. `AudioPlaybackTestRunner`
+3. `AudioIntegrationTestRunner`
+4. `AudioManualQaTestRunner`
+5. `LoggerTestRunner`
+6. `ResourceManagementTestRunner`
+7. `AssetRegistryTestRunner`
+8. `ContentPreloaderTestRunner`
+9. `ConfigCatalogTestRunner`
+10. `StatisticsTestRunner`
+11. `TeleportModuleTestRunner`
+12. `SystemTestRunner`
+13. `ProductionIntegrationTestRunner`
+14. `ProductionReadinessTestRunner`
 
 `AllTestsRunner` registers `AudioCatalogTestRunner`, `AudioPlaybackTestRunner`,
-and `AudioIntegrationTestRunner` before the broad suites. Registration is not
-passing evidence; the focused and aggregate runs must succeed on the recorded
-exact source revision.
+and `AudioIntegrationTestRunner` before `AudioManualQaTestRunner` and the broad
+suites. The manual-plan runner validates coverage/report contracts only; it
+does not replace the two-client run in [AudioManualQA.md](AudioManualQA.md).
+Registration is not passing evidence; focused, plan, aggregate, and
+collaborative runs must succeed on the recorded exact source revision.
 
 The exact `AudioCatalog/StartupPreloadSet` fixture remains in
 `ContentPreloaderTestRunner`, because only that runner executes the real
-`StartupContentPreloadCommand -> ContentPreloader -> ContentProvider` path.
+`StartupContentPreloadCommand -> ContentPreloader -> ContentProvider` path. It
+asserts ordered temporary unparented, non-playing `Sound` targets with exact
+`SoundId` values, per-content callback accounting, actual destroyed state,
+exceptional cleanup/rethrow, and one backend call across repeated command
+initialization after the sticky result completes.
 
 The aggregate and every suite must report `failed = 0`. Before release, also
 run:
@@ -165,8 +176,11 @@ Record this evidence in the release task or pull request:
 - aggregate suite count, test count, passed count, and failed count;
 - clean bootstrap result and server/client output inspection;
 - for TF-0005, exact reviewed specification hash, all 79 acceptance identities,
+  the exact CartoonBubble/OldCarEngine/PrayerRiver catalog and physical
+  descriptor identity gate,
   and `Studio-E2E-AUDIO-01..05` multi-client graph/replication/settings/Music/
-  canonical-acoustic observations;
+  canonical-acoustic observations, including the exported collaborative report
+  described in [AudioManualQA.md](AudioManualQA.md);
 - integration `PlaceId`/`GameId`, smoke result, and cleanup result when the
   real DataStore gate was authorized;
 - every omitted check with its concrete reason.

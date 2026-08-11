@@ -1,5 +1,4 @@
 CueId,VariantId,PlayerType,AssetId,AssetKey,ResourcePath,Volume01,PlaybackSpeed,Looping,Preload,PlaybackRegionStart,PlaybackRegionEnd,LoopRegionStart,LoopRegionEnd,SpatialProfile,Weight,AllowClientHybrid
-Template.UI.Confirm,Default,UI,9112854440,,,1,1,false,false,,,,,,1,false
-Template.SFX.Pulse,Default,SFX,9120386436,,,0.8,1,false,false,,,,,,1,true
-Template.World.Pulse,Default,World,9118828569,,,0.8,1,false,false,,,,,WorldDefault,1,true
-Template.Music.Background,Default,Music,1837467590,,,0.5,1,true,false,,,,,,1,false
+Template.SFX.CartoonBubble,Default,SFX,5852470908,,Shared/Sounds/SFX/Cartoon bubble button Sound,0.8,1,false,true,,,,,,1,true
+Template.World.OldCarEngine,Default,World,137048982817372,,Shared/Sounds/SFX/engine sound for old cars,0.8,1,false,true,,,,,WorldDefault,1,true
+Template.Music.PrayerRiver,Default,Music,91760644839532,,Shared/Sounds/Music/祈りの川,0.5,1,true,true,,,,,,1,false

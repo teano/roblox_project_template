@@ -5,6 +5,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local ConfigService = game:GetService("ConfigService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
@@ -148,7 +149,10 @@ local statisticsClientFactController = StatisticsClientFactController.new({
 	Definitions = StatisticsClientFactManifest,
 })
 local audioGraph = AudioGraphServer.new(ReplicatedStorage, audioLogger)
-local ordinarySound = OrdinarySoundServer.new(poolModule, audioLogger)
+local ordinarySound = OrdinarySoundServer.new(poolModule, audioLogger, {
+	Workspace = Workspace,
+	SpatialFrameDriver = RunService.Heartbeat,
+})
 local hybridAudio = HybridOneShotServerController.new({
 	Communication = communication,
 	PlayersModule = playersModule,

@@ -98,6 +98,23 @@ Also read every existing subsystem rule selected by the concrete change.
 - A World source MUST traverse its lease-owned `AudioEmitter`, the client
   `AudioListener`, World fader, and Master. It MUST NOT wire directly to World,
   Master, or output.
+- Every World wrapper MUST be one fixed four-Instance composition rooted at an
+  invisible anchored non-collidable `Part` named `SpatialAnchor`. Its exact
+  direct children are its `AudioPlayer`, `AudioEmitter`, and connecting `Wire`.
+  The emitter uses default Parent positioning; playback code MUST NOT read or
+  write `AudioEmitter.PositionType` or `AudioEmitter.PositionInstance`.
+- An active `SpatialAnchor` MUST be parented directly to the side's injected
+  `Workspace`; an idle wrapper MUST remain unparented. Point sets the anchor
+  `CFrame` once and MUST NOT register for frame updates.
+- Attached playback MUST copy `Attachment.WorldCFrame`, `Camera.CFrame`, or
+  `PVInstance:GetPivot()` through exactly one manifest-composed, side-owned
+  generation-safe binding registry and one frame subscription per side. Release
+  MUST unregister the current generation before graph reset; stale callbacks
+  are no-ops and the registry MUST NOT become a second completion owner.
+- Server-all World playback MUST keep one server lease and native replicated
+  anchor subtree. It MUST NOT create client mirrors, application playback
+  fanout, a positioning strategy/probe/fallback, or per-wrapper frame
+  connections.
 - Point playback accepts only a validated `Vector3`; attached playback accepts
   only a side-valid positionable `Instance`. Emitters and point anchors remain
   owned by the playback wrapper and MUST NOT be parented into the target.
@@ -209,8 +226,8 @@ Also read every existing subsystem rule selected by the concrete change.
 - Run generated-catalog preview/apply/re-preview freshness and exact hash
   checks.
 - Run `AudioCatalogTestRunner`, `AudioPlaybackTestRunner`, and
-  `AudioIntegrationTestRunner` through `TestHarness`, then the complete
-  `AllTestsRunner` aggregate.
+  `AudioIntegrationTestRunner` through `TestHarness`, then
+  `AudioManualQaTestRunner` and the complete `AllTestsRunner` aggregate.
 - Preserve existing `AssetRegistry`, `ContentPreloader`, `ResourceManagement`,
   `System`, `ProductionIntegration`, and `ProductionReadiness` coverage for
   every touched boundary.
@@ -219,3 +236,8 @@ Also read every existing subsystem rule selected by the concrete change.
 - Run the approved multi-client audio scenarios for local isolation,
   server-all replication, hybrid exclusion/fanout, spatial/listener behavior,
   settings persistence, Music independence, and canonical acoustic policy.
+- Use the manual-only client/server drivers and report contract documented in
+  `docs/AudioManualQA.md` for collaborative Studio evidence. Keep objective
+  runtime observations separate from human hearing confirmation; neither may
+  be inferred or fabricated from the other, and a missing required observation
+  MUST NOT pass.

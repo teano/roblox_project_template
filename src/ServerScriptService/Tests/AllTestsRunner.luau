@@ -13,6 +13,7 @@ local suites = {
 	{ Name = "AudioCatalogTestRunner", Runner = require(Tests.AudioCatalogTestRunner) },
 	{ Name = "AudioPlaybackTestRunner", Runner = require(Tests.AudioPlaybackTestRunner) },
 	{ Name = "AudioIntegrationTestRunner", Runner = require(Tests.AudioIntegrationTestRunner) },
+	{ Name = "AudioManualQaTestRunner", Runner = require(Tests.AudioManualQaTestRunner) },
 	{ Name = "LoggerTestRunner", Runner = require(Tests.LoggerTestRunner) },
 	{ Name = "ResourceManagementTestRunner", Runner = require(Tests.ResourceManagementTestRunner) },
 	{ Name = "AssetRegistryTestRunner", Runner = require(Tests.AssetRegistryTestRunner) },

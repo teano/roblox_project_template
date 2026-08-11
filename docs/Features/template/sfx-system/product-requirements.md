@@ -1,9 +1,9 @@
 ---
 document_type: product-requirements
 status: approved
-revision: 3
+revision: 4
 language: Russian
-approved_at: 2026-08-07T10:19:29.427Z
+approved_at: 2026-08-10T17:47:05Z
 ---
 
 # Product Requirements
@@ -53,10 +53,9 @@ one-shot событиями и не владеет distributed loop state. Ос�
 воспроизвести общий звук для всех игроков является server-all вызов со штатной
 репликацией Roblox. Локально-серверный режим остаётся узким дополнительным
 инструментом для некритичного one-shot feedback, где важен немедленный звук у
-инициатора. Каталог звуков и
-routing-конфиг являются статическими,
-локальными Luau-таблицами в DataModel, версионируются вместе со сборкой и
-применяются только при полной инициализации новой версии игры.
+инициатора. Каталог звуков, routing-конфиг и spatial profiles являются
+статическими локальными Luau-таблицами в DataModel, версионируются вместе со
+сборкой и применяются только при полной инициализации новой версии игры.
 
 ## Scope
 
@@ -68,6 +67,9 @@ routing-конфиг являются статическими,
 - Обычные непространственные звуки.
 - Пространственные звуки в заданной точке мира или прикреплённые к конкретному
   позиционируемому объекту.
+- Единая пространственная модель Point/Attached без выбираемой strategy:
+  каждый World playback владеет обычным позиционируемым `SpatialAnchor`, от
+  непосредственного parent которого `AudioEmitter` получает world transform.
 - Отдельная клиентская Music-подсистема с LIFO-стеком независимых запросов,
   одним steady-state playing track и стратегиями перехода `Instant`,
   `SequentialFade` и `Crossfade` при добавлении и удалении верхней записи.
@@ -114,6 +116,10 @@ routing-конфиг являются статическими,
   игровой VM. Подсистемы инициализируются один раз на bootstrap; остановка
   конкретных воспроизведений, `StopAllMusic` и очистка частично созданных
   ресурсов после ошибки остаются обязательными.
+- Публичный либо конфигурационный выбор spatial strategy, использование
+  `PositionInstance` как альтернативного playback path, capability probes,
+  auto-detect, runtime switch и fallback между несколькими механизмами
+  позиционирования.
 - Произвольные суммарные ограничения на число строк, размер всего каталога или
   число кандидатов в ресурсной папке до появления измеримой проблемы. Первая
   версия проверяет каждую запись и каждый запрос, но не отклоняет валидный
@@ -146,6 +152,10 @@ routing-конфиг являются статическими,
   хотя её `AudioPlayer` не играет.
 - **Ready client** — клиент, подтвердивший точную активную communication
   snapshot epoch и допущенный Communication к обычной доставке.
+- **SpatialAnchor** — обычный принадлежащий playback wrapper позиционируемый
+  объект мира, от непосредственного parent которого `AudioEmitter` получает
+  world position и orientation. Это внутренний spatial playback object, а не
+  сетевой или конфигурационный механизм.
 
 ## Functional Requirements
 
@@ -204,15 +214,24 @@ routing-конфиг являются статическими,
   `Instance`, создаёт server-owned `AudioEmitter` и требует, чтобы источник был
   доступен штатной репликации Roblox. Client-hybrid attached API в первой
   версии отсутствует; сетевой payload не содержит ссылку на runtime-объект.
-  Позиционируемым считается `Attachment`, `Camera` или `PVInstance`. Attached
-  wrapper сохраняет emitter под
-  pool-owned active parent, устанавливает
-  `AudioEmitter.PositionType = Enum.EmitterPositionType.Instance` и
-  `PositionInstance = validatedSource`; он не parent-ит pooled emitter внутрь
-  source. Неизвестный, неразрешённый,
+  Позиционируемым считается `Attachment`, `Camera` или `PVInstance`. Point и
+  Attached используют одну фиксированную parent-positioning модель без
+  публичной или конфигурационной strategy: playback wrapper владеет обычным
+  `SpatialAnchor`, а `AudioEmitter` получает transform от этого
+  непосредственного positionable parent. Point устанавливает anchor в
+  переданную world position один раз и остаётся ненаправленным; Attached
+  обновляет тот же anchor по полной позиции и ориентации валидированного
+  источника. Anchor и emitter остаются собственностью playback wrapper и
+  никогда не parent-ятся в gameplay target.
+  После валидации server-all Point/Attached получает ровно одну server-owned
+  spatial playback lease, сервер вызывает `Play()`, а Roblox native replication
+  делает эту композицию доступной клиентам. SFX не создаёт per-client
+  application play fan-out или mirror leases.
+  Неизвестный, неразрешённый,
   неавторизованный или уничтоженный источник даёт предупреждение через общий
   `Logger` и no-op либо
-  останавливает уже активную аренду, очищает `PositionInstance` и полностью
+  останавливает уже активную аренду, очищает принадлежащую wrapper
+  пространственную привязку и полностью
   освобождает ресурсы, но никогда не ломает gameplay.
   Point-вызов принимает только позицию и всегда использует ненаправленный
   spatial profile; профиль с направленной `AngleCurve` отклоняет конкретный
@@ -243,12 +262,14 @@ routing-конфиг являются статическими,
   запустить звук позднее. Событие `Ended` используется только для естественного
   завершения non-looping playback; `Stop`, FIFO и timeout освобождают
   generation-safe аренду напрямую и не зависят от получения `Ended`.
-  Server wrapper в idle-состоянии находится под server-only pool parent. Перед
-  server `Play()` owning runtime полностью настраивает wrapper и последним
-  действием переносит весь активный graph под явно реплицируемого предка. Release
-  выполняет `Stop`, отключение/reset, очистку source refs и возврат под idle
-  parent. Music pool не использует ordinary FIFO и подчиняется отдельному
-  Music stack contract ниже.
+  Server wrapper в idle-состоянии находится вне активной реплицируемой
+  playback-композиции. Перед server `Play()` owning runtime полностью
+  настраивает wrapper; для World playback он помещает одну композицию
+  `SpatialAnchor + AudioPlayer + AudioEmitter + Wire` в реплицируемый мир и
+  делает одну lease наблюдаемой штатной Roblox replication. Release выполняет
+  `Stop`, отключение/reset, очистку source refs и удаление активной
+  реплицируемой композиции. Music pool не использует ordinary FIFO и
+  подчиняется отдельному Music stack contract ниже.
 - `PRD-REQ-007` Из коробки должны существовать категории воспроизведения
   `UI`, `SFX`, `World` и `Music`, а также общий уровень `Master`. Категория
   `SFX` предназначена для непространственных игровых звуков, не относящихся к
@@ -299,15 +320,20 @@ routing-конфиг являются статическими,
   который его инициировал, без сетевого сообщения.
 - `PRD-REQ-011` Server-all вызов доступен только доверенному серверному коду и
   является рекомендуемым обычным способом воспроизвести общий звук для всех
-  игроков.
-  После валидации он получает аренду из server-owned пула, настраивает
-  server-owned `AudioPlayer` и требуемый graph и вызывает `AudioPlayer:Play()`.
-  Создание instances, свойства, play/stop state и пространственный источник
+  игроков. Если исходное игровое действие пришло от клиента, его авторизацию и
+  выбор допустимой world position сначала выполняет доверенный server domain
+  handler; SFX не даёт клиенту прямой server-all command.
+  После валидации вызов получает ровно одну аренду из server-owned пула,
+  настраивает один server-owned `AudioPlayer` и требуемый graph и вызывает
+  `AudioPlayer:Play()`. Для Point/Attached та же lease владеет
+  `SpatialAnchor`, `AudioEmitter` и `Wire` в реплицируемом мире. Создание
+  instances, свойства, play/stop state и пространственный источник
   распространяются штатной Roblox replication. SFX не отправляет application
-  play command отдельным клиентам, не формирует recipient list и не проверяет
-  client readiness. Позднее подключение, streaming и фактический старт на
-  клиентах следуют штатному Roblox audio replication без дополнительного replay
-  или фазовой компенсации со стороны SFX.
+  play command отдельным клиентам, не создаёт mirror leases, не формирует
+  recipient list и не проверяет client readiness. Позднее подключение,
+  streaming и фактический старт на клиентах следуют штатному Roblox audio
+  replication без дополнительного replay или фазовой компенсации со стороны
+  SFX.
 - `PRD-REQ-012` Специализированный локально-серверный запрос для некритичного
   one-shot feedback должен начать локальное воспроизведение у инициатора без
   ожидания round trip, затем отправить на
@@ -378,7 +404,10 @@ routing-конфиг являются статическими,
   Server и client initialization непосредственно `require` одну и ту же
   версионируемую Luau-таблицу из DataModel, независимо валидируют её в
   неизменяемую runtime-модель и не используют `ExperienceConfigCatalog`, client
-  projection или сетевую доставку конфигурации. Ordinary types объявляют
+  projection или сетевую доставку конфигурации. Конфиг не содержит выбора или
+  side-specific override spatial positioning mechanism: все World wrappers
+  используют одну встроенную parent-positioning модель `SpatialAnchor`.
+  Ordinary types объявляют
   `ServerMaxActive`/`ServerMaxRetained` для глобального server-all пула и
   `ClientMaxActive`/`ClientMaxRetained` для local/hybrid пула каждого клиента;
   значение `0/0` явно отключает соответствующую сторону. `Music` объявляет
@@ -403,10 +432,12 @@ routing-конфиг являются статическими,
   отсутствующая, нечитаемая или невалидная таблица должна преобразоваться
   владеющей подсистемой в frozen disabled-модель и no-op runtime, не отклоняя
   общий gameplay bootstrap. Каждая сторона захватывает одну валидную таблицу
-  при инициализации и не изменяет активные типы или лимиты до следующего полного
-  bootstrap. Валидатор обязан проверить не только лимит каждого типа, но и
+  при инициализации и не изменяет активные типы или лимиты до
+  следующего полного bootstrap. Валидатор обязан проверить не только лимит
+  каждого типа, но и
   полную теоретическую сумму active/retained wrappers и их worst-case
-  AudioPlayer/AudioEmitter/Wire/anchor cost по каждой стороне. Конфиг, в котором
+  `AudioPlayer`/`AudioEmitter`/`Wire`/`SpatialAnchor` cost по каждой стороне.
+  Конфиг, в котором
   отдельные типы валидны, но их сумма превышает code-owned side-wide ceiling,
   целиком переводит audio runtime этой стороны в disabled/no-op до создания
   первого concrete pool или graph object.
@@ -428,9 +459,12 @@ routing-конфиг являются статическими,
     `MaxSpatialProfiles = 64`;
   - hard cap `256` для ordinary `MaxActive`, `128` для `MaxRetained` и `16`
     для `MusicStackMaxDepth`;
-  - отдельные server/client aggregate active, retained и worst-case graph-object
-    ceilings, которым обязана удовлетворять полная сумма всех типов, включая
-    Music на клиенте и повышенную стоимость World wrapper;
+  - отдельные server/client ceilings `MaxTotalActive = 128`,
+    `MaxTotalRetained = 64` и `MaxWorstCasePlaybackObjects = 768`, которым
+    обязана удовлетворять полная сумма всех типов, включая Music на клиенте и
+    повышенную стоимость World wrapper; консервативная проверка считает не
+    более четырёх code-owned playback objects на каждый active/retained wrapper
+    (`4 * (total active + total retained) <= 768`);
   - hard cap `30` для `HybridRatePerSecond` и `60` для `HybridBurst`;
   - `HybridAggregateRatePerOwner = 20`, `HybridAggregateBurstPerOwner = 30`,
     `HybridAcceptedRateServer = 128` и `HybridAcceptedBurstServer = 256`;
@@ -510,16 +544,20 @@ routing-конфиг являются статическими,
   общий client bootstrap.
 - `PRD-REQ-020` Однородным pooled resource должен быть универсальный playback
   wrapper, отвязанный от конкретного ассета между арендами. 2D-wrapper содержит
-  `AudioPlayer` и его source wire; `World` wrapper дополнительно содержит
-  `AudioEmitter`, source-to-emitter wire и anchor для статической мировой точки.
+  `AudioPlayer` и его source wire. `World` wrapper является одной
+  position-bearing композицией: обычный wrapper-owned `SpatialAnchor` содержит
+  `AudioPlayer`, `AudioEmitter` и связывающий их `Wire`, причём emitter получает
+  world transform от непосредственного positionable parent. Точный Roblox
+  class anchor и injected runtime root являются внутренними деталями и не
+  создают второй public/configuration contract.
   Persistent category/Master faders, client listener и client device output не
   входят в player pools. После разрешения записи owning runtime выбирает пул по
   `PlayerType`, получает generation-safe аренду и назначает нормализованный
   `ContentId` в актуальное свойство `AudioPlayer.Asset` и параметры только на
   время воспроизведения. Deprecated `AudioPlayer.AssetId` использовать нельзя.
-  Release сбрасывает asset, regions, speed,
-  volume, looping, position source, emitter profile, callbacks, wires и lease
-  context до переиспользования.
+  Release сбрасывает asset, regions, speed, volume, looping, position source,
+  `SpatialAnchor`, emitter profile, callbacks, wires и lease context до
+  переиспользования.
 - `PRD-REQ-021` SFX-система должна иметь один физический корень звуков
   `ReplicatedStorage.Assets.Shared.Sounds` и один соответствующий канонический
   префикс каталога `Shared/Sounds`. Folder API может принимать путь относительно
@@ -737,7 +775,8 @@ routing-конфиг являются статическими,
   Point-вызов всегда ненаправленный: он принимает только профиль без
   `AngleCurve`; directional profile отклоняет конкретный point-вызов до pool
   acquire. `AngleCurve` применяется только к attached source, ориентация которого
-  получается из его валидированного `PositionInstance`.
+  копируется в wrapper-owned `SpatialAnchor` как полная ориентация
+  валидированного source.
   Канонический `place.rbxl` шаблона поставляется с
   `SoundService.AcousticSimulationEnabled = true`. Audio runtime не устанавливает,
   не переключает и не восстанавливает это глобальное свойство при успешной или
@@ -771,7 +810,11 @@ routing-конфиг являются статическими,
   одним server-owned `AudioPlayer` и его штатными client replicas; клиент не
   создаёт зеркальную lease по application command. Hybrid handler никогда не
   создаёт server `AudioPlayer`, чтобы инициатор не получил нативный дубль, а
-  Music никогда не создаёт server audio instance.
+  Music никогда не создаёт server audio instance. Все World wrappers используют
+  одну parent-positioning модель `SpatialAnchor`; отдельной spatial strategy
+  abstraction нет. Эти ownership/delivery boundaries, публичные семейства
+  `PlayAt`/`PlayAttached`, hybrid point DTO, pool identities, handles и
+  единственный completion owner playback wrapper остаются едиными.
 - `PRD-REQ-040` Канонический CSV source должен находиться по repository path
   `configs/audio/Sounds.csv` и генерировать array-mode модуль
   `src/ReplicatedStorage/Shared/Configs/Audio/SoundCatalog.luau`. Статический
@@ -808,14 +851,16 @@ routing-конфиг являются статическими,
   себе не изменяет distance attenuation, а поворот камеры изменяет направленное
   восприятие. При временном отсутствии персонажа World-ветка остаётся беззвучной
   до безопасного rebind; непространственные UI/SFX/Music ветки продолжают работу.
-  Server point lease использует собственный реплицируемый anchor.
+  Server point lease использует собственный реплицируемый wrapper-owned
+  `SpatialAnchor`, один раз установленный в переданную world position.
 - `PRD-REQ-044` Client-hybrid attached start, `SpatialSourceRef`, runtime-object
   resolver map и trusted owner metadata не входят в первую версию. Любой
   client-hybrid payload с attached discriminator либо object reference
   отклоняется до local acquire и network send. Client-local attached использует
   локальный `Instance`; server-all attached использует server-authoritative
-  `Instance` напрямую, а его уничтожение останавливает и освобождает server lease
-  через штатную Roblox replication без application stop event.
+  `Instance` как проверенный источник transform для своего `SpatialAnchor`, а
+  его уничтожение останавливает и освобождает server lease через штатную Roblox
+  replication без application stop event.
 - `PRD-REQ-045` `PlayMusic` должен принимать опциональный discriminated
   `MusicTransition` со стратегиями `Instant`, `SequentialFade` и `Crossfade`;
   отсутствие опций означает `Instant`. Fade-стратегии могут задавать
@@ -926,8 +971,8 @@ routing-конфиг являются статическими,
   Music push при заполненном stack budget отклоняется без вытеснения существующей
   записи.
 - `PRD-NFR-003` После завершения всех конечных звуков число активных аренд,
-  временных emitters, wires и подключений должно возвращаться к исходному
-  уровню.
+  временных `SpatialAnchor`, emitters, wires и подключений должно возвращаться
+  к исходному уровню.
 - `PRD-NFR-004` Невалидный общий запрос не должен позволять клиенту заставить
   других игроков загрузить или воспроизвести произвольный аудио asset.
 - `PRD-NFR-005` Ошибка SFX-каталога, загрузки аудио или построения audio graph
@@ -935,7 +980,10 @@ routing-конфиг являются статическими,
   доменный код. Инициализация должна опубликовать корректно связанный graph
   целиком либо безопасный no-op SFX runtime без частичной маршрутизации;
   допустимая fail-soft фильтрация записей и конфликтов выполняется по правилу
-  каталога выше и остаётся видимой в Log.
+  каталога выше и остаётся видимой в Log. Ошибка создания конкретной
+  пространственной композиции должна отменить и полностью очистить только эту
+  lease без partial playback, mirror lease или переключения на альтернативный
+  механизм позиционирования.
 - `PRD-NFR-006` Повторный вызов инициализации в том же bootstrap должен вернуть
   уже опубликованную generation и не дублировать постоянные audio-объекты,
   wires, обработчики или пулы. Ошибка до публикации обязана очистить все
@@ -966,7 +1014,9 @@ routing-конфиг являются статическими,
 - `PRD-AC-003` Звук, запущенный в мировой точке, слышен с пространственным
   ненаправленным затуханием из этой точки; directional profile отклоняется до
   acquire. Звук, прикреплённый к движущемуся объекту, следует за ним и использует
-  его ориентацию для `AngleCurve` до завершения.
+  его ориентацию для `AngleCurve` до завершения. В обоих случаях emitter
+  получает transform от непосредственного wrapper-owned `SpatialAnchor`; Point
+  не требует дальнейшего обновления, Attached следует full transform источника.
 - `PRD-AC-004` Пока соответствующий server/client active-лимит типа не
   исчерпан, одновременные независимые запросы owning runtime получают разные
   активные аренды и не обрывают друг друга. После их завершения объекты
@@ -983,10 +1033,12 @@ routing-конфиг являются статическими,
   только top entry, а предыдущая сохраняет lease и `TimePosition` ниже в стеке.
 - `PRD-AC-007` Локальный запрос слышит только инициировавший клиент.
 - `PRD-AC-008` Server-all one-shot создаёт ровно одну server pool lease и ни
-  одного SFX communication message. Её server-owned `AudioPlayer` и graph
-  распространяются Roblox replication; клиенты не вызывают SFX playback handler
-  и не создают зеркальные client leases. SFX не синтезирует replay для позднего
-  клиента и не обещает phase/start-position compensation.
+  одного SFX communication message. Для spatial one-shot эта lease владеет одной
+  композицией `SpatialAnchor + AudioPlayer + AudioEmitter + Wire` в
+  реплицируемом мире. Roblox replication доставляет её клиентам; клиенты не
+  вызывают SFX playback handler и не создают зеркальные client leases. SFX не
+  синтезирует replay для позднего клиента и не обещает phase/start-position
+  compensation.
 - `PRD-AC-009` В локально-серверном сценарии инициатор начинает слышать звук
   до серверного подтверждения и не слышит дубль после доставки. Сервер ставит
   каждому другому ready-клиенту best-effort Presentation event; backpressure
@@ -1012,8 +1064,9 @@ routing-конфиг являются статическими,
 - `PRD-AC-013` Отсутствующий встроенный тип, наличие server budget для `Music`,
   `Music.ClientMaxActive`, отличный от `MusicStackMaxDepth`,
   `Music.ClientMaxRetained` больше Music active budget, отрицательный/нецелый
-  server/client лимит, неизвестный bus или превышение разрешённых hard caps,
-  side-wide суммы active/retained/worst-case graph-object cost, границ source
+  server/client лимит, неизвестный bus, наличие неразрешённого spatial
+  positioning override или превышение разрешённых hard caps, side-wide суммы
+  active/retained/worst-case graph-object cost, границ source
   volume, playback speed либо fader dB публикует локальную frozen
   disabled audio model и no-op runtime с предупреждением через общий `Logger`,
   не прерывая gameplay
@@ -1026,11 +1079,12 @@ routing-конфиг являются статическими,
   отклоняется.
 - `PRD-AC-015` Изменение локального Luau-конфига требует новой сборки и не
   изменяет уже запущенные server/client runtime. Новая таблица применяется
-  только после следующей полной инициализации соответствующего runtime.
+  только после следующей полной инициализации соответствующего runtime. Spatial
+  positioning не является конфигурируемым полем и не изменяется этой таблицей.
 - `PRD-AC-016` Удаление объекта, за которым следует пространственный звук,
-  останавливает воспроизведение и возвращает active-счётчик соответствующего
-  пула к корректному значению; устаревшее событие завершения не влияет на
-  последующее использование плеера.
+  останавливает воспроизведение, очищает его `SpatialAnchor`/emitter binding и
+  возвращает active-счётчик соответствующего пула к корректному значению;
+  устаревшее событие завершения не влияет на последующее использование плеера.
 - `PRD-AC-017` Для записи или ресурсной папки с несколькими кандидатами серия
   воспроизведений учитывает допустимые источники из вложенных папок и не
   повторяет один и тот же вариант два раза подряд, пока доступно более одного
@@ -1172,8 +1226,9 @@ routing-конфиг являются статическими,
   наблюдаемое late-join/streaming поведение полностью принадлежит Roblox
   replication.
 - `PRD-AC-046` Два одновременных World-источника сохраняют разные позиции при
-  изменении World/Master gain; private interaction group предотвращает второй
-  вывод через default listener и не захватывает unrelated audio.
+  помощи независимых `SpatialAnchor`/emitter states при изменении World/Master
+  gain; private interaction group предотвращает второй вывод через default
+  listener и не захватывает unrelated audio.
 - `PRD-AC-047` Строка только с `ResourcePath` получает нормализованный ID из
   `Sound.SoundId`; противоречие с прямым `AssetId` пропускает строку. Один
   вариант, найденный несколькими идентификаторами в Folder, участвует в weighted
@@ -1193,10 +1248,13 @@ routing-конфиг являются статическими,
 - `PRD-AC-050` Один server-all dispatch создаёт ровно одну слышимую
   server-owned generation lease и один `AudioPlayer`; клиенты слышат штатные
   replicas и не приобретают mirror leases по SFX-команде. Server stop, FIFO и
-  release изменяют playback без application stop message.
+  release изменяют playback без application stop message. Для Point/Attached
+  та же lease владеет единственным `SpatialAnchor`, emitter и wire; отдельный
+  client playback fan-out отсутствует.
 - `PRD-AC-051` Server attached start принимает валидный реплицируемый
-  server-visible `Instance`, следует за ним и полностью освобождает server lease
-  при его уничтожении. Client-local attached использует только локальный
+  server-visible `Instance`; его wrapper-owned `SpatialAnchor` следует за
+  полной позицией и ориентацией source и полностью освобождает server lease при
+  его уничтожении. Client-local attached использует только локальный
   `Instance`. Client-hybrid API, intent и Presentation не содержат attached
   discriminator, `SpatialSourceRef`, `OwnerUserId` или resolver contract.
 - `PRD-AC-052` Server-all loop создаёт одну server lease без event registry;
@@ -1232,17 +1290,18 @@ routing-конфиг являются статическими,
   levels, enabled flags и output binding. Успешный resync применяет все поля
   атомарно до возобновления readiness. Respawn/rebind listener сохраняет уровни.
 - `PRD-AC-058` Два server-all `World` sources используют разные server-owned
-  emitters и сохраняют отдельные позиции. Изменение локального `World` fader
+  emitters и wrapper-owned `SpatialAnchor` и сохраняют отдельные позиции.
+  Изменение локального `World` fader
   после listener меняет общий gain, не превращая источники в один emitter.
   Server-all, client-local и client-hybrid `World` wrappers не имеют прямого
   wire к `World`/`Master`: каждый идёт только в свой emitter, затем через
   client-owned listener и общий `World` fader.
 - `PRD-AC-059` Возврат server wrapper в пул очищает replicated asset, playing
-  state, regions, volume, speed, looping, emitter, wires, callbacks, anchor и
-  attached source до выдачи следующей generation. Idle wrapper находится под
-  server-only pool parent; перед `Play()` полностью настроенный graph последним
-  шагом parent-ится под явного реплицируемого предка, а release возвращает его
-  под idle parent только после `Stop`, disconnect и полного reset.
+  state, regions, volume, speed, looping, `SpatialAnchor`, emitter, wires,
+  callbacks и attached source до выдачи следующей generation. Idle wrapper не
+  участвует в активной replication; перед `Play()` одна полностью настроенная
+  server lease становится наблюдаемой в реплицируемом мире, а release удаляет
+  её из active playback только после `Stop`, disconnect и полного reset.
 - `PRD-AC-060` Server `Ended` освобождает только актуальную non-looping lease;
   explicit stop, FIFO, timeout и потеря источника не ждут `Ended`, а stale callback не
   освобождает более новую generation.
@@ -1297,7 +1356,8 @@ routing-конфиг являются статическими,
   attached-вызову.
 - `PRD-AC-070` Повторный вызов `Initialize` в одном bootstrap возвращает ту же
   опубликованную generation и не меняет число persistent graph objects, wires,
-  signal connections или pool resources. Принудительная ошибка на каждом этапе
+  signal connections или pool resources и не создаёт второй positioning path.
+  Принудительная ошибка на каждом этапе
   до публикации оставляет ноль частично созданных ресурсов и отменяет связанные
   callbacks; следующий независимый тест создаёт новую изолированную runtime
   fixture, а не выполняет production `Stop -> Initialize`.
@@ -1319,14 +1379,15 @@ routing-конфиг являются статическими,
   строкой и не теряет точность.
 - `PRD-AC-073` Startup boundary tests подтверждают shipped pool budgets, hard
   caps, hybrid one-shot rate/burst, атомарный fan-out budget и
-  identifier/payload limits из startup safety contract: значение на границе
-  принимается, выше границы
-  либо конфиг с валидными отдельными типами, но превышенной side-wide суммой,
-  переводит затронутый config/runtime в указанное fail-soft состояние до
-  создания pool/graph objects и без превышения фактических ресурсов. При
-  недостатке fan-out tokens событие не ставится ни одному получателю.
-  Диагностика проходит через общий `Logger`, а audio-specific warning cache и
-  настройки подавления отсутствуют.
+  identifier/payload limits, отсутствие конфигурационного выбора positioning
+  mechanism и точную консервативную стоимость единственной модели
+  `SpatialAnchor + AudioPlayer + AudioEmitter + Wire`: значение на границе
+  принимается, выше границы либо конфиг с валидными отдельными типами, но
+  превышенной side-wide суммой, переводит затронутый config/runtime в указанное
+  fail-soft состояние до создания pool/graph objects и без превышения
+  фактических ресурсов. При недостатке fan-out tokens событие не ставится ни
+  одному получателю. Диагностика проходит через общий `Logger`, а
+  audio-specific warning cache и настройки подавления отсутствуют.
 - `PRD-AC-074` До source implementation присутствуют не менее трёх Accepted
   template ADRs и
   обновлённые architecture/configuration/assets rules, docs и enforcement tests,
@@ -1391,6 +1452,11 @@ routing-конфиг являются статическими,
 - Точный Roblox audio graph для 2D и 3D может различаться, если наблюдаемая
   иерархия `UI`/`SFX`/`World`/`Music`/`Master` и требования пространственной
   локализации выполняются полностью.
+- Каждый World playback использует одну фиксированную parent-positioning
+  композицию вокруг wrapper-owned `SpatialAnchor`; exact Roblox class и
+  injected runtime root являются техническими деталями, пока emitter получает
+  transform от непосредственного positionable parent, server-all остаётся одной
+  нативно реплицируемой lease и cleanup выполняется полностью.
 - Все audio startup-конфиги являются локальными версионируемыми Luau-таблицами
   в `ReplicatedStorage.Shared.Configs.Audio`, всегда присутствующими в DataModel
   конкретной сборки. Они не используют Roblox Experience Config или сетевую
@@ -1421,9 +1487,12 @@ routing-конфиг являются статическими,
 
 - Простая общая цепочка `World` через один фейдер может разрушить
   пространственное разделение источников. Техническая спецификация должна
-  доказать, что выбранная топология `AudioEmitter`/`AudioListener`/`Wire`
+  доказать, что spatial topology `AudioEmitter`/`AudioListener`/`Wire`
   сохраняет позицию каждого активного звука и при этом реализует категорийный
-  и master-контроль.
+  и master-контроль. Focused one-server/two-client evidence должно подтвердить,
+  что одна server World lease слышна обоим клиентам через штатную replication,
+  разные `SpatialAnchor` сохраняют отдельные позиции, а stop/end/FIFO и потеря
+  Attached source возвращают object/connection counts к baseline.
 - Каноническая `CueId + VariantId` пара в клиентском сетевом запросе остаётся
   недоверенной: сервер обязан заново сопоставить её с разрешённым каталогом и
   `AllowClientHybrid` до рассылки; raw asset ID и FolderPath по сети не идут.

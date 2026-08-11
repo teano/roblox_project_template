@@ -1,14 +1,15 @@
 ---
 document_type: technical-specification
 feature_id: TF-0005
-status: draft
+status: approved
 generator_status: draft-ok
-revision: 7
+revision: 12
 language: Russian
 product_authority:
   path: docs/Features/template/sfx-system/product-requirements.md
-  revision: 3
-  sha256: cb79c583a0f1a0f4e8c568103b3ca354057c08776ae5b56ff7fd291d87b49fa0
+  status: approved
+  revision: 4
+  sha256: 9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde
 ---
 
 # Technical Specification
@@ -30,9 +31,11 @@ product_authority:
 
 ### 1.2. Авторитет продукта и граница решений
 
-Единственный продуктовый источник этой спецификации — `docs/Features/template/sfx-system/product-requirements.md`, approved revision `3`, exact-byte SHA-256 `cb79c583a0f1a0f4e8c568103b3ca354057c08776ae5b56ff7fd291d87b49fa0`.
+Единственный продуктовый источник этой спецификации — `docs/Features/template/sfx-system/product-requirements.md`, canonical approved revision `4`, exact-byte SHA-256 `9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde`.
 
 Эта спецификация конкретизирует архитектуру и контракты реализации, опираясь на действующие project rules, Accepted template ADRs, документацию и кодовые паттерны. Она не расширяет продуктовый scope PRD. Там, где PRD оставляет технический выбор, решение фиксируется здесь; там, где PRD требует отдельного архитектурного решения, source implementation остаётся закрыта до принятия соответствующего ADR.
+
+`TS-DEC-008` конкретизирует закреплённый в PRD revision `4` технический механизм, не меняя public Point/Attached APIs, handles, pool identities и delivery semantics: каждый World playback является одной colocated композицией `SpatialAnchor + AudioPlayer + AudioEmitter + Wire`, а `AudioEmitter` использует default Parent positioning. Revision `11` имеет `draft-ok`: канонический PRD утверждён, его exact-byte trace подтверждён, открытых продуктовых и технических вопросов в этой спецификации нет.
 
 ### 1.3. Критерий технической готовности
 
@@ -40,9 +43,9 @@ product_authority:
 
 1. Все нормативные ownership/contracts/invariants из §§4.2–4.4, модели и интерфейсы §5, graph/lifecycle invariants §§6.2–6.3, flows §7, constraints §8 и mandatory implementation approach §§9.1–9.10 реализованы; ни одно forbidden solution из §10 не присутствует.
 2. Все `PRD-AC-001..079` прошли проверку по однозначным evidence identities и profiles полной матрицы §9.11.
-3. До первой source-code правки остаются Accepted ADR-0041, ADR-0039 и ADR-0040, закрывающие `TS-GATE-001`; ADR-0041 supersedes ADR-0038 без потери local-config решения.
+3. Accepted ADR-0041, ADR-0039 и ADR-0040 продолжают закрывать `TS-GATE-001`; ADR-0041 supersedes ADR-0038 без потери local-config решения. До первой source-code правки `TS-GATE-002` обязан быть закрыт новым Accepted template ADR, который владеет durable fixed topology из `TS-DEC-008`; если новый record materially изменяет ADR-0040, он supersedes ADR-0040, иначе ADR-0040 остаётся Accepted, а новый ADR уточняет его spatial implementation boundary.
 4. Сборка, статические validators, focused runners, aggregate runner и обязательные Studio scenarios завершены без незакрытых дефектов.
-5. Документационный cascade PRD выполнен в рамках реализации, а не этой documentation-only операции.
+5. Канонический PRD revision `4` остаётся точным продуктовым trace; обязательный rules/current-docs/tests cascade согласован с fixed spatial composition до завершения feature и отражён в engineering handoff.
 
 ## 2. Context and Scope
 
@@ -61,6 +64,7 @@ product_authority:
 - Типизированное разрешение `SoundRef` по `CueId`, `AssetId`, `AssetKey`, `ResourcePath` и `FolderPath`.
 - Ordinary playback: client-local, trusted server-all и client-hybrid one-shot.
 - World point/attached spatial playback и local character/camera listener binding.
+- Одна fixed parent-positioning spatial composition вокруг wrapper-owned `SpatialAnchor`; другой public/configurable positioning mode нет.
 - Отдельный Music subsystem с LIFO resume semantics.
 - `AudioGraph`, category faders, private interaction group и device output binding.
 - `AudioSettings` client-authority provider и интеграция с snapshot/client patch lifecycle.
@@ -78,18 +82,91 @@ product_authority:
 - AssetRegistry как runtime-world tracker, audio graph locator или generic service locator.
 - Изменение `SoundService.AcousticSimulationEnabled` в runtime.
 - Автоматическое редактирование бинарного `place.rbxl`.
+- Альтернативный spatial positioning mode или runtime-выбор topology: единственная поддерживаемая composition зафиксирована ниже.
 
 ### 2.4. Зафиксированные технические решения
 
 | ID | Решение | Основание |
 |---|---|---|
 | `TS-DEC-001` | Audio-конфиги остаются локальными Luau-модулями обеих сторон, валидируются и замораживаются независимо на bootstrap. | PRD и требуемое исключение из ADR-0017. |
-| `TS-DEC-002` | Сторонние aggregate ceilings: `MaxTotalActive=128`, `MaxTotalRetained=64`, `MaxWorstCasePlaybackObjects=768` для каждой стороны. | Shipped category budgets укладываются; верхняя оценка — четыре Advanced Audio instances на каждый из `128+64` wrappers. |
+| `TS-DEC-002` | Side aggregate ceilings остаются `MaxTotalActive=128`, `MaxTotalRetained=64` и `MaxWorstCasePlaybackObjects=768`. Консервативная формула `4 * (total active + total retained) <= 768` считает максимальную fixed World composition как четыре code-owned Instances: `SpatialAnchor`, `AudioPlayer`, `AudioEmitter`, `Wire`; 2D/Music wrapper стоит не больше этого maximum. | Shipped budgets дают максимум `4 * (128 + 64) = 768`; topology одна, и её полный per-wrapper inventory известен. |
 | `TS-DEC-003` | Audio duplicate-key policy передаётся в `AssetRegistry` как точная manifest policy для `Shared/Sounds` и `Sound`; скан выполняется по canonical path order. | Сохраняет fail-closed поведение вне audio namespace и делает first-wins детерминированным. |
 | `TS-DEC-004` | Сервер публикует graph generation целиком под стабильным runtime container только после полной валидации; клиент привязывается к одному опубликованному generation. | Atomic startup, отсутствие частично наблюдаемого graph. |
 | `TS-DEC-005` | Общий `PlaybackWrapper` используется внутри двух раздельных pool registries/sets: Ordinary и Music никогда не делят pool или lease lifecycle. | PRD-REQ-006/020 и ADR-0007. |
 | `TS-DEC-006` | TF-0005 добавляет в существующие save controllers optional provider-specific `ValidateEnvelope` с side-specific signatures и client-only `ReconcileSnapshotEnvelope`; оба реализует только `AudioSettings`, hooks не sanitizes/mutate input, а providers без них сохраняют прежний контракт. | Закрывает PRD exact-envelope/default-reconciliation contract без нового обязательного правила для всех provider/controller-пар. |
 | `TS-DEC-007` | Public services называются `OrdinarySoundServer`, `OrdinarySoundClient`, `MusicClient`, `AudioSettingsClient`; manifest commands имеют соответствующие `*InitializationCommand` имена. | Совместимо с существующими side-specific module/command patterns и исключает смешение delivery modes. |
+| `TS-DEC-008` | Каждый World wrapper является одним invisible anchored non-collidable `Part` с canonical name `SpatialAnchor`, напрямую parented к injected `Workspace` только пока lease active. `AudioPlayer`, `AudioEmitter` и `Wire` являются непосредственными children этого anchor; wire соединяет player с emitter, а emitter использует default `Enum.EmitterPositionType.Parent`. Point устанавливает `SpatialAnchor.CFrame` один раз; Attached обновляет его full source transform через один injected side-owned frame driver. Server active anchor и его subtree реплицируются Roblox как одна server lease; client-local anchor остаётся local. Idle wrapper unparented. | Official `AudioEmitter` Parent contract использует transform непосредственного `Attachment`, `Camera` или `PVInstance`; `Part` является `PVInstance`. Colocation исключает cross-tree source wiring и root ambiguity, сохраняет wrapper ownership, generation-safe cleanup и native one-lease server delivery. |
+
+### 2.5. Машиноадресуемая трассировка продуктовых требований
+
+Эта таблица является канонической двусторонней трассировкой всех нормативных
+функциональных и качественных требований продукта на нормативные адреса TS и
+идентификаторы проверки. Полные ID в первом столбце являются машинными ключами;
+сокращённые числовые псевдонимы не используются. Идентификаторы проверки
+разрешаются в полные записи доказательств через §9.11 и соответствующие
+профили пространств имён §9.11.
+
+| ID продукта | Нормативные адреса TS | Проверка |
+|---|---|---|
+| `PRD-REQ-001` | §§4.2 `AudioCatalog`, 5.2–5.3, 7.1–7.2, 8.5 | §9.11: `PRD-AC-001`, `PRD-AC-011`, `PRD-AC-024`, `PRD-AC-048` |
+| `PRD-REQ-002` | §§5.2–5.3, 7.2 | §9.11: `PRD-AC-019`, `PRD-AC-025`, `PRD-AC-028`, `PRD-AC-036`, `PRD-AC-054` |
+| `PRD-REQ-003` | §§5.1, 5.3, 7.2, 9.7 | §9.11: `PRD-AC-001`, `PRD-AC-038`, `PRD-AC-039` |
+| `PRD-REQ-004` | §§5.1, 6.2, 7.3, 9.7 | §9.11: `PRD-AC-002` |
+| `PRD-REQ-005` | `TS-DEC-008`; §§4.2 `SpatialAnchorBindingRegistry`, 5.1, 5.5, 7.3–7.4, 9.7 | §9.11: `PRD-AC-003`, `PRD-AC-016`, `PRD-AC-046`, `PRD-AC-051`, `PRD-AC-058` |
+| `PRD-REQ-006` | §§4.2 `OrdinarySoundServer`/`OrdinarySoundClient`/`MusicClient`, 5.4, 6.3, 7.6–7.7, 8.4–8.5, 9.3 | §9.11: `PRD-AC-004`, `PRD-AC-012`, `PRD-AC-021`, `PRD-AC-034`, `PRD-AC-059`, `PRD-AC-060` |
+| `PRD-REQ-007` | §§5.4–5.5, 6.2, 7.9, 9.7 | §9.11: `PRD-AC-005` |
+| `PRD-REQ-008` | `TS-DEC-004`, `TS-DEC-008`; §§4.2 `AudioGraphServer`/`AudioGraphClient`, 5.5, 6.2, 7.1, 7.3–7.4 | §9.11: `PRD-AC-008`, `PRD-AC-011`, `PRD-AC-046`, `PRD-AC-050`, `PRD-AC-058`, `PRD-AC-069`, `PRD-AC-070` |
+| `PRD-REQ-009` | §§4.2 `MusicClient`, 5.4, 5.7, 6.3, 7.6–7.7, 8.4–8.5 | §9.11: `PRD-AC-006`, `PRD-AC-032`, `PRD-AC-034`, `PRD-AC-062`–`PRD-AC-068`, `PRD-AC-075`, `PRD-AC-076` |
+| `PRD-REQ-010` | §§4.2 `OrdinarySoundClient`, 7.3, 9.7 | §9.11: `PRD-AC-007`, `PRD-AC-040` |
+| `PRD-REQ-011` | §§4.2 `OrdinarySoundServer`, 6.2, 7.4, 9.7 | §9.11: `PRD-AC-008`, `PRD-AC-018`, `PRD-AC-050`, `PRD-AC-052`, `PRD-AC-058` |
+| `PRD-REQ-012` | §§4.2 hybrid controllers, 5.6, 7.5, 8.3–8.5, 9.7 | §9.11: `PRD-AC-009`, `PRD-AC-040`, `PRD-AC-043`–`PRD-AC-045`, `PRD-AC-049`, `PRD-AC-054`, `PRD-AC-061`, `PRD-AC-077`, `PRD-AC-079` |
+| `PRD-REQ-013` | §§5.2–5.3, 5.6, 7.2, 7.5, 8.3, 8.5 | §9.11: `PRD-AC-010`, `PRD-AC-043`, `PRD-AC-054`, `PRD-AC-079` |
+| `PRD-REQ-014` | §§4.4 `Communication`, 5.6, 7.5, 8.3, 8.5, 8.7 | §9.11: `PRD-AC-040`, `PRD-AC-044`, `PRD-AC-045`, `PRD-AC-049`, `PRD-AC-061`, `PRD-AC-079` |
+| `PRD-REQ-015` | §§5.7, 6.3, 7.3–7.4, 7.6, 9.7 | §9.11: `PRD-AC-004`, `PRD-AC-016`, `PRD-AC-032`, `PRD-AC-039`, `PRD-AC-041`, `PRD-AC-049`, `PRD-AC-052`, `PRD-AC-060` |
+| `PRD-REQ-016` | `TS-DEC-001`, `TS-DEC-002`; §§5.4–5.5, 7.1, 8.3–8.5 | §9.11: `PRD-AC-013`, `PRD-AC-033`, `PRD-AC-073` |
+| `PRD-REQ-017` | §§5.1, 5.4, 7.2–7.5, 9.7 | §9.11: `PRD-AC-014`, `PRD-AC-026`, `PRD-AC-030`, `PRD-AC-032` |
+| `PRD-REQ-018` | §§4.2 `AudioCatalog`, 5.1–5.3, 7.2 | §9.11: `PRD-AC-017`, `PRD-AC-023`, `PRD-AC-035`–`PRD-AC-037`, `PRD-AC-047`, `PRD-AC-054` |
+| `PRD-REQ-019` | §§4.4 `ContentPreloader`, 5.3, 7.1, 9.2, 9.10 | §9.11: `PRD-AC-020`, `PRD-AC-072` |
+| `PRD-REQ-020` | `TS-DEC-005`, `TS-DEC-008`; §§4.3, 5.4–5.5, 6.3, 7.3–7.4, 7.6, 9.3 | §9.11: `PRD-AC-021`, `PRD-AC-046`, `PRD-AC-050`, `PRD-AC-058`, `PRD-AC-059` |
+| `PRD-REQ-021` | §§2.2, 4.3–4.4, 5.3, 7.1–7.2, 8.6, 9.2 | §9.11: `PRD-AC-022`, `PRD-AC-023`, `PRD-AC-035`, `PRD-AC-047`, `PRD-AC-048`, `PRD-AC-069`, `PRD-AC-074` |
+| `PRD-REQ-022` | §§4.1, 4.3, 5.2, 7.10, 9.2, 9.9 | §9.11: `PRD-AC-025`, `PRD-AC-072` |
+| `PRD-REQ-023` | §§5.2, 5.4, 7.3–7.5, 8.3 | §9.11: `PRD-AC-026` |
+| `PRD-REQ-024` | §§4.2 graph/settings owners, 5.4–5.5, 6.2, 7.9 | §9.11: `PRD-AC-005`, `PRD-AC-056`, `PRD-AC-057` |
+| `PRD-REQ-025` | `TS-DEC-006`; §§4.2 `AudioSettingsModule`/`AudioSettingsClient`, 5.8, 7.9, 8.5, 9.5, 9.7 | §9.11: `PRD-AC-027`, `PRD-AC-056`, `PRD-AC-057`, `PRD-AC-071` |
+| `PRD-REQ-026` | §§5.2–5.3, 7.3, 7.6–7.7, 8.5 | §9.11: `PRD-AC-029`–`PRD-AC-031` |
+| `PRD-REQ-027` | §§4.2 ordinary/Music owners, 5.4, 6.3, 7.3–7.4, 7.6–7.7, 8.5 | §9.11: `PRD-AC-032`, `PRD-AC-034`, `PRD-AC-060`, `PRD-AC-062`, `PRD-AC-065`, `PRD-AC-067`, `PRD-AC-075` |
+| `PRD-REQ-028` | §§5.1, 7.2, 9.7 | §9.11: `PRD-AC-038` |
+| `PRD-REQ-029` | §§4.2 ordinary owners, 5.7, 7.3–7.5, 9.7 | §9.11: `PRD-AC-039`, `PRD-AC-052` |
+| `PRD-REQ-030` | `TS-DEC-007`; §§5.1, 5.7, 7.3–7.5, 9.7 | §9.11: `PRD-AC-040`, `PRD-AC-078` |
+| `PRD-REQ-031` | §§5.7, 7.6, 9.7, 10 | §9.11: `PRD-AC-041` |
+| `PRD-REQ-032` | `TS-DEC-005`, `TS-DEC-007`; §§4.2 `MusicClient`, 5.7, 7.7, 9.7 | §9.11: `PRD-AC-042`, `PRD-AC-053`, `PRD-AC-064`, `PRD-AC-068` |
+| `PRD-REQ-033` | §§5.6, 7.5, 8.3, 8.5, 9.4 | §9.11: `PRD-AC-044`, `PRD-AC-054`, `PRD-AC-079` |
+| `PRD-REQ-034` | §§5.6, 7.5, 8.4–8.5 | §9.11: `PRD-AC-044`, `PRD-AC-045`, `PRD-AC-049` |
+| `PRD-REQ-035` | §§5.2–5.3, 7.2, 8.3 | §9.11: `PRD-AC-001`, `PRD-AC-023`, `PRD-AC-035`, `PRD-AC-047` |
+| `PRD-REQ-036` | §§5.5, 6.2, 7.1, 8.5 | §9.11: `PRD-AC-011`, `PRD-AC-013` |
+| `PRD-REQ-037` | §§5.5, 6.2, 7.3–7.4, 7.8, 8.2, 8.5 | §9.11: `PRD-AC-003`, `PRD-AC-046`, `PRD-AC-069` |
+| `PRD-REQ-038` | `TS-DEC-003`; §§4.2 `AudioCatalog`, 4.4 `AssetRegistry`, 5.3, 7.1, 8.6, 9.2 | §9.11: `PRD-AC-024`, `PRD-AC-048`, `PRD-AC-074` |
+| `PRD-REQ-039` | `TS-DEC-004`, `TS-DEC-005`, `TS-DEC-007`, `TS-DEC-008`; §§4.2, 6.2–6.3, 7.3–7.7, 9.3–9.4, 9.7 | §9.11: `PRD-AC-008`, `PRD-AC-040`, `PRD-AC-050`, `PRD-AC-053`, `PRD-AC-058`, `PRD-AC-061`, `PRD-AC-070`, `PRD-AC-071`, `PRD-AC-078` |
+| `PRD-REQ-040` | §§4.1, 4.3, 5.2, 5.4–5.5, 7.1, 7.10, 8.6, 9.2 | §9.11: `PRD-AC-022`, `PRD-AC-025`, `PRD-AC-072`, `PRD-AC-074` |
+| `PRD-REQ-041` | §§5.7, 6.3, 7.3–7.4, 7.6, 9.7 | §9.11: `PRD-AC-052`, `PRD-AC-077` |
+| `PRD-REQ-042` | §§4.2 `MusicClient`, 6.3, 7.7, 8.5 | §9.11: `PRD-AC-032`, `PRD-AC-062`–`PRD-AC-064`, `PRD-AC-076` |
+| `PRD-REQ-043` | §§4.2 `AudioGraphClient`, 6.2, 7.8, 8.2, 8.5 | §9.11: `PRD-AC-002`, `PRD-AC-055`, `PRD-AC-057` |
+| `PRD-REQ-044` | §§5.1, 5.6–5.7, 7.3–7.5, 9.7, 10 | §9.11: `PRD-AC-040`, `PRD-AC-051`, `PRD-AC-078`, `PRD-AC-079` |
+| `PRD-REQ-045` | §§5.7, 7.7, 8.3, 9.7 | §9.11: `PRD-AC-006`, `PRD-AC-063`, `PRD-AC-066`, `PRD-AC-075` |
+| `PRD-REQ-046` | §§5.7, 7.7 | §9.11: `PRD-AC-006`, `PRD-AC-063`, `PRD-AC-066`, `PRD-AC-075` |
+| `PRD-REQ-047` | §§5.7, 6.3, 7.6–7.7, 8.5 | §9.11: `PRD-AC-004`, `PRD-AC-060`, `PRD-AC-065`, `PRD-AC-067`, `PRD-AC-075` |
+| `PRD-REQ-048` | `TS-DEC-005`, `TS-DEC-007`; §§4.2 ordinary/Music owners, 6.3, 7.3–7.7, 9.3–9.4, 9.7 | §9.11: `PRD-AC-004`, `PRD-AC-042`, `PRD-AC-053`, `PRD-AC-063` |
+| `PRD-REQ-049` | §§4.3, 6.1, 7.1, 7.9, 8.1, 9.5–9.6 | §9.11: `PRD-AC-057`, `PRD-AC-071` |
+| `PRD-REQ-050` | `TS-GATE-001`, `TS-GATE-002`; §§1.3, 8.8, 9.1, 9.9–9.11 | §9.11: `PRD-AC-074` |
+| `PRD-NFR-001` | §§7.5, 8.4, 9.7–9.8 | §9.11: `PRD-AC-009`, `PRD-AC-043`, `PRD-AC-061` |
+| `PRD-NFR-002` | `TS-DEC-002`; §§5.4, 7.6–7.7, 8.3–8.4 | §9.11: `PRD-AC-004`, `PRD-AC-012`, `PRD-AC-013`, `PRD-AC-034`, `PRD-AC-064`, `PRD-AC-073` |
+| `PRD-NFR-003` | §§6.3, 7.3–7.4, 7.6, 8.4–8.5, 9.10 | §9.11: `PRD-AC-016`, `PRD-AC-021`, `PRD-AC-046`, `PRD-AC-059`, `PRD-AC-070` |
+| `PRD-NFR-004` | §§5.1, 5.3, 5.6, 7.5, 8.3, 8.5, 8.7 | §9.11: `PRD-AC-010`, `PRD-AC-043`, `PRD-AC-079` |
+| `PRD-NFR-005` | §§4.2 startup/graph/playback owners, 6.2–6.3, 7.1, 8.5 | §9.11: `PRD-AC-011`, `PRD-AC-013`, `PRD-AC-039`, `PRD-AC-069`, `PRD-AC-070`, `PRD-AC-073` |
+| `PRD-NFR-006` | `TS-DEC-004`; §§4.2 graph owners, 6.2, 7.1, 8.1, 8.5 | §9.11: `PRD-AC-070` |
+| `PRD-NFR-007` | §§4.4 `Logger`, 5.9, 8.5, 8.7 | §9.11 diagnostics profiles for `PRD-AC-001`, `PRD-AC-011`, `PRD-AC-039`, `PRD-AC-043`, `PRD-AC-073`, `PRD-AC-079` |
+| `PRD-NFR-008` | §§5.9, 7.5, 8.7 | §9.11: `PRD-AC-010`, `PRD-AC-039`, `PRD-AC-079` |
+| `PRD-NFR-009` | §§6.3, 7.3–7.4, 7.6–7.7, 8.5 | §9.11: `PRD-AC-004`, `PRD-AC-016`, `PRD-AC-021`, `PRD-AC-060`, `PRD-AC-065`, `PRD-AC-067`, `PRD-AC-075` |
 
 ## 3. Glossary
 
@@ -115,6 +192,7 @@ product_authority:
 | `Ready client` | Клиент, завершивший стандартный `GlobalSave`/`ClientReady` lifecycle; только он может получить hybrid Presentation. |
 | `Provider envelope` | Exact table `{Version = 1, Data = AudioSettingsData}` внутри save snapshot/patch provider entry. |
 | `Generation` | Монотонный токен entry/lease/scheduler, которым late callbacks доказывают актуальность. |
+| `SpatialAnchor` | Один invisible anchored non-collidable wrapper root `Part` для World playback. Он хранит world transform, является непосредственным parent `AudioEmitter` и содержит полную colocated composition `AudioPlayer + AudioEmitter + Wire`. |
 | `Canonical place` | `place.rbxl`, в котором authoring-only global property `SoundService.AcousticSimulationEnabled=true`. |
 
 ## 4. System Decomposition and Ownership
@@ -136,6 +214,7 @@ Audio playback feature (TF-0005 / sfx-system)
 │  ├─ AudioConfigValidator
 │  ├─ AudioCatalog
 │  ├─ AudioStartupInitializationCommand (server/client)
+│  ├─ SpatialAnchor binding registry
 │  └─ PlaybackWrapper helpers
 ├─ Server composition
 │  ├─ AudioGraphServer
@@ -184,13 +263,22 @@ Audio playback feature (TF-0005 / sfx-system)
 - **Не владеет:** `Instance` lifecycle, AssetRegistry scanning, playback.
 - **Инвариант:** exact-id duplicate first-valid-row wins только соответствующий index; оставшиеся уникальные indexes той же строки продолжают работать.
 
+#### `SpatialAnchorBindingRegistry`
+
+- **Владеет:** одной side-owned регистрацией injected frame driver и generation-tagged registry только активных Attached bindings.
+- **Создание:** `OrdinarySoundInitializationCommand` создаёт registry один раз перед ordinary pools и injects его в World wrappers; Point wrapper не регистрируется.
+- **Вход:** `SpatialFrameDriver`, current lease generation, wrapper-owned `SpatialAnchor`, validated `Attachment`/`Camera`/`PVInstance` source и completion callback.
+- **Выход:** full-transform update: `Attachment.WorldCFrame`, `Camera.CFrame` либо `PVInstance:GetPivot()` копируется в `SpatialAnchor.CFrame` только при current generation.
+- **Граница владения:** registry не владеет wrapper, anchor, emitter, pool lease или completion. Target removal/transform-read failure вызывает единственный wrapper completion owner; release сначала unregister-ит current generation.
+- **Инвариант:** одна frame subscription на сторону, zero subscription для Point и никакой per-wrapper frame connection; stale callback после release/reuse — no-op.
+
 #### `AudioStartupInitializationCommand`
 
 - **Владеет:** единственной startup-оркестрацией validation четырёх raw config modules, physical audio query после `Assets`, построением frozen `AudioCatalog` и публикацией immutable `AudioStartupState` в manifest context.
-- **Вход:** injected `ReplicatedStorage`/config-root accessor, exact module names `AudioRuntimeConfig`, `RoutingConfig`, `SpatialProfiles`, `SoundCatalog`, `AudioSafetyLimits`, initialized `AssetRegistry`, side, injected Logger.
+- **Вход:** injected `ReplicatedStorage`/config-root accessor, exact module names `AudioRuntimeConfig`, `RoutingConfig`, `SpatialProfiles`, `SoundCatalog`, `AudioSafetyLimits`, initialized `AssetRegistry`, side и injected Logger.
 - **Выход:** ровно один `context.Services.AudioStartup`: `{Enabled=true, Config=ValidatedAudioConfig, Catalog=AudioCatalog}` либо `{Enabled=false, ReasonCode=...}`.
 - **Не владеет:** graph/pools, preload execution, communication registration или playback API.
-- **Инвариант:** command имеет `Id="AudioStartup"`, `DependsOn={"Assets"}` и является единственным manifest owner startup state. Внутри protected `Initialize` он non-yield traverses exact `ReplicatedStorage.Shared.Configs.Audio` path, проверяет четыре `ModuleScript`, выполняет каждый `require` через `pcall`, затем валидирует raw values; missing/wrong/throwing module даёт disabled state, а не bootstrap exception. Downstream commands объявляют `DependsOn` на `AudioStartup`, читают exact `context.Services.AudioStartup` в `Initialize` и не выполняют configs/catalog work в constructors.
+- **Инвариант:** command имеет `Id="AudioStartup"`, `DependsOn={"Assets"}` и является единственным manifest owner startup state. Внутри protected `Initialize` он non-yield traverses exact `ReplicatedStorage.Shared.Configs.Audio` path, проверяет четыре `ModuleScript`, выполняет каждый `require` через `pcall`, затем валидирует raw values. Missing/wrong/throwing module даёт disabled state, а не bootstrap exception. Downstream commands объявляют `DependsOn` на `AudioStartup`, читают exact `context.Services.AudioStartup` в `Initialize` и не выполняют configs/catalog work в constructors.
 
 #### `AudioGraphServer`
 
@@ -257,8 +345,8 @@ Audio playback feature (TF-0005 / sfx-system)
 |---|---|
 | Authoring | `configs/audio/Sounds.csv` |
 | Generated | `src/ReplicatedStorage/Shared/Configs/Audio/SoundCatalog.luau` |
-| Static configs | `AudioRuntimeConfig.luau`, `RoutingConfig.luau`, `SpatialProfiles.luau` рядом с catalog |
-| Shared code | `src/ReplicatedStorage/Shared/Audio/{AudioTypes,AudioProtocol,AudioSafetyLimits,AudioConfigValidator,AudioCatalog}.luau` |
+| Static configs | `AudioRuntimeConfig.luau`, `RoutingConfig.luau`, `SpatialProfiles.luau` рядом с catalog; positioning topology не является config field |
+| Shared code | `src/ReplicatedStorage/Shared/Audio/{AudioTypes,AudioProtocol,AudioSafetyLimits,AudioConfigValidator,AudioCatalog}.luau`, `AudioPlaybackWrapper` и side-owned `SpatialAnchorBindingRegistry` для Attached full-transform follow |
 | Server code | `src/ServerScriptService/Modules/Audio/{AudioGraphServer,OrdinarySoundServer,HybridOneShotServerController,AudioSettingsModule}.luau` |
 | Client code | `src/ReplicatedStorage/Client/Audio/{AudioGraphClient,OrdinarySoundClient,HybridOneShotClientController,MusicClient,AudioSettingsClient}.luau` |
 | Server commands | `AudioStartupInitializationCommand`, `AudioGraphInitializationCommand`, `OrdinarySoundInitializationCommand` в существующем command namespace |
@@ -274,7 +362,7 @@ Audio playback feature (TF-0005 / sfx-system)
 | Владелец | Интеграция | Запрещённое расширение |
 |---|---|---|
 | `AssetRegistry` | Статически индексирует physical Sounds и отдаёт immutable startup descriptors. | Live descendants, runtime graph lookup, ModuleScript/remotes lookup. |
-| `ContentPreloader` | Existing `StartupContentPreloadCommand` после `AudioStartup` выполняет один дополнительный sticky startup request `AudioCatalog.Preload.v1` из validated catalog. | Background retries или runtime preload manager внутри audio. |
+| `ContentPreloader` | Existing `StartupContentPreloadCommand` после `AudioStartup` преобразует sorted normalized IDs в ordered temporary unparented, non-playing `Sound` targets с exact `SoundId`, выполняет один дополнительный sticky startup request `AudioCatalog.Preload.v1` из validated catalog и уничтожает descriptor-only carriers после synchronous completion. | Background retries или runtime preload manager внутри audio. |
 | `PoolModule` | Создаёт отдельные side/type pools, возвращает generation leases. | Shared server/client registry или raw-object ownership. |
 | `Communication` | Регистрирует exact Intent и Presentation event-message shapes через существующие `RegisterHandler` APIs; Intent отправляется через `Queue`. | `RegisterRequestHandler`, direct RemoteEvent/RemoteFunction, отдельный ready registry. |
 | `SaveModule` | Регистрирует provider/factory, snapshot и patch routing. | Знание конкретных fields `AudioSettings`. |
@@ -466,7 +554,7 @@ export type AudioRuntimeConfig = {
 }
 ```
 
-`AudioRuntimeConfig` и все nested records exact: `Version`, `PlayerTypes`, `Faders` обязательны, а unknown top-level/container/record fields запрещены. Ключ каждой `PlayerTypes` record обязан совпадать с её discriminator `PlayerType`. Ordinary records `UI`, `SFX`, `World` обязаны содержать оба server budgets, оба client budgets и оба hybrid limits; `0/0` явно отключает соответствующую сторону либо hybrid delivery. Music record обязан содержать только client budgets и `MusicStackMaxDepth`; поля `ServerMaxActive`, `ServerMaxRetained`, `HybridRatePerSecond` и `HybridBurst` в нём запрещены. Все четыре встроенные records обязательны. `SourceVolumeMin/Max` должны удовлетворять `0 <= Min <= Max <= 10` (shipped `0..1`); `PlaybackSpeedMin/Max` — `0.05 <= Min <= Max <= 20` (shipped `0.5..2`); timeout — `0.5..30` секунд с shipped `UI=2`, `SFX=3`, `World=3`, `Music=15`. Config может настраивать только типы, заранее объявленные code/static-routing contract; player-to-fader mapping остаётся только в `RoutingConfig`.
+`AudioRuntimeConfig` и все nested records exact: `Version`, `PlayerTypes`, `Faders` обязательны, а unknown top-level/container/record fields запрещены. Spatial positioning key/enum/override отсутствует; любой такой unknown field отклоняется обычной exact-shape validation. Ключ каждой `PlayerTypes` record обязан совпадать с её discriminator `PlayerType`. Ordinary records `UI`, `SFX`, `World` обязаны содержать оба server budgets, оба client budgets и оба hybrid limits; `0/0` явно отключает соответствующую сторону либо hybrid delivery. Music record обязан содержать только client budgets и `MusicStackMaxDepth`; поля `ServerMaxActive`, `ServerMaxRetained`, `HybridRatePerSecond` и `HybridBurst` в нём запрещены. Все четыре встроенные records обязательны. `SourceVolumeMin/Max` должны удовлетворять `0 <= Min <= Max <= 10` (shipped `0..1`); `PlaybackSpeedMin/Max` — `0.05 <= Min <= Max <= 20` (shipped `0.5..2`); timeout — `0.5..30` секунд с shipped `UI=2`, `SFX=3`, `World=3`, `Music=15`. Config может настраивать только типы, заранее объявленные code/static-routing contract; player-to-fader mapping остаётся только в `RoutingConfig`.
 
 Shipped ordinary budgets:
 
@@ -499,7 +587,7 @@ return {
 }
 ```
 
-Side aggregate code-owned ceilings из `TS-DEC-002` проверяются после суммирования всех configured types. Worst-case objects считается conservatively: `4 * (total active + total retained)` и обязан быть `<=768`.
+Side aggregate code-owned ceilings из `TS-DEC-002` проверяются после суммирования всех configured types. Каждый active/retained World wrapper имеет ровно четыре code-owned Instances: root `SpatialAnchor` (`Part`) и его children `AudioPlayer`, `AudioEmitter`, `Wire`. Непространственный Ordinary/Music wrapper содержит не больше четырёх Instances, поэтому validator консервативно применяет `4 * (total active + total retained) <= 768` ко всем configured types. Shipped boundary `4 * (128 + 64) = 768` принимается; любое превышение целиком отключает side до graph/pools.
 
 Каждый из `Master`, `UI`, `SFX`, `World`, `Music` также имеет в `AudioRuntimeConfig` exact fader profile `{DefaultLevel01, MinDb, MaxDb, Curve="LinearDb"}`. `DefaultLevel01` finite `0..1`; `-60 <= MinDb <= MaxDb <= 0`; shipped profile `-60..0 dB`, не усиливает сигнал. Для shipped `LinearDb`: `level=0` даёт gain `0`; иначе `db=MinDb+(MaxDb-MinDb)*level`, `gain=10^(db/20)`, и gain назначается `AudioFader.Volume`. `RoutingConfig` не владеет уровнями или кривыми.
 
@@ -603,7 +691,7 @@ export type ValidatedAudioConfig = {
 }
 ```
 
-`ValidatedAudioConfig` и все nested tables/arrays deep-frozen; raw config tables никогда не выдаются. Все defaults уже материализованы, route/fader links проверены, invalid profile records удалены, и every surviving `CatalogVariant.SpatialProfileId` разрешается в `SpatialProfilesById`. `DefaultWorldProfileId=nil` означает, что authored default record отсутствовал/был invalid и все зависевшие от него World variants уже исключены. Server/client с одинаковыми module bytes и physical catalog descriptors обязаны получить structural-equal normalized snapshots; cross-side parity покрывается deterministic fixtures.
+`ValidatedAudioConfig` и все nested tables/arrays deep-frozen; raw config tables никогда не выдаются. Spatial positioning отсутствует в raw и normalized config. Все defaults уже материализованы, route/fader links проверены, invalid profile records удалены, и every surviving `CatalogVariant.SpatialProfileId` разрешается в `SpatialProfilesById`. `DefaultWorldProfileId=nil` означает, что authored default record отсутствовал/был invalid и все зависевшие от него World variants уже исключены. Server/client с одинаковыми module bytes и physical catalog descriptors обязаны получить structural-equal normalized snapshots; cross-side parity покрывается deterministic fixtures.
 
 ### 5.6. Hybrid protocol
 
@@ -804,10 +892,10 @@ flowchart LR
 Exact replicated handoff первой версии:
 
 1. `AudioProtocol` объявляет literals `RuntimeRootName="AudioRuntime"`, `PublishedGraphName="PublishedGraph"`, `ServerPlaybackName="ServerPlayback"`, `CompositionId="AudioGraph.v1"`, `SchemaVersion=1`, `Generation=1` и attribute names `CompositionId`, `SchemaVersion`, `Generation`, `Ready`.
-2. `AudioGraphServer` строит **не parented** candidate `Folder` с будущим path `ReplicatedStorage.AudioRuntime`. Candidate содержит immutable `PublishedGraph/Faders/{Master,UI,SFX,World,Music}`, immutable `PublishedGraph/Wires` с validated category-to-Master wires и пустой dynamic `ServerPlayback` для готовых server wrapper subtrees.
+2. `AudioGraphServer` строит **не parented** candidate `Folder` с будущим path `ReplicatedStorage.AudioRuntime`. Candidate содержит immutable `PublishedGraph/Faders/{Master,UI,SFX,World,Music}`, immutable `PublishedGraph/Wires` с validated category-to-Master wires и пустой dynamic `ServerPlayback` для nonspatial server wrappers. Active World wrappers не используют этот folder как position root: complete `SpatialAnchor` subtrees parent-ятся напрямую в injected server `Workspace` по §7.4.
 3. После проверки exact names/classes, unique faders, route parent links, wire endpoints и private interaction group server ставит candidate attributes `CompositionId="AudioGraph.v1"`, `SchemaVersion=1`, `Generation=1`, затем `Ready=true` и последним действием parent-ит весь candidate в injected `ReplicatedStorage`. Existing child с именем `AudioRuntime`, wrong class/attribute или second generation даёт disabled result; runtime не заменяет и не чинит его частично.
 4. `AudioGraphClient` получает injected `ReplicatedStorage` и bounded waiter, ожидает exact `AudioRuntime` path не более `AudioSafetyLimits.GraphBindTimeoutSeconds=10`, затем ожидает/проверяет всю immutable subtree и четыре attributes. Порядок replication descendants не считается атомарным: bind разрешён только после наблюдения полного exact composition с `Ready=true`.
-5. Client memoizes exact root Instance и generation. Повторный bind того же command возвращает тот же result; replacement root, marker drift, missing/wrong child, generation не `1` или timeout выполняет idempotent cleanup local listener/output/wires и публикует client disabled state. Частичный graph никогда не получает source/output wire.
+5. Client memoizes exact root Instance и generation. Повторный bind того же command возвращает тот же result; replacement root, marker drift, missing/wrong child, generation не `1` или timeout выполняет idempotent cleanup local listener/output/wires и публикует client disabled state. Частичный graph никогда не получает source/output wire. Client-local World wrappers создают свои `SpatialAnchor` subtrees напрямую в injected client `Workspace`; они не добавляются в replicated `ServerPlayback`.
 6. Manifests являются composition boundary: они inject runtime parents/accessors в graph commands. `AudioGraphServer`, `AudioGraphClient` и playback modules не используют `AssetRegistry` или hidden `GetService` как graph locator.
 
 ### 6.3. Ownership and lifecycle state
@@ -826,21 +914,21 @@ stateDiagram-v2
     Released --> Idle: reset and TryRelease current lease
 ```
 
-Один wrapper имеет ровно одного completion owner. `Ended`, timeout, target removal, `Stop`, FIFO eviction и stale callbacks сходятся в одну идемпотентную release function с проверкой generation.
+Один wrapper имеет ровно одного completion owner. `Ended`, timeout, target removal, `Stop`, FIFO eviction и stale callbacks сходятся в одну идемпотентную release function с проверкой generation. `SpatialAnchorBindingRegistry` не становится вторым completion owner: он хранит только wrapper identity + generation + anchor/target reference, а unregister текущей generation является обязательным первым шагом wrapper release. Удалённый target либо failure transform read уведомляет ту же wrapper completion function ровно один раз.
 
 ## 7. Runtime Flows
 
 ### 7.1. Bootstrap и disabled-side containment
 
 1. Manifest constructor phase только injects `ReplicatedStorage`, exact config path/module names, `AssetRegistry`, `AudioSafetyLimits` и Logger в `AudioStartupInitializationCommand`; raw audio modules в constructor phase не загружаются.
-2. После `Assets` protected command boundary exact-traverses config path, проверяет class каждого из четырёх modules, `pcall(require)`-ит их и передаёт successful raw values в `AudioConfigValidator`. Validator проверяет types, exact keys, shipped/default values, all code-owned ceilings и cross-table references; создаёт deep-frozen `ValidatedAudioConfig`/`AudioCatalogSnapshot`.
+2. После `Assets` protected command boundary exact-traverses config path, проверяет class каждого из четырёх modules, `pcall(require)`-ит их и передаёт successful raw values в `AudioConfigValidator`. Validator проверяет types, exact keys, shipped/default values, fixed four-object World wrapper ceiling и cross-table references. Positioning topology не входит в config; любой unknown field отклоняется exact-shape validation. Только после этого command создаёт deep-frozen `ValidatedAudioConfig`/`AudioCatalogSnapshot` и публикует enabled state.
 3. Ошибка фиксируется Logger reason code и возвращает stable disabled `AudioStartupState`. Audio pools и graph не создаются; hybrid transport handlers всё равно регистрируются после `Communication` в exact disabled no-op/reject режиме до `ClientReady`.
 4. `Assets` command сначала строит immutable catalog roots; затем `AudioStartup` выполняет physical audio query и catalog build. Для audio key conflict используется только ADR-approved exact policy.
-5. Client собирает normalized unique preload IDs из valid generated rows и physical Sounds с `Preload=true`, сортирует и вызывает `ContentPreloader:Preload` с `RequestId="AudioCatalog.Preload.v1"`, policy `Warn`. Completion/failure завершается до SFX-ready.
-6. Pooling существует до ordinary/Music commands; commands создают homogeneous pools по concrete wrapper type и бюджету.
+5. Client собирает normalized unique preload IDs из valid generated rows и physical Sounds с `Preload=true`, сортирует их, создаёт в том же порядке temporary unparented, non-playing `Sound` targets с exact `SoundId`, и вызывает `ContentPreloader:Preload` с `RequestId="AudioCatalog.Preload.v1"`, policy `Warn`. Descriptor-only carriers никогда не входят в runtime playback graph и уничтожаются после synchronous completion/failure до SFX-ready; повторный command initialization сначала использует completed sticky result и не создаёт новый backend call.
+6. Pooling registry существует до ordinary/Music commands; до готового graph никакие audio pools или spatial frame connections не создаются.
 7. Server graph строит exact непубликованный `AudioRuntime` candidate из §6.2, полностью проверяет и последним действием parent-ит его в `ReplicatedStorage` как единственную generation.
 8. Client bounded-waits exact `ReplicatedStorage.AudioRuntime` composition/markers, валидирует всю subtree, затем строит local listener/output/wires и остаётся с disconnected output; timeout/mismatch даёт no-op runtime с полным local cleanup.
-9. Ordinary и Music commands bind только к готовому graph generation. `OrdinarySoundInitializationCommand` после `Communication` регистрирует server Intent event handler через `CommunicationServer:RegisterHandler` и client Presentation event handler через `CommunicationClient:RegisterHandler`; disabled side регистрирует те же exact event handlers, которые не создают pools/graph и не повторяют сеть. `RegisterRequestHandler` для hybrid не вызывается.
+9. Ordinary и Music commands bind только к готовому graph generation. `OrdinarySoundInitializationCommand` создаёт один side-owned `SpatialAnchorBindingRegistry`, затем homogeneous ordinary pools; disabled side не создаёт registry/pools/graph. После `Communication` command регистрирует server Intent event handler через `CommunicationServer:RegisterHandler` и client Presentation event handler через `CommunicationClient:RegisterHandler`; disabled side регистрирует те же exact handlers без playback/fanout. `RegisterRequestHandler` для hybrid не вызывается.
 10. Save/DomainData регистрирует `AudioSettings` до `Version`; client provider `Run` синхронно применяет restored/default levels и подключает output до возврата.
 11. `ClientReady` публикуется существующим GlobalSave lifecycle только после успешного provider Run.
 12. Повторный Initialize в том же bootstrap возвращает тот же service/disabled result без rebuild. Production `Stop -> Initialize` не поддерживается.
@@ -862,7 +950,10 @@ Folder resolver принимает три эквивалентные входн�
 1. API `PlayLocal`, `PlayLocalAt` или `PlayLocalAttached` валидирует ref/source/options и не yield-ит. Point требует только `Vector3`; attached принимает validated `PVInstance`, `Attachment` или `Camera` и не parent-ит emitter внутрь source.
 2. Resolver выбирает variant; Music variant отклоняется.
 3. Type queue reserve выполняет FIFO eviction oldest active/pending до `Acquire`, если active limit заполнен. Retained idle wrappers не считаются active.
-4. Lease/wrapper полностью reset и configure: `AudioPlayer.Asset` (не deprecated `AssetId`), source volume, speed, looping, region intent, profile, route, target subscriptions. Для **обоих** spatial variants wrapper до wiring ставит emitter `PositionType=Enum.EmitterPositionType.Instance`, затем `PositionInstance`: lease-owned anchor для Point или validated source для Attached. Emitter остаётся под pool-owned active parent и никогда не parent-ится в source. Release сначала очищает `PositionInstance=nil`, затем возвращает `PositionType=Enum.EmitterPositionType.Parent`; reset test доказывает оба поля перед reuse.
+4. World lease приобретает fixed `AudioPlaybackWrapper`, root которого является invisible anchored non-collidable `Part` с именем `SpatialAnchor`. До parent/Play wrapper полностью настраивает его children: `AudioPlayer.Asset` (не deprecated `AssetId`), source volume/speed/looping/regions, `AudioEmitter` profile/interaction group и colocated `Wire` с `SourceInstance=AudioPlayer`, `TargetInstance=AudioEmitter`. `AudioEmitter` остаётся непосредственным child anchor и использует default `Enum.EmitterPositionType.Parent`; playback code не читает и не пишет emitter `PositionType`/`PositionInstance`.
+   - Point устанавливает `SpatialAnchor.CFrame=CFrame.new(position)` один раз, не регистрируется в frame driver и остаётся ненаправленным.
+   - Attached до activation копирует full transform target (`Attachment.WorldCFrame`, `Camera.CFrame` или `PVInstance:GetPivot()`), затем регистрирует current generation в единственном side-owned `SpatialAnchorBindingRegistry`. Target removal, transform-read failure, Stop, timeout, Ended или eviction сначала unregister-ят current generation, затем идут через общий release; late frame callback — no-op.
+   - Последним setup action active `SpatialAnchor` parent-ится напрямую в injected `Workspace`. На server это одна реплицируемая subtree lease; на client это local-only subtree. Anchor/emitter никогда не parent-ятся в gameplay target. Source wire не пересекает разные DataModel branches, потому что оба endpoints и wire colocated под одним anchor.
 5. API немедленно возвращает active pending handle.
 6. Injected bounded readiness waiter отслеживает `IsReady`; stop/timeout/generation change cancels continuation.
 7. После ready фактический `TimeLength` используется для validation/clamp playback/loop regions и optional absolute `TimePosition`. Invalid loop region использует весь effective playback region для loop с warning; пустой playback region даёт no-op.
@@ -874,11 +965,11 @@ Folder resolver принимает три эквивалентные входн�
 ### 7.4. Trusted server-all play
 
 1. Только server API принимает nonspatial, point или replicated attached source.
-2. Server выбирает variant один раз, приобретает ровно одну server lease и полностью настраивает wrapper вне replicated hierarchy. Для Point и Attached он применяет тот же exact emitter contract §7.3: `PositionType=Instance` перед `PositionInstance`; release очищает ссылку и возвращает `PositionType=Parent`.
-3. Последним setup action готовый graph subtree parent-ится под replicated runtime ancestor.
+2. Server выбирает variant один раз, приобретает ровно одну server lease и полностью настраивает fixed composition из §7.3. Attached full-transform tracking использует один injected centralized server frame driver. Per-client lease и application fanout отсутствуют.
+3. Последним setup action готовый `SpatialAnchor` subtree parent-ится напрямую в injected server `Workspace`; server вызывает `AudioPlayer:Play()` только для current ready generation.
 4. Native Advanced Audio replication создаёт слышимое воспроизведение у клиентов; application fanout отсутствует.
 5. One-shot возвращает accepted `DispatchResult` без handle. Loop возвращает handle, действующий ровно пока активна lease.
-6. Release сначала вызывает `Stop`, отключает connections/wires, очищает asset/regions/emitter/anchor/parenting, затем `TryRelease(currentLease)`.
+6. Release сначала unregister-ит Attached binding, вызывает `Stop`, disconnect-ит callbacks, очищает wire endpoints/asset/regions/profile/source refs, unparent-ит complete anchor subtree из `Workspace`, затем `TryRelease(currentLease)`.
 
 ### 7.5. Client-hybrid one-shot
 
@@ -960,12 +1051,12 @@ Folder resolver принимает три эквивалентные входн�
 
 ### 8.2. Platform contracts
 
-Реализация использует Roblox Advanced Audio instances и проверенные engine contracts:
+Реализация использует Roblox Advanced Audio instances и одну fixed parent-positioning spatial composition:
 
 - `AudioPlayer.Asset`, `IsReady`, `LoopRegion`, `PlaybackRegion`, `PlaybackSpeed`, `TimePosition`, `TimeLength`, `Play`, `Stop`;
 - `Wire.SourceInstance`, `TargetInstance`, `Connected`;
 - `AudioFader.Volume`;
-- `AudioEmitter.PositionInstance`, `PositionType`, `AudioInteractionGroup`, attenuation setters;
+- `AudioEmitter` получает position/orientation от непосредственного wrapper-owned `SpatialAnchor: Part` в default Parent mode; playback path использует `AudioInteractionGroup` и attenuation setters, но не читает и не пишет emitter `PositionInstance`/`PositionType`;
 - `AudioListener.PositionInstance`, `PositionType`, `AudioInteractionGroup`;
 - `AudioDeviceOutput.Player`;
 - `SoundService.AcousticSimulationEnabled` только как canonical-place authoring property.
@@ -988,7 +1079,7 @@ Implementation review должен сверить используемые API �
 | Music stack | `16` absolute |
 | Aggregate configured active per side | `128` |
 | Aggregate configured retained per side | `64` |
-| Worst-case playback objects per side | `768` |
+| Worst-case playback objects per side | `768`; fixed maximum `4` Instances на active/retained wrapper |
 | Hybrid per type | `30/s`, burst `60` |
 | Hybrid per owner aggregate | `20/s`, burst `30` |
 | Server accepted aggregate | `128/s`, burst `256` |
@@ -999,7 +1090,7 @@ Implementation review должен сверить используемые API �
 | Normalized path bytes | `512` |
 | Estimated hybrid intent bytes | `2048` |
 
-`CueId`, `VariantId`, `AssetKey` используют case-sensitive ASCII `[A-Za-z0-9._-]`, начинаются с буквы/цифры и имеют `1..128` UTF-8 bytes; `PlayerType` использует ту же grammar и `1..64` bytes. Decimal AssetId — `1..32` digits, positive, no leading zero; prefix `rbxassetid://` удаляется без преобразования через number. Все числа должны быть finite. Rate limit buckets используют injected monotonic clock; wall-clock time запрещён.
+`CueId`, `VariantId`, `AssetKey` используют case-sensitive ASCII `[A-Za-z0-9._-]`, начинаются с буквы/цифры и имеют `1..128` UTF-8 bytes; `PlayerType` использует ту же grammar и `1..64` bytes. Spatial positioning не является authored identifier/config field. Decimal AssetId — `1..32` digits, positive, no leading zero; prefix `rbxassetid://` удаляется без преобразования через number. Все числа должны быть finite. Rate limit buckets используют injected monotonic clock; wall-clock time запрещён.
 
 ### 8.4. Performance and boundedness
 
@@ -1007,7 +1098,7 @@ Implementation review должен сверить используемые API �
 - Runtime-growing queues, caches, connection registries и retry state обязаны иметь конечные code-owned бюджеты. Authored startup input уже конечен своими CSV/Instance данными: valid CSV rows, общий catalog size и recursive folder candidates не получают произвольного суммарного cap и не отклоняются только из-за заранее угаданного общего размера; они всё равно проходят все per-record grammar, schema, curve и safety validations.
 - Preload IDs unique and sorted; request sticky по `RequestId`.
 - Normal completion возвращает active/retained leases к baseline; retained Music ограничена.
-- Один wrapper создаёт не более четырёх playback instances; persistent graph не входит в per-play pool.
+- Object-cost validation считает `SpatialAnchor`, `AudioPlayer`, `AudioEmitter` и `Wire` как exact four-object World maximum; для всех wrapper types применяется тот же conservative multiplier `4`.
 - Нет full provider-table network replacement; patches остаются compact explicit messages.
 - Hybrid server делает одну authoritative resolution и один bounded recipient pass.
 
@@ -1016,6 +1107,8 @@ Implementation review должен сверить используемые API �
 | Отказ | Поведение |
 |---|---|
 | Invalid local config/top-level schema/routing graph/ceiling | Side audio disabled before pools/graph; disabled transport handlers remain registered; stable error. |
+| Unknown config field | Exact-shape config invalid; side audio disabled before pools/graph; fixed spatial composition не имеет configuration surface. |
+| World composition construction fails | Current lease alone is fully cleaned and released; no partial anchor subtree is parented or played. |
 | Invalid spatial profile record/reference | Invalid record unavailable; only variants that resolve to it are skipped with warning; unrelated audio remains enabled. |
 | Missing/wrong physical root | Side audio disabled before AssetRegistry audio query. |
 | Invalid catalog row | Row skipped with warning; другие valid rows продолжают работу. |
@@ -1040,13 +1133,13 @@ Implementation review должен сверить используемые API �
 ### 8.7. Logging and observability
 
 - Все ошибки/предупреждения — через `Logger`; прямые `print`/`warn` запрещены.
-- Stable reason codes являются testable contract; минимум: `AudioDisabled`, `InvalidConfig`, `CatalogRowSkipped`, `CatalogConflictFirstWins`, `UnknownRef`, `TypeMismatch`, `HybridNotAllowed`, `HybridQueueRejected`, `RateLimited`, `FanoutBudgetExceeded`, `LoadTimeout`, `InvalidRegion`, `TargetRemoved`, `StaleCallback`, `MusicCapacity`, `InvalidSettings`.
+- Stable reason codes являются testable contract; минимум: `AudioDisabled`, `InvalidConfig`, `SpatialCompositionFailed`, `CatalogRowSkipped`, `CatalogConflictFirstWins`, `UnknownRef`, `TypeMismatch`, `HybridNotAllowed`, `HybridQueueRejected`, `RateLimited`, `FanoutBudgetExceeded`, `LoadTimeout`, `InvalidRegion`, `TargetRemoved`, `StaleCallback`, `MusicCapacity`, `InvalidSettings`.
 - Ожидаемые client-originated rejects не создают stack trace и не повторяют raw input.
 - Нет audio limiter/cache/cooldown, кроме явно заданных token buckets и anti-repeat state.
 
-### 8.8. Architectural gate
+### 8.8. Архитектурные условия допуска
 
-`TS-GATE-001` закрыт до первой source-code правки следующими Accepted template ADR:
+`TS-GATE-001` закрыт для существующей revision-7 implementation следующими Accepted template ADR:
 
 1. ADR-0041 (supersedes ADR-0038) — локальный Luau exception для `ReplicatedStorage.Shared.Configs.Audio`, защищённый `AudioStartup` owner и обязательные disabled transport handlers, ограничивающие ADR-0017 и владеющие validator, code ceilings, rules/docs/tests;
 2. ADR-0039 — audio-only deterministic first-wins AssetRegistry policy под `ReplicatedStorage.Assets.Shared.Sounds`, сохраняющая fail-closed вне audio;
@@ -1054,18 +1147,23 @@ Implementation review должен сверить используемые API �
 
 Accepted decisions не отменяют documentation/enforcement cascade: `.agents/rules/audio.md`, routed rule index, `docs/AudioSystem.md`, связанные architecture/configuration/assets/testing docs и enforcement tests обязаны оставаться согласованными с этой спецификацией.
 
+`TS-GATE-002` является безусловным source-implementation gate: до первой source-code правки должен быть создан и принят новый template ADR, который владеет spatial concrete class, active parentage, colocation, transform update, single-driver ownership, cleanup, object inventory и rejected positioning alternatives из `TS-DEC-008`. Если этот record materially изменяет решение ADR-0040, он явно supersedes ADR-0040; иначе он ссылается на ADR-0040 как на продолжающий действовать graph/acoustic owner и уточняет только fixed spatial implementation boundary. Accepted history не переписывается. Этот gate не является открытым product, scope, boundary, ownership или public-contract вопросом: техническое решение уже полностью задано `TS-DEC-008`, а ADR фиксирует его до implementation.
+
+Canonical PRD revision `4` и `TS-DEC-008` фиксируют spatial contract независимо от номера будущего ADR. После закрытия `TS-GATE-002` source implementation обязана пройти rules/current-docs/tests cascade и доказать native one-server-lease replication в mandatory Studio scenarios.
+
 ## 9. Mandatory Implementation Approach
 
 ### 9.1. Фаза A — архитектурные решения и правила
 
 1. Сохранить Accepted ADR-0041/0039/0040 и их записи в template ADR index; ADR-0038 остаётся историческим Superseded record. При изменении durable decision создавать новый superseding ADR, не переписывать Accepted body.
-2. Сохранить `.agents/rules/audio.md` и route в `.agents/rules/index.md`, маршрутизирующие audio configs, catalog, graph, runtime, save и test requirements.
-3. Обновить required descriptive docs, включая новый `docs/AudioSystem.md`, и документировать ограничение existing ADRs через новые Accepted decisions, не переписывая историю.
+2. До первой source-code правки закрыть `TS-GATE-002`: создать и принять новый template ADR, который безусловно владеет fixed spatial topology из `TS-DEC-008`, затем синхронизировать её в rules/current-docs/tests cascade. Новый ADR supersedes ADR-0040 только если materially изменяет его решение; иначе ADR-0040 остаётся Accepted, а новый record уточняет spatial implementation boundary. Accepted history не переписывать.
+3. Сохранить `.agents/rules/audio.md` и route в `.agents/rules/index.md`, маршрутизирующие audio configs, catalog, graph, runtime, save и test requirements.
+4. Обновить required descriptive docs, включая `docs/AudioSystem.md`, и документировать ограничение existing ADRs через новые Accepted decisions, не переписывая историю.
 
 ### 9.2. Фаза B — authoring/config/assets
 
 1. Добавить canonical CSV и generated catalog.
-2. Добавить три local config modules и code-owned `AudioSafetyLimits`.
+2. Добавить три local config modules и code-owned `AudioSafetyLimits`; `AudioRuntimeConfig` не содержит spatial positioning key/enum/override.
 3. Реализовать validator/freeze и deterministic catalog indexes.
 4. Добавить hybrid Rojo `Sounds` folder mapping; физические Sounds редактировать только в Studio.
 5. Реализовать exact audio duplicate policy в `AssetRegistry` и сохранить старые failure tests для non-audio duplicates.
@@ -1078,6 +1176,7 @@ Accepted decisions не отменяют documentation/enforcement cascade: `.ag
 3. Создать side/type homogeneous pools через existing PoolModule.
 4. Реализовать current-generation completion и ordinary FIFO.
 5. Добавить character/camera listener binding через PlayersModule.
+6. Заменить emitter `PositionType`/`PositionInstance` playback path одной fixed World wrapper composition: root `SpatialAnchor: Part` в injected `Workspace`, его children `AudioPlayer + AudioEmitter + Wire`, Point set-once и Attached через одну injected side frame-driver registration; public APIs, transport и pool identities не менять.
 
 ### 9.4. Фаза D — APIs и communication
 
@@ -1150,6 +1249,7 @@ Client API первой версии возвращает **только** ук�
 - communication transport/recipient resolver;
 - injected `ReplicatedStorage`/`Workspace` runtime parents, bounded graph waiter и instance factory;
 - camera accessor и render-frame listener driver;
+- `SpatialFrameDriver:Connect(callback)` отдельно на каждой стороне: production client adapter использует render-frame cadence, production server adapter — Heartbeat cadence; spatial tests inject deterministic manual driver;
 - Logger;
 - PoolModule/catalog/graph/provider dependencies.
 
@@ -1166,6 +1266,7 @@ Production adapters создаются manifest composition. Модули не �
 - отсутствие direct remotes/direct Players lifecycle/direct `print`/`warn`;
 - protocol exact shape и absence forbidden fields;
 - all budgets/limits/defaults against code-owned ceilings;
+- fixed spatial composition без positioning config/enum, zero emitter `PositionType`/`PositionInstance` access и exact four-object object ceiling;
 - provider order/authority/policy/version, exact side-specific envelope-hook signatures/order/failure semantics и AudioSettings-only client snapshot reconciliation;
 - documentation/rule/ADR cascade.
 
@@ -1186,6 +1287,26 @@ Production adapters создаются manifest composition. Модули не �
 - clean Studio Play с проверкой server и client output, так как меняются bootstrap/network/save/player lifecycle;
 - multi-client Studio scenarios §9.12.
 
+Fixed-spatial evidence обязательно и не заменяет существующие acceptance identities:
+
+| Evidence identity | Обязательный результат |
+|---|---|
+| `AudioStatic/FixedSpatialCompositionOnly` | `AudioRuntimeConfig`, normalized config, public APIs и protocol не содержат positioning topology key/enum; runtime строит только fixed `SpatialAnchor` composition. |
+| `AudioPlayback/SpatialAnchorFixedComposition` | World wrapper root — exact invisible anchored non-collidable `SpatialAnchor: Part` under injected active `Workspace`; exact children `AudioPlayer`, `AudioEmitter`, `Wire`; emitter direct child/default Parent; wire endpoints colocated. |
+| `AudioPlayback/SpatialAnchorPointStatic` | Point anchor получает заданный `CFrame` один раз, frame registry не растёт, release unparent/reset generation-safe. |
+| `AudioPlayback/SpatialAnchorAttachedFullTransformGenerationCleanup` | Manual client/server frame drivers копируют full transform `Attachment`/`Camera`/`PVInstance`; target removal/release unregister-ит binding; stale callback после reuse — no-op. |
+| `AudioPlayback/SpatialPublicSurface` | Fixed topology использует существующие `PlayLocalAt`, `PlayLocalAttached`, `PlayAt`, `PlayAttached`, hybrid point DTO, pool IDs, handles и completion owner; дополнительного transport/API нет. |
+| `AudioConfig/FixedSpatialCompositionObjectCeiling` | Exact World cost равна `4`; conservative formula `4 * (total active + total retained) <= 768`; превышение отключает side до graph/pools. |
+| `Studio-E2E-AUDIO-01/HybridPrediction` | Hybrid Point слышен у initiator и другого ready client по прежнему one-intent/one-presentation contract; server player отсутствует. |
+| `Studio-E2E-AUDIO-02/PointAttenuation`, `AttachedFollowOrientation`, `ServerAttachedReplication` | Реальные point/attached sources слышимы из wrapper-owned anchors; Attached следует position+orientation; server-all остаётся одной server lease/native replication. |
+
+Дополнительные branch evidence identities ниже являются обязательными named cases focused runners. Они не вводят отдельные fixtures: каждая identity наследует fixture, cleanup и diagnostics своего `EP-*` profile из §9.11; runner обязан зарегистрировать exact case name, а aggregate result без этих case records не закрывает acceptance.
+
+| Runner / profile | Обязательные branch identities | Дополнительный gate |
+|---|---|---|
+| `AudioPlaybackTestRunner` / `EP-PLAYBACK` | `AudioPlayback/ResolvedVariantAssetAndPlayerType`, `AudioPlayback/UnknownIdentifierNoAcquire`, `AudioPlayback/PerPlayOverridesIsolated`, `AudioPlayback/PerPlayEffectiveRangeRejectedBeforeAcquire`, `AudioPlayback/ForbiddenCatalogOverrideFieldsRejected`, `AudioPlayback/PendingReadyBeforeTimeoutStarts`, `AudioPlayback/PendingStopBeforeReadyCleanup`, `AudioPlayback/PendingLoadTimeoutCleanup`, `AudioPlayback/ActiveReadinessLossReleasesWithoutEnded`, `AudioPlayback/MusicStopAudibleIncumbentUnderPendingTop` | Positive cases требуют `DG-NONE`; unknown ref требует exact `UnknownRef`, invalid effective range/forbidden override — exact `TypeMismatch`, timeout — exact `LoadTimeout`; каждый rejected/stopped/timed-out case доказывает baseline pool/object/callback counts. |
+| `AudioIntegrationTestRunner` / `EP-INTEGRATION` | `AudioIntegration/GlobalSnapshotExcludesPlaybackState` | Snapshot case требует `DG-NONE` и exact provider-key inventory без playback state. |
+
 ### 9.11. Acceptance evidence matrix
 
 Evidence identity обязана существовать как named test case/static check/scenario; номер AC не может быть подтверждён только общей фразой.
@@ -1195,7 +1316,7 @@ Evidence identity обязана существовать как named test case
 | Profile / identity prefix | Concrete fixture | Cleanup contract | Expected diagnostics |
 |---|---|---|---|
 | `EP-CATALOG`: `AudioCatalog/*`, `AssetRegistry/*`, `AudioCsv/*` | `FX-CATALOG`: frozen shipped configs, ordered generated rows, canonical in-memory `Shared/Sounds` tree и injected samples; named case задаёт единственную mutation. | `CL-UNIT`: destroy tree/registry, disconnect all signals, assert no leases/tasks и restore generated-file fixture bytes. | `DG-NONE` для positive case; named invalid/conflict cases обязаны assert exact `CatalogRowSkipped`, `CatalogConflictFirstWins`, `InvalidConfig` или `UnknownRef` и отсутствие unexpected warning/error. |
-| `EP-PLAYBACK`: `AudioPlayback/*` | `FX-PLAYBACK`: generation-aware fake PoolModule, fake AudioPlayer/emitter/wire/anchor, injected clock/readiness/tween/RNG и shipped graph ports. | `CL-UNIT` плюс active/retained/connection/object counts равны baseline, scheduled callbacks `0`. | `DG-NONE` для positive case; failure case assert соответствующий `LoadTimeout`, `InvalidRegion`, `TargetRemoved`, `StaleCallback` или `MusicCapacity`. |
+| `EP-PLAYBACK`: `AudioPlayback/*` | `FX-PLAYBACK`: frozen catalog, generation-aware fake PoolModule, fake AudioPlayer/emitter/wire/anchor, injected clock/readiness/tween/RNG и shipped graph ports. | `CL-UNIT` плюс active/retained/connection/object counts равны baseline, scheduled callbacks `0`. | `DG-NONE` для positive case; failure case assert соответствующий `UnknownRef`, `TypeMismatch`, `LoadTimeout`, `InvalidRegion`, `TargetRemoved`, `StaleCallback` или `MusicCapacity`. |
 | `EP-INTEGRATION`: `AudioIntegration/*` | `FX-INTEGRATION`: isolated server + three fake clients, real communication/save/player module boundaries, deterministic transport queues/token buckets and fake character/camera. | `CL-UNIT` плюс queues/token buckets/providers/ready recipients cleared и revisions unchanged unless case says commit. | `DG-NONE` для accepted case; reject case assert `HybridNotAllowed`, `RateLimited`, `FanoutBudgetExceeded`, `InvalidSettings` или schema-specific `InvalidConfig`, with no raw payload. |
 | `EP-CONFIG`: `AudioConfig/*` | `FX-CONFIG`: exact shipped tables plus one named boundary mutation and object-cost calculator. | `CL-UNIT`; no graph/pool instance may exist after disabled result. | `DG-NONE` для valid table; invalid case exact `InvalidConfig`/`AudioDisabled`, one stable diagnostic per failed boundary. |
 | `EP-STATIC`: `AudioStatic/*` | `FX-STATIC`: exact candidate repository tree, manifests, canonical `place.rbxl` inspection result, Accepted ADR indexes and generated hashes. | `CL-READONLY`: no repository mutation; temporary build/inspection artifacts removed. | No runtime diagnostics; validator exit/status and exact offending path/contract are the observable. |
@@ -1205,92 +1326,92 @@ Evidence identity обязана существовать как named test case
 
 | PRD AC | Evidence identity | Тип и проверяемый результат |
 |---|---|---|
-| `001` | `AudioCatalog/RawAssetExactVariant` + `AudioCatalog/RequiredStableCueVariantPair` | Deterministic: raw id запускает точный variant; every accepted CSV row has a valid non-empty CueId/VariantId pair and missing/invalid/duplicate pair skips the row. |
-| `002` | `Studio-E2E-AUDIO-02/NonSpatialInvariant` | Multi-client: 2D громкость не зависит от позиции. |
-| `003` | `Studio-E2E-AUDIO-02/PointAttenuation` + `Studio-E2E-AUDIO-02/AttachedFollowOrientation` + `AudioPlayback/PointRejectsDirectionalProfile` | Multi-client + deterministic: point attenuation is nondirectional; directional Point rejects before acquire; Attached follows position and orientation through target lifetime. |
-| `004` | `AudioPlayback/OrdinaryFifoBudget` | Deterministic: active limit/FIFO/retain. |
-| `005` | `Studio-E2E-AUDIO-03/CategoryIsolation` | Multi-client: UI/Master effects isolated. |
-| `006` | `AudioPlayback/MusicInstantNoOverlap` + `AudioPlayback/MusicSequentialParticipantOrder` + `AudioPlayback/MusicCrossfadeAdjacentPair` + `AudioPlayback/MusicPostTransitionRetain` | Deterministic: all three strategies enforce their exact overlap/order rules; steady state has only Top Music entry playing and previous entry retains lease/position. |
-| `007` | `Studio-E2E-AUDIO-01/LocalOnly` | Multi-client: local only initiator. |
-| `008` | `AudioPlayback/ServerOneLeaseNoFanout` | Deterministic + static: one lease, no app fanout. |
-| `009` | `Studio-E2E-AUDIO-01/HybridPrediction` | Multi-client: initiator first, others best-effort once. |
-| `010` | `AudioIntegration/HybridRejectUnknowns` | Deterministic: unknown id/type/mode rejected. |
-| `011` | `AudioCatalog/InvalidRowIsolation` + `AudioConfig/RoutingCycleOrMissingTargetDisablesSide` + `AudioIntegration/ServerGraphNoPartialPublish` + `AudioIntegration/ClientGraphMismatchOrTimeoutNoOp` | Deterministic/integration: isolated bad row continues; invalid routing publishes no partial graph; client never binds partial/mismatched generation; both sides expose safe no-op audio while gameplay bootstrap continues. |
-| `012` | `AudioPlayback/OrdinaryFifoNPlusOne` | Deterministic: first N then oldest eviction on N+1. |
-| `013` | `AudioConfig/MissingTypesAndMusicBudgets` | Deterministic: required type/budget validation. |
-| `014` | `AudioPlayback/CatalogDefaultsApplied` | Deterministic: ID-only uses all row values. |
-| `015` | `AudioStatic/LocalConfigBuildBoundary` | Static: no runtime Experience Config projection. |
-| `016` | `AudioPlayback/AttachedTargetRemoval` | Deterministic: target deletion releases once. |
-| `017` | `AudioCatalog/WeightedAntiRepeat` | Deterministic injected samples/anti-repeat. |
-| `018` | `Studio-E2E-AUDIO-01/ServerVariantOnce` | Multi-client: one server selection shared by listeners. |
-| `019` | `AudioCatalog/OptionalDefaults` | Deterministic: volume/speed/weight/flags defaults. |
-| `020` | `AudioCatalog/StartupPreloadSet` | Deterministic: unique sorted request completes before ready. |
-| `021` | `AudioPlayback/WrapperResetAcrossAssets` | Deterministic: no state leak across leases. |
-| `022` | `AudioCatalog/CanonicalPathNormalization` | Deterministic: relative/canonical paths resolve equally. |
-| `023` | `AudioCatalog/RecursivePhysicalFolder` | Deterministic: Sound descendants only, canonical order. |
-| `024` | `AssetRegistry/AudioFirstWinsOnly` | Deterministic: first key wins; non-audio remains fatal. |
-| `025` | `AudioCsv/TwoVariantRoundTrip` + `AudioCsv/RequiredCueVariantColumns` | Static/generated: representative CSV exact output preserves both required stable identifiers; missing/empty CueId or VariantId is rejected/skipped deterministically. |
-| `026` | `AudioPlayback/SourceVolume01` | Deterministic: 0/0.5/1 source multiplier. |
-| `027` | `Studio-E2E-AUDIO-03/ClientMusicSettingsSave` + `AudioIntegration/AudioSettingsEnvelopePatchMatrix` | Multi-client/save: local level, persistence, no other client effect; exact outer/data shape accepted, while wrong version/unknown/invalid/missing patch data rejects only AudioSettings without its data/revision mutation. |
-| `028` | `AudioCatalog/CuePolicyFirstRow` | Deterministic: mismatch excluded only from cue random. |
-| `029` | `AudioPlayback/RegionAbsentAndValid` | Deterministic: whole asset vs region. |
-| `030` | `AudioPlayback/RegionClampAfterReady` | Deterministic: end clamped by TimeLength. |
-| `031` | `AudioPlayback/InvalidLoopUsesEffectivePlaybackRegion` + `AudioPlayback/LoopRegionIgnoredWhenNotLooping` | Deterministic: invalid loop with `Looping=true` warns and loops the whole effective playback region; the same region with `Looping=false` leaves one-shot behavior unchanged. |
-| `032` | `AudioPlayback/PublicPlayNeverYields` | Deterministic: immediate pending handle. |
-| `033` | `AudioConfig/ShippedLoadTimeouts` | Static + deterministic: `2/3/3/15` timeouts. |
-| `034` | `AudioPlayback/PendingOccupiesActiveSlot` | Deterministic: pending participates in FIFO. |
-| `035` | `AudioCatalog/PhysicalCatalogIdentityConflict` | Deterministic: mismatch rejected. |
-| `036` | `AudioCatalog/WeightedBoundarySelection` | Deterministic: larger weight interval. |
-| `037` | `AudioCatalog/IndependentAntiRepeatOwners` | Deterministic: per Cue/folder and per side. |
-| `038` | `AudioCatalog/SoundRefExactOne` + `AudioCatalog/PhysicalDescriptorMapsToNamedVariant` | Deterministic: five valid shapes resolve one named catalog variant; zero/multiple/unknown refs and physical descriptors without an exact named variant mapping are rejected. |
-| `039` | `AudioPlayback/ClientFailSoftHandle` | Deterministic: inert handle, Logger, no throw. |
-| `040` | `AudioIntegration/DeliveryTransportSeparation` | Static/deterministic: local zero messages; hybrid exact one intent. |
-| `041` | `AudioStatic/NoOrdinaryMassStop` | Static API surface check. |
-| `042` | `AudioPlayback/MusicOrdinaryTypeSeparation` | Deterministic: wrong subsystem variants rejected. |
-| `043` | `AudioIntegration/HybridPolicyBeforePrediction` + `AudioIntegration/HybridQueueRejectedKeepsPrediction` | Deterministic: false policy yields no player/message; Queue rejection after allowed prediction preserves local handle/playback, logs `HybridQueueRejected` once and performs no retry/server work. |
-| `044` | `AudioIntegration/HybridNoRequestIdOrReplay` | Static/protocol: exact DTO and no dedup state. |
-| `045` | `AudioIntegration/ReadyRecipientsMomentary` | Deterministic: only ready-at-fanout recipients, no replay. |
-| `046` | `AudioPlayback/ConcurrentWorldPositions` | Deterministic: distinct emitter/anchor state. |
-| `047` | `AudioCatalog/ResourcePathAssetIdNormalization` | Deterministic: physical SoundId normalized. |
-| `048` | `AudioCatalog/PerIndexFirstWins` | Deterministic: conflicting exact index only. |
-| `049` | `AudioIntegration/HybridStopLocalOnly` | Deterministic: Stop cannot cancel sent intent. |
-| `050` | `Studio-E2E-AUDIO-01/ServerSingleAudibleReplication` | Multi-client: one audible event/client without duplicates. |
-| `051` | `Studio-E2E-AUDIO-02/ServerAttachedReplication` | Multi-client: valid replicated attachment follows target. |
-| `052` | `AudioPlayback/ServerLoopLeaseLifetime` | Deterministic: one lease, handle stop, no event registry. |
-| `053` | `Studio-E2E-AUDIO-04/IndependentMusicStacks` | Multi-client: client-only stacks. |
-| `054` | `AudioIntegration/HybridVariantChosenOnce` + `AudioIntegration/HybridRequiresNamedVariant` | Deterministic: one valid non-empty CueId/VariantId pair is selected once and reused server/recipients; unnamed variants cannot enter hybrid flow. |
-| `055` | `Studio-E2E-AUDIO-02/CharacterPositionCameraOrientation` | Multi-client: zoom invariant, orientation updates. |
-| `056` | `Studio-E2E-AUDIO-03/IndependentFaders` | Multi-client: distinct Master/Music levels. |
-| `057` | `AudioIntegration/SettingsBeforeClientReady` + `AudioIntegration/AudioSettingsClientSnapshotReconciliation` + `AudioIntegration/AudioSettingsEnvelopeHookFailureIsolation` | Deterministic/Studio: missing provider/known fields produce exact defaults before output bind; hook false/exception and unknown/invalid present fields fail before mutation and preserve runtime/revision; providers without hooks retain mandatory-envelope behavior. |
-| `058` | `AudioPlayback/ServerWorldWrapperIsolation` | Deterministic: distinct server emitters/anchors. |
-| `059` | `AudioPlayback/ServerWrapperFullReset` | Deterministic: asset/play/wires/emitter/parent cleared. |
-| `060` | `AudioPlayback/StaleServerEndedGeneration` | Deterministic: only current non-loop lease released. |
-| `061` | `Studio-E2E-AUDIO-01/HybridNoServerPlayer` | Multi-client: initiator one local, server zero, recipient one local. |
-| `062` | `AudioPlayback/MusicPendingKeepsIncumbent` | Deterministic: pending top does not interrupt audible. |
-| `063` | `AudioPlayback/MusicStableTopOnly` | Deterministic: exactly top after transition. |
-| `064` | `AudioPlayback/MusicLifoSequence` | Deterministic: A/B/C push-stop resume order. |
-| `065` | `AudioPlayback/MusicStaleCallbacks` | Deterministic: generations defeat ready/fade/timeout/end. |
-| `066` | `AudioPlayback/MusicStopNonTop` | Deterministic: remove only entry, no top interruption. |
-| `067` | `AudioPlayback/MusicResumeReloadPosition` | Deterministic: bounded reload and clamped restore. |
-| `068` | `Studio-E2E-AUDIO-04/BackgroundForegroundLifo` | Studio: window/background scenario preserves LIFO. |
-| `069` | `AudioStatic/CanonicalAcousticProperty` + `AudioPlayback/SpatialCurveBoundaryMatrix` + `AudioPlayback/InvalidProfileVariantIsolation` + `AudioPlayback/ListenerEnabledOnceEmitterProfileIsolation` + `AudioPlayback/DirectionalPointAttachedSplit` + `Studio-E2E-AUDIO-05` | Static/deterministic/Studio: canonical property true and never mutated; distance 0..400, Angle nil-as-gain-1 and present 1..400 bounds including empty-Angle rejection; invalid profile skips only affected variants; listener enabled once while per-emitter flags remain isolated; Point rejects direction and Attached uses orientation. |
-| `070` | `AudioIntegration/InitializeIdentity` | Deterministic: same graph/services/handlers on repeat. |
-| `071` | `AudioIntegration/ManifestDependencyAssertions` | Static/deterministic: exact audio dependency order. |
-| `072` | `AudioCsv/PreviewApplyPreviewFreshness` | Static: zero diff and stable three hashes. |
-| `073` | `AudioConfig/StartupCeilingsAndFailures` | Deterministic: shipped budgets/hard ceilings/disabled atomic cleanup. |
-| `074` | `AudioStatic/RequiredAcceptedAdrs` + `AudioStatic/AudioRuleAndDocumentationCascade` + `AssetRegistry/NonAudioDuplicateStillFatal` + `AudioConfig/AuthoringCannotRaiseSafetyLimits` + `AudioStatic/CanonicalAcousticOwnership` + `AudioStatic/FocusedRunnersRegistered` + `AudioStatic/AllAcceptanceEvidenceMapped` | Static/deterministic gate: three Accepted ADRs, rule/docs/tests cascade, preserved non-audio fail-closed behavior, immutable code ceilings, canonical-place acoustic ownership, aggregate runner registration and complete 79-row evidence matrix. |
-| `075` | `AudioPlayback/MusicTransitionMutationMatrix` + `AudioPlayback/MusicReadinessLossPreRebase` + `AudioPlayback/MusicStopAllDuringEveryPhase` | Deterministic: push/stop/end/timeout, incoming/outgoing readiness loss and StopAll during every SequentialFade/Crossfade phase cancel stale callbacks, never create a third player and end in the exact canonical state. |
-| `076` | `AudioPlayback/MusicPendingTopIncumbentEnded` | Deterministic: A ended while B pending resolves correctly. |
-| `077` | `AudioPlayback/LoopedDeliveryMatrix` | Deterministic/Studio: local/server loop allowed; hybrid loop rejected. |
-| `078` | `AudioStatic/NoForbiddenRuntimeOrTransportSurface` | Static: APIs/DTO/manifests contain no forbidden fields/owners. |
-| `079` | `AudioIntegration/HybridAdversarialMatrix` | Deterministic: malformed/oversized/looped/unauthorized/rate/fanout rejection. |
+| `PRD-AC-001` | `AudioCatalog/RawAssetExactVariant` + `AudioCatalog/SoundRefExactOne` + `AudioCatalog/CanonicalPathNormalization` + `AudioCatalog/WeightedAntiRepeat` + `AudioCatalog/RequiredStableCueVariantPair` + `AudioPlayback/ResolvedVariantAssetAndPlayerType` + `AudioPlayback/UnknownIdentifierNoAcquire` | Deterministic: raw asset ID, `AssetKey` и canonical resource path разрешаются в ожидаемый exact variant; `CueId` выбирает только связанный variant; каждая принятая CSV-строка имеет валидную непустую пару `CueId`/`VariantId`; каждый успешный запрос назначает ожидаемый asset ID и получает lease из указанного строкой `PlayerType`. Неизвестный identifier возвращает соответствующий стороне rejected/inert result, не запускает playback, не меняет pool counters и создаёт ровно один `UnknownRef`; missing/invalid/duplicate pair исключает строку. |
+| `PRD-AC-002` | `Studio-E2E-AUDIO-02/NonSpatialInvariant` | Multi-client: 2D громкость не зависит от позиции. |
+| `PRD-AC-003` | `Studio-E2E-AUDIO-02/PointAttenuation` + `Studio-E2E-AUDIO-02/AttachedFollowOrientation` + `AudioPlayback/PointRejectsDirectionalProfile` + `AudioPlayback/SpatialAnchorFixedComposition` + `AudioPlayback/SpatialAnchorPointStatic` + `AudioPlayback/SpatialAnchorAttachedFullTransformGenerationCleanup` | Multi-client + deterministic: Point attenuation is nondirectional and directional Point rejects before acquire; fixed anchor composition is colocated; Attached follows full position/orientation with generation-safe cleanup. |
+| `PRD-AC-004` | `AudioPlayback/OrdinaryFifoBudget` | Deterministic: active limit/FIFO/retain. |
+| `PRD-AC-005` | `Studio-E2E-AUDIO-03/CategoryIsolation` | Multi-client: UI/Master effects isolated. |
+| `PRD-AC-006` | `AudioPlayback/MusicInstantNoOverlap` + `AudioPlayback/MusicSequentialParticipantOrder` + `AudioPlayback/MusicCrossfadeAdjacentPair` + `AudioPlayback/MusicPostTransitionRetain` | Deterministic: all three strategies enforce their exact overlap/order rules; steady state has only Top Music entry playing and previous entry retains lease/position. |
+| `PRD-AC-007` | `Studio-E2E-AUDIO-01/LocalOnly` | Multi-client: local only initiator. |
+| `PRD-AC-008` | `AudioPlayback/ServerOneLeaseNoFanout` + `AudioPlayback/SpatialAnchorFixedComposition` + `AudioPlayback/SpatialPublicSurface` + `Studio-E2E-AUDIO-02/ServerAttachedReplication` | Deterministic + multi-client: fixed colocated composition retains one server lease/no app fanout and is proven through native replicated playback. |
+| `PRD-AC-009` | `Studio-E2E-AUDIO-01/HybridPrediction` | Multi-client: initiator first, others best-effort once. |
+| `PRD-AC-010` | `AudioIntegration/HybridRejectUnknowns` | Deterministic: unknown id/type/mode rejected. |
+| `PRD-AC-011` | `AudioCatalog/InvalidRowIsolation` + `AudioConfig/RoutingCycleOrMissingTargetDisablesSide` + `AudioIntegration/ServerGraphNoPartialPublish` + `AudioIntegration/ClientGraphMismatchOrTimeoutNoOp` | Deterministic/integration: isolated bad row continues; invalid routing publishes no partial graph; client never binds partial/mismatched generation; both sides expose safe no-op audio while gameplay bootstrap continues. |
+| `PRD-AC-012` | `AudioPlayback/OrdinaryFifoNPlusOne` | Deterministic: first N then oldest eviction on N+1. |
+| `PRD-AC-013` | `AudioConfig/MissingTypesAndMusicBudgets` + `AudioStatic/FixedSpatialCompositionOnly` + `AudioConfig/FixedSpatialCompositionObjectCeiling` | Deterministic: required type/budget validation, absence of positioning overrides and exact fixed-composition side object ceiling fail closed before graph/pools. |
+| `PRD-AC-014` | `AudioPlayback/CatalogDefaultsApplied` + `AudioPlayback/PerPlayOverridesIsolated` + `AudioPlayback/PerPlayEffectiveRangeRejectedBeforeAcquire` + `AudioPlayback/ForbiddenCatalogOverrideFieldsRejected` | Deterministic: ID-only использует все catalog values. Finite `VolumeMultiplier` в `0..2`, `PlaybackSpeedMultiplier` в `0.5..2` и valid initial `TimePosition` изменяют только выбранный lease и не мутируют catalog/другой playback. Множитель, выводящий effective value за startup range `PlayerType`, возвращает side-appropriate rejected/inert result до acquire, сохраняет pool counters и создаёт ровно один `TypeMismatch`. Любое поле, пытающееся переопределить source, `PlayerType`, bus, pool limit или preload policy, отклоняется exact-options validation с тем же no-acquire/no-op результатом и `TypeMismatch`. |
+| `PRD-AC-015` | `AudioStatic/LocalConfigBuildBoundary` + `AudioStatic/FixedSpatialCompositionOnly` | Static/deterministic: local config is frozen for fresh bootstrap, contains no positioning topology field и всегда приводит к одной fixed composition. |
+| `PRD-AC-016` | `AudioPlayback/AttachedTargetRemoval` + `AudioPlayback/SpatialAnchorAttachedFullTransformGenerationCleanup` | Deterministic: target deletion unregisters current anchor binding, releases once and leaves stale callbacks inert. |
+| `PRD-AC-017` | `AudioCatalog/WeightedAntiRepeat` | Deterministic injected samples/anti-repeat. |
+| `PRD-AC-018` | `Studio-E2E-AUDIO-01/ServerVariantOnce` + `AudioPlayback/ServerOneLeaseNoFanout` + `AudioIntegration/HybridVariantChosenOnce` + `Studio-E2E-AUDIO-01/HybridPrediction` | Multi-client + deterministic: server-all collection выбирается один раз на server, exact variant назначается одной server-owned lease и recipient DTO отсутствует. Hybrid initiator выбирает один exact named variant, запускает его локально и отправляет тот же pair; каждый другой ready recipient воспроизводит тот же variant один раз, initiator Presentation не получает и duplicate playback отсутствует. |
+| `PRD-AC-019` | `AudioCatalog/OptionalDefaults` | Deterministic: volume/speed/weight/flags defaults. |
+| `PRD-AC-020` | `AudioCatalog/StartupPreloadSet` | Deterministic: unique sorted IDs reach the backend as ordered temporary `Sound.SoundId` targets; callbacks are counted, actual destroyed state is verified without synchronous `Destroying` assumptions, exceptional cleanup/rethrow is covered, and repeated command initialization reuses one completed request/backend call before ready. |
+| `PRD-AC-021` | `AudioPlayback/WrapperResetAcrossAssets` | Deterministic: no state leak across leases. |
+| `PRD-AC-022` | `AudioCatalog/CanonicalPathNormalization` | Deterministic: relative/canonical paths resolve equally. |
+| `PRD-AC-023` | `AudioCatalog/RecursivePhysicalFolder` | Deterministic: Sound descendants only, canonical order. |
+| `PRD-AC-024` | `AssetRegistry/AudioFirstWinsOnly` | Deterministic: first key wins; non-audio remains fatal. |
+| `PRD-AC-025` | `AudioCsv/TwoVariantRoundTrip` + `AudioCsv/RequiredCueVariantColumns` | Static/generated: representative CSV exact output preserves both required stable identifiers; missing/empty CueId or VariantId is rejected/skipped deterministically. |
+| `PRD-AC-026` | `AudioPlayback/SourceVolume01` | Deterministic: 0/0.5/1 source multiplier. |
+| `PRD-AC-027` | `Studio-E2E-AUDIO-03/ClientMusicSettingsSave` + `AudioIntegration/AudioSettingsEnvelopePatchMatrix` | Multi-client/save: local level, persistence, no other client effect; exact outer/data shape accepted, while wrong version/unknown/invalid/missing patch data rejects only AudioSettings without its data/revision mutation. |
+| `PRD-AC-028` | `AudioCatalog/CuePolicyFirstRow` | Deterministic: mismatch excluded only from cue random. |
+| `PRD-AC-029` | `AudioPlayback/RegionAbsentAndValid` | Deterministic: whole asset vs region. |
+| `PRD-AC-030` | `AudioPlayback/RegionClampAfterReady` | Deterministic: end clamped by TimeLength. |
+| `PRD-AC-031` | `AudioPlayback/InvalidLoopUsesEffectivePlaybackRegion` + `AudioPlayback/LoopRegionIgnoredWhenNotLooping` | Deterministic: invalid loop with `Looping=true` warns and loops the whole effective playback region; the same region with `Looping=false` leaves one-shot behavior unchanged. |
+| `PRD-AC-032` | `AudioPlayback/PublicPlayNeverYields` + `AudioPlayback/PendingReadyBeforeTimeoutStarts` + `AudioPlayback/PendingStopBeforeReadyCleanup` + `AudioPlayback/PendingLoadTimeoutCleanup` + `AudioPlayback/MusicPendingKeepsIncumbent` + `AudioPlayback/ActiveReadinessLossReleasesWithoutEnded` | Deterministic: public play немедленно возвращает pending handle. Ready до deadline запускает звук ровно один раз; `Stop()` либо `LoadTimeout` до ready оставляет его навсегда незапущенным, делает handle inactive и возвращает lease/object/callback counts к baseline. Music timeout новой pending entry не останавливает предыдущую ready audible entry. Переход `IsReady` active ordinary playback `true -> false` закрывает lease и handle без ожидания `Ended`; последующий ready/ended callback no-op. Только timeout case создаёт один `LoadTimeout`, остальные positive/explicit-stop branches сохраняют `DG-NONE`. |
+| `PRD-AC-033` | `AudioConfig/ShippedLoadTimeouts` | Static + deterministic: `2/3/3/15` timeouts. |
+| `PRD-AC-034` | `AudioPlayback/PendingOccupiesActiveSlot` | Deterministic: pending participates in FIFO. |
+| `PRD-AC-035` | `AudioCatalog/PhysicalCatalogIdentityConflict` | Deterministic: mismatch rejected. |
+| `PRD-AC-036` | `AudioCatalog/WeightedBoundarySelection` | Deterministic: larger weight interval. |
+| `PRD-AC-037` | `AudioCatalog/IndependentAntiRepeatOwners` | Deterministic: per Cue/folder and per side. |
+| `PRD-AC-038` | `AudioCatalog/SoundRefExactOne` + `AudioCatalog/PhysicalDescriptorMapsToNamedVariant` | Deterministic: five valid shapes resolve one named catalog variant; zero/multiple/unknown refs and physical descriptors without an exact named variant mapping are rejected. |
+| `PRD-AC-039` | `AudioPlayback/ClientFailSoftHandle` | Deterministic: inert handle, Logger, no throw. |
+| `PRD-AC-040` | `AudioIntegration/DeliveryTransportSeparation` | Static/deterministic: local zero messages; hybrid exact one intent. |
+| `PRD-AC-041` | `AudioStatic/NoOrdinaryMassStop` | Static API surface check. |
+| `PRD-AC-042` | `AudioPlayback/MusicOrdinaryTypeSeparation` | Deterministic: wrong subsystem variants rejected. |
+| `PRD-AC-043` | `AudioIntegration/HybridPolicyBeforePrediction` + `AudioIntegration/HybridQueueRejectedKeepsPrediction` | Deterministic: false policy yields no player/message; Queue rejection after allowed prediction preserves local handle/playback, logs `HybridQueueRejected` once and performs no retry/server work. |
+| `PRD-AC-044` | `AudioIntegration/HybridNoRequestIdOrReplay` | Static/protocol: exact DTO and no dedup state. |
+| `PRD-AC-045` | `AudioIntegration/ReadyRecipientsMomentary` | Deterministic: only ready-at-fanout recipients, no replay. |
+| `PRD-AC-046` | `AudioPlayback/ConcurrentWorldPositions` + `AudioPlayback/SpatialAnchorPointStatic` | Deterministic: distinct emitter/anchor state; World leases never share one `SpatialAnchor`. |
+| `PRD-AC-047` | `AudioCatalog/ResourcePathAssetIdNormalization` | Deterministic: physical SoundId normalized. |
+| `PRD-AC-048` | `AudioCatalog/PerIndexFirstWins` | Deterministic: conflicting exact index only. |
+| `PRD-AC-049` | `AudioIntegration/HybridStopLocalOnly` | Deterministic: Stop cannot cancel sent intent. |
+| `PRD-AC-050` | `Studio-E2E-AUDIO-01/ServerSingleAudibleReplication` + `AudioPlayback/SpatialAnchorFixedComposition` + `AudioPlayback/SpatialPublicSurface` | Multi-client + deterministic: one audible event/client without duplicates from one server-owned fixed composition and unchanged one-server-lease delivery contract. |
+| `PRD-AC-051` | `Studio-E2E-AUDIO-02/ServerAttachedReplication` + `AudioPlayback/SpatialAnchorAttachedFullTransformGenerationCleanup` | Multi-client + deterministic: server attachment follows full target transform, unregisters on removal and releases the single server lease. |
+| `PRD-AC-052` | `AudioPlayback/ServerLoopLeaseLifetime` + `AudioPlayback/LoopedDeliveryMatrix` + `AudioIntegration/HybridAdversarialMatrix` + `AudioIntegration/GlobalSnapshotExcludesPlaybackState` | Deterministic/integration: server-all loop создаёт одну server lease без event registry и server handle выполняет native replicated stop/release; client-local loop существует только в local pool и его handle освобождает local lease. Любой client-hybrid method с `Looping=true` возвращает inactive handle, создаёт ровно один `HybridNotAllowed`, не запускает local/network playback и не создаёт distributed state. `GlobalSnapshot` содержит только пользовательские `AudioSettings` provider data: active playback, loop leases, Music stack и request/delivery state отсутствуют. |
+| `PRD-AC-053` | `Studio-E2E-AUDIO-04/IndependentMusicStacks` | Multi-client: client-only stacks. |
+| `PRD-AC-054` | `AudioIntegration/HybridVariantChosenOnce` + `AudioIntegration/HybridRequiresNamedVariant` | Deterministic: one valid non-empty CueId/VariantId pair is selected once and reused server/recipients; unnamed variants cannot enter hybrid flow. |
+| `PRD-AC-055` | `Studio-E2E-AUDIO-02/CharacterPositionCameraOrientation` | Multi-client: zoom invariant, orientation updates. |
+| `PRD-AC-056` | `Studio-E2E-AUDIO-03/IndependentFaders` | Multi-client: distinct Master/Music levels. |
+| `PRD-AC-057` | `AudioIntegration/SettingsBeforeClientReady` + `AudioIntegration/AudioSettingsClientSnapshotReconciliation` + `AudioIntegration/AudioSettingsEnvelopeHookFailureIsolation` | Deterministic/Studio: missing provider/known fields produce exact defaults before output bind; hook false/exception and unknown/invalid present fields fail before mutation and preserve runtime/revision; providers without hooks retain mandatory-envelope behavior. |
+| `PRD-AC-058` | `AudioPlayback/ServerWorldWrapperIsolation` + `AudioPlayback/SpatialAnchorPointStatic` | Deterministic: distinct server emitters and wrapper-owned anchors preserve independent positions. |
+| `PRD-AC-059` | `AudioPlayback/ServerWrapperFullReset` + `AudioPlayback/SpatialAnchorAttachedFullTransformGenerationCleanup` | Deterministic: asset/play/wire/emitter/anchor parentage, frame registration and target references are cleared before reuse. |
+| `PRD-AC-060` | `AudioPlayback/StaleServerEndedGeneration` | Deterministic: only current non-loop lease released. |
+| `PRD-AC-061` | `Studio-E2E-AUDIO-01/HybridNoServerPlayer` | Multi-client: initiator one local, server zero, recipient one local. |
+| `PRD-AC-062` | `AudioPlayback/MusicPendingKeepsIncumbent` | Deterministic: pending top does not interrupt audible. |
+| `PRD-AC-063` | `AudioPlayback/MusicStableTopOnly` | Deterministic: exactly top after transition. |
+| `PRD-AC-064` | `AudioPlayback/MusicLifoSequence` | Deterministic: A/B/C push-stop resume order. |
+| `PRD-AC-065` | `AudioPlayback/MusicStaleCallbacks` | Deterministic: generations defeat ready/fade/timeout/end. |
+| `PRD-AC-066` | `AudioPlayback/MusicStopNonTop` + `AudioPlayback/MusicStopAudibleIncumbentUnderPendingTop` + `AudioPlayback/MusicLifoSequence` + `AudioPlayback/MusicResumeReloadPosition` + `AudioPlayback/MusicStopAllDuringEveryPhase` | Deterministic: stop неслышимой non-top entry освобождает только её без изменения playback. Stop audible non-top incumbent под pending top останавливает и удаляет incumbent, оставляя тишину до ready top. Stop playing top применяет её exit transition, освобождает её и возобновляет следующую ready entry с сохранённого `TimePosition`. `StopAllMusic` во всех pending/fade phases отменяет callbacks, освобождает весь stack, оставляет baseline counts и повторный вызов является idempotent no-op. |
+| `PRD-AC-067` | `AudioPlayback/MusicResumeReloadPosition` | Deterministic: bounded reload and clamped restore. |
+| `PRD-AC-068` | `Studio-E2E-AUDIO-04/BackgroundForegroundLifo` | Studio: window/background scenario preserves LIFO. |
+| `PRD-AC-069` | `AudioStatic/CanonicalAcousticProperty` + `AudioPlayback/SpatialCurveBoundaryMatrix` + `AudioPlayback/InvalidProfileVariantIsolation` + `AudioPlayback/ListenerEnabledOnceEmitterProfileIsolation` + `AudioPlayback/DirectionalPointAttachedSplit` + `Studio-E2E-AUDIO-05` | Static/deterministic/Studio: canonical property true and never mutated; distance 0..400, Angle nil-as-gain-1 and present 1..400 bounds including empty-Angle rejection; invalid profile skips only affected variants; listener enabled once while per-emitter flags remain isolated; Point rejects direction and Attached uses orientation. |
+| `PRD-AC-070` | `AudioIntegration/InitializeIdentity` + `AudioStatic/FixedSpatialCompositionOnly` | Deterministic: repeat Initialize returns the same graph/services/handlers without another registry/driver или positioning configuration state. |
+| `PRD-AC-071` | `AudioIntegration/ManifestDependencyAssertions` | Static/deterministic: exact audio dependency order. |
+| `PRD-AC-072` | `AudioCsv/PreviewApplyPreviewFreshness` | Static: zero diff and stable three hashes. |
+| `PRD-AC-073` | `AudioConfig/StartupCeilingsAndFailures` + `AudioStatic/FixedSpatialCompositionOnly` + `AudioConfig/FixedSpatialCompositionObjectCeiling` | Deterministic: shipped budgets/hard ceilings, absent positioning override and fixed four-object ceiling disable atomically before graph/pools when invalid. |
+| `PRD-AC-074` | `AudioStatic/RequiredAcceptedAdrs` + `AudioStatic/AudioRuleAndDocumentationCascade` + `AssetRegistry/NonAudioDuplicateStillFatal` + `AudioConfig/AuthoringCannotRaiseSafetyLimits` + `AudioStatic/CanonicalAcousticOwnership` + `AudioStatic/FocusedRunnersRegistered` + `AudioStatic/AllAcceptanceEvidenceMapped` | Static/deterministic gate: three Accepted ADRs, rule/docs/tests cascade, preserved non-audio fail-closed behavior, immutable code ceilings, canonical-place acoustic ownership, aggregate runner registration and complete 79-row evidence matrix. |
+| `PRD-AC-075` | `AudioPlayback/MusicTransitionMutationMatrix` + `AudioPlayback/MusicReadinessLossPreRebase` + `AudioPlayback/MusicStopAllDuringEveryPhase` | Deterministic: push/stop/end/timeout, incoming/outgoing readiness loss and StopAll during every SequentialFade/Crossfade phase cancel stale callbacks, never create a third player and end in the exact canonical state. |
+| `PRD-AC-076` | `AudioPlayback/MusicPendingTopIncumbentEnded` | Deterministic: A ended while B pending resolves correctly. |
+| `PRD-AC-077` | `AudioPlayback/LoopedDeliveryMatrix` | Deterministic/Studio: local/server loop allowed; hybrid loop rejected. |
+| `PRD-AC-078` | `AudioStatic/NoForbiddenRuntimeOrTransportSurface` + `AudioStatic/FixedSpatialCompositionOnly` + `AudioPlayback/SpatialPublicSurface` | Static/deterministic: APIs/DTO/manifests contain no forbidden fields/owners, positioning configuration or hybrid attached/runtime-object surface. |
+| `PRD-AC-079` | `AudioIntegration/HybridAdversarialMatrix` | Deterministic: malformed/oversized/looped/unauthorized/rate/fanout rejection. |
 
 ### 9.12. Mandatory Studio scenarios
 
 | Scenario | Topology | Обязательные наблюдения |
 |---|---|---|
 | `Studio-E2E-AUDIO-01` | Server + 2 clients | local isolation; hybrid initiator/other-ready recipient; no echo/duplicate/server player; server-all one replicated audible event. |
-| `Studio-E2E-AUDIO-02` | Server + 2 clients + moving/attached targets | nonspatial invariant; point/attached attenuation/follow; per-source isolation; character-position/camera-orientation listener; respawn rebind. |
+| `Studio-E2E-AUDIO-02` | Server + 2 clients + moving/attached targets; fresh bootstrap с fixed `SpatialAnchor` composition | nonspatial invariant; hybrid/server/client point attenuation; client/server attached full-transform follow; per-source isolation; character-position/camera-orientation listener; respawn rebind; playback emitter не использует `PositionType`/`PositionInstance`. |
 | `Studio-E2E-AUDIO-03` | Server + 2 clients + save backend available | independent faders/enabled; AudioSettings restored before ready; standard patch; leave/rejoin persistence; rollback on invalid snapshot. |
 | `Studio-E2E-AUDIO-04` | 2 clients | independent Music stacks; transitions; stop/pop/resume; background/foreground; no cross-client Music instances. |
 | `Studio-E2E-AUDIO-05` | Canonical place clean Play | `AcousticSimulationEnabled=true` before bootstrap; server/client graph readiness; runtime property unchanged; clean Logger output. |
@@ -1318,6 +1439,9 @@ Evidence identity обязана существовать как named test case
 - AssetRegistry как live watcher, runtime graph locator, remote registry или generic service locator.
 - Ослабление duplicate AssetKey policy глобально либо недетерминированный first-wins по `GetDescendants` order.
 - Хранение audio configs в Experience Config, сетевое обновление или mutation после bootstrap.
+- Любой public/configuration/runtime positioning-topology key, enum или extension point, способный обойти fixed `SpatialAnchor` composition.
+- Чтение либо запись playback-emitter `AudioEmitter.PositionType`/`PositionInstance`; emitter не должен использовать gameplay target вместо непосредственного wrapper-owned `SpatialAnchor` parent.
+- Cross-tree `AudioPlayer -> AudioEmitter` source wire, отдельный pool/public API/remote/DTO/completion owner либо per-wrapper frame connection ради spatial positioning/Attached tracking.
 - Повышение code ceilings из game-authored configs.
 - Ручное редактирование generated catalog, generated `.rbxlx`, `sourcemap.json` или programmatic patch binary place.
 - Сохранение active playback, Music stack, graph/pools/catalog или server fader values.
@@ -1326,7 +1450,7 @@ Evidence identity обязана существовать как named test case
 
 ## 11. Open Questions
 
-Неразрешённых продуктовых или технических вопросов нет. Product authority явно закрывает scope, delivery semantics, budgets, persistence, Music transitions, physical ownership и evidence expectations. Три требуемых ADR являются execution gate, а не open question.
+- Нет.
 
 ## 12. Assumptions and Risks
 
@@ -1334,7 +1458,7 @@ Evidence identity обязана существовать как named test case
 
 | ID | Допущение | Проверка |
 |---|---|---|
-| `A-001` | Advanced Audio API contracts доступны в release target Roblox engine. | Build + Studio-E2E-AUDIO-02/05. |
+| `A-001` | Core Advanced Audio Parent positioning contract доступен в release target: direct `AudioEmitter` parent типа `PVInstance` предоставляет world position/orientation. Playback не зависит от emitter `PositionType`/`PositionInstance`. | Official API review + fixed-composition deterministic checks + Studio-E2E-AUDIO-02/05. |
 | `A-002` | Существующий `Communication` поддерживает exact event-message validators/handlers через `CommunicationServer:RegisterHandler`, initiator context, client event handlers через `CommunicationClient:RegisterHandler`, queued Intent через `CommunicationClient:Queue` и Presentation fanout; hybrid не использует `RegisterRequestHandler`. | AudioIntegration runner + Studio-E2E-AUDIO-01. |
 | `A-003` | Existing save snapshot/rollback protocol допускает client-authority provider при exact envelope hardening. | AudioIntegration settings tests + Studio-E2E-AUDIO-03. |
 | `A-004` | Physical Sounds могут оставаться Studio-owned descendants при Rojo-owned ignored folder. | Rojo build + static ownership check + Studio-E2E-AUDIO-05. |
@@ -1354,8 +1478,12 @@ Evidence identity обязана существовать как named test case
 | `R-008` | Canonical place/Rojo hybrid ownership drift удаляет Sounds или global acoustic property. | High | ADR, `$ignoreUnknownInstances`, binary scene review, static + E2E-05. |
 | `R-009` | Side-local configs diverge и дают разные catalog/routing interpretations. | Medium | Identical required modules on both sides, independent validation/freeze, protocol exact pair revalidation. |
 | `R-010` | Preload set велик или содержит malformed content IDs. | Medium | Per-record schema/grammar/curve/safety validation, normalize/dedupe/sort, Warn policy и runtime timeout; arbitrary aggregate CSV-row/catalog/folder-candidate ceiling запрещён. |
-| `R-011` | Aggregate object ceiling оказывается недостаточным для выбранного wrapper topology. | Medium | Conservative four-instance calculation; validator fails closed if topology changes. |
+| `R-011` | Aggregate object ceiling считается неверно и позволяет превысить side budget. | Medium | Exact four-Instance World inventory, conservative multiplier `4` для всех wrapper types, boundary/over-bound validator tests. |
+| `R-012` | Server `SpatialAnchor` subtree реплицируется, но не становится слышимой на одном или обоих клиентах. | High | One-server/two-client native replication scenario с one-lease/no-mirror inventory, objective graph evidence и отдельной hearing confirmation. |
+| `R-013` | Централизованный Attached registry обновляет released/reused anchor или создаёт per-wrapper frame subscriptions. | High | One injected driver per side, generation-tagged registrations, unregister-first release, stale-frame deterministic matrix. |
 
 ### 12.3. Generator finding
 
-Предыдущие generator/review findings `F-001..F-030` применены в revision `7`. Local-config/disabled-handler drift закрыт Accepted ADR-0041, superseding ADR-0038; ADR-0039 и ADR-0040 остаются Accepted. Известных открытых продуктовых или технических вопросов нет; только fresh exact-hash `review-full` этой revision устанавливает готовность engineering handoff.
+Предыдущие generator/review findings `F-001..F-030` применены в revision `7`. Revision `11` синхронизирует normative topology с canonical approved PRD revision `4` и exact hash: одна colocated `SpatialAnchor` composition, один server lease, native Roblox replication, no mirror/application fanout. Нормативное решение интегрировано в §§2.4, 4.2, 5.4, 7.3–7.4, 8.2–8.5 и evidence matrix. Незакрытых generator/review findings нет.
+
+Историческое Studio evidence о недоступном emitter `PositionType` остаётся фактом прежней реализации, но fixed Parent positioning playback от этой capability не зависит. `HybridPrediction`, `PointAttenuation`, `AttachedFollowOrientation` и `ServerAttachedReplication` всё равно должны пройти fresh mandatory Studio evidence после implementation; документационная правка не переименовывает старые Pending/blocked записи в PASS. `.agents/rules/audio.md`, current docs, source и test cascade требуют отдельной authorized follow-up operation; эта specification-only операция их не редактирует.

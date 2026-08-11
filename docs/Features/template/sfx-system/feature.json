@@ -1,33 +1,38 @@
 {
-  "schemaVersion": 2,
-  "id": "TF-0005",
-  "slug": "sfx-system",
-  "title": "SFX System",
-  "status": "in_progress",
-  "activity": "active",
-  "branch": "template-feature/tf-0005-sfx-system",
-  "baseCommit": "14d4cf84c83b8a494984a24e9ca07632e420dd9b",
-  "startedAt": "2026-08-05T20:17:23.2596012+03:00",
-  "completedAt": null,
-  "updatedAt": "2026-08-08T04:51:51.7318248Z",
-  "blockers": [],
-  "artifacts": [
-    "product-requirements.md",
-    "technical-specification.md",
-    "tests/sfx-system/verification/eng-tf0005-sfx-owner-05/convergence-wave-12/revision-manifest.json",
-    "tests/sfx-system/verification/eng-tf0005-sfx-owner-05/convergence-wave-12/coverage-manifest.json",
-    "tests/sfx-system/verification/eng-tf0005-sfx-owner-05/convergence-wave-12/verification-report.md"
-  ],
-  "verification": {
-    "completedAt": "2026-08-08T04:51:51.7318248Z",
-    "head": "ccea174b678d8d2f3d4e2b3b3687d77a3f9ca9fb",
-    "summary": "Owner-05 final convergence-wave-12 remediation is verified from the exact frozen 51/26/8 input (composite 3da325ca373f16f62196b1e7536767f610bf32385d34849307b97c808ac2358d; product e10701874f6d02f4f1d7f3eab67cf577d830b0aa6b18460715f3fde3857fd11e; support da5529eca79dc548b504a42e77f2f39cb94d13c70041cc42c0f6ab03f971a072; evidence b22c1212c550e274dfd347edd3391f580d3e6187fef68c8106f4bf3042bda085): retained-close withdrawal, malformed Save acknowledgement hardening, shared shutdown deadline ownership, post-yield SessionLock revocation, retained provider mutation admission, live plus departed shutdown enumeration, and exact half-open weighted selection resolve CONV-W12-001 through CONV-W12-007 while preserving all earlier closures. Focused/shared suites passed 332/332 and aggregate regression passed 338/338 across 13 suites; topology remains exactly 79/109 with all 16 manual QA observations reserved. Result inventory is 53 product / 26 support / 8 evidence files. Status remains in_progress and activity remains active because no lifecycle transition was authorized; any later engineering remediation transfers to owner-06."
-  },
-  "recoveryLog": [
-    {
-      "at": "2026-08-07T14:03:00.2152336+03:00",
-      "reason": "User requested a dedicated implementation branch for TF-0005; migrated the active feature from main to its canonical template feature branch.",
-      "previousStatus": "in_progress"
-    }
-  ]
+    "schemaVersion":  2,
+    "id":  "TF-0005",
+    "slug":  "sfx-system",
+    "title":  "SFX System",
+    "status":  "ready",
+    "activity":  "none",
+    "branch":  "template-feature/tf-0005-sfx-system",
+    "baseCommit":  "14d4cf84c83b8a494984a24e9ca07632e420dd9b",
+    "startedAt":  "2026-08-05T20:17:23.2596012+03:00",
+    "completedAt":  "2026-08-11T12:15:04.4389362+00:00",
+    "updatedAt":  "2026-08-11T12:15:04.4389362+00:00",
+    "blockers":  [
+
+                 ],
+    "artifacts":  [
+                      "product-requirements.md",
+                      "technical-specification.md",
+                      "development-plan.md",
+                      "tests/sfx-system/verification/rem-tf0005-support-evidence-01/revision-manifest.json",
+                      "tests/sfx-system/verification/rem-tf0005-support-evidence-01/coverage-manifest.json",
+                      "tests/sfx-system/verification/rem-tf0005-support-evidence-01/verification-report.md",
+                      "tests/sfx-system/qa/7bc5479919cc41ed2d68ec131b5b4a0bc4a99dc7b59236e68f47e567620c7d58/qa-tf0005-rev12-runtime-01/report.md",
+                      "tests/sfx-system/reviews/b491623e6279869d63f0834c638895cf66632da1bec7ff155f5d952bb71e7a4a/review-tf0005-final-contract-01/report.md"
+                  ],
+    "verification":  {
+                         "completedAt":  "2026-08-11T12:15:04.4389362+00:00",
+                         "head":  "8fd6bc621dd278e51086f00903a14151320b4169",
+                         "summary":  "До Finish уже завершены: approved PRD rev4 9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde, specification rev12 88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459 и plan rev1 3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0; exact mapping PRD-AC-001..079 = 79/79; evidence identities Required=110 Missing=0; feature/index/repository-layout/diff checks PASS; temporary Rojo build PASS. На exact b491 revision: AudioCatalog 39/39, AudioPlayback 61/61, AudioIntegration 39/39, AudioManualQa 22/22, AllTests 380/380 across 14 suites; canonical PlaceId 91045933836846 и GameId 10596427617; AudioRuntime generation 1, five faders, client initialized, listener/output и AcousticSimulationEnabled=true; output без attributable Audio errors; cleanup завершён, Studio Edit-only. Final independent contract review PASS без findings. Operator QA зафиксировал 15 PASS / 1 user-declared NOT_APPLICABLE / 0 FAIL, включая local/hybrid/server playback, Point attenuation, Attached native replication на обоих клиентах и разных расстояниях, category/fader isolation, Music stacks и background/foreground restore. Во время Finish тесты, validators, build и Studio намеренно не перезапускались согласно lifecycle contract."
+                     },
+    "recoveryLog":  [
+                        {
+                            "at":  "2026-08-07T14:03:00.2152336+03:00",
+                            "reason":  "User requested a dedicated implementation branch for TF-0005; migrated the active feature from main to its canonical template feature branch.",
+                            "previousStatus":  "in_progress"
+                        }
+                    ]
 }

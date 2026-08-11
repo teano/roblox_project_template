@@ -34,6 +34,15 @@ local function assertErrorContains(callback: () -> (), expected: string)
 	assertTrue(string.find(tostring(testError), expected, 1, true) ~= nil, `Error did not contain '{expected}'`)
 end
 
+local function assertInstanceDestroyed(instance: Instance, message: string)
+	local probeParent = Instance.new("Folder")
+	local ok = pcall(function()
+		instance.Parent = probeParent
+	end)
+	probeParent:Destroy()
+	assertEqual(ok, false, message)
+end
+
 local function waitUntil(predicate: () -> boolean)
 	while not predicate() do
 		task.wait()
@@ -254,18 +263,41 @@ function ContentPreloaderTestRunner.runAll()
 			registry:Initialize()
 			local calls = 0
 			local receivedTargets = nil
+			local receivedDescriptors = {}
+			local callbackContentIds = {}
 			local preloader = ContentPreloader.new({
 				Assets = registry,
 				ContentProvider = {
 					PreloadAsync = function(_self, targets, callback)
 						calls += 1
 						receivedTargets = table.clone(targets)
-						callback("rbxassetid://200", Enum.AssetFetchStatus.Failure)
-						callback("rbxassetid://100", Enum.AssetFetchStatus.Success)
+						for index, target in targets do
+							assertTrue(typeof(target) == "Instance", "audio preload targets must be Instances")
+							assertTrue(target:IsA("Sound"), "audio preload targets must be Sound carriers")
+							local sound = target :: Sound
+							assertEqual(sound.Parent, nil, `temporary Sound {index} must remain unparented during preload`)
+							assertEqual(sound.PlayOnRemove, false, `temporary Sound {index} must not play during cleanup`)
+							assertEqual(sound.IsPlaying, false, `temporary Sound {index} must not start playback`)
+							receivedDescriptors[index] = {
+								ClassName = sound.ClassName,
+								SoundId = sound.SoundId,
+								Playing = sound.Playing,
+								PlayOnRemove = sound.PlayOnRemove,
+							}
+							table.insert(callbackContentIds, sound.SoundId)
+							callback(
+								sound.SoundId,
+								if index == 1 then Enum.AssetFetchStatus.Success else Enum.AssetFetchStatus.Failure
+							)
+						end
 					end,
 				},
 				Logger = makeLogger(),
 			})
+			local progressContentIds = {}
+			preloader.Progress:Connect(function(progress)
+				table.insert(progressContentIds, progress.ContentId)
+			end)
 			local preloadContentIds = table.freeze({ "rbxassetid://100", "rbxassetid://200" })
 			local command = StartupContentPreloadCommand.new(preloader)
 			local context = {
@@ -283,15 +315,69 @@ function ContentPreloaderTestRunner.runAll()
 
 			command:Initialize(context)
 			command:Initialize(context)
-			assertEqual(calls, 1, "the production audio preload request must be sticky across command reuse")
+			assertEqual(calls, 1, "destroyed audio carriers must not cause a sticky request retry")
 			assertEqual(#receivedTargets, 2)
-			assertEqual(receivedTargets[1], "rbxassetid://100", "catalog preload IDs must retain exact sorted order")
-			assertEqual(receivedTargets[2], "rbxassetid://200", "catalog preload IDs must remain unique")
+			assertEqual(receivedDescriptors[1].ClassName, "Sound")
+			assertEqual(receivedDescriptors[2].ClassName, "Sound")
+			assertEqual(receivedDescriptors[1].SoundId, "rbxassetid://100", "catalog preload IDs must retain exact sorted order")
+			assertEqual(receivedDescriptors[2].SoundId, "rbxassetid://200", "catalog preload IDs must remain unique")
+			assertEqual(receivedDescriptors[1].Playing, false, "preload carriers must never start playback")
+			assertEqual(receivedDescriptors[2].Playing, false, "preload carriers must never start playback")
+			assertEqual(receivedDescriptors[1].PlayOnRemove, false, "preload carrier cleanup must remain silent")
+			assertEqual(receivedDescriptors[2].PlayOnRemove, false, "preload carrier cleanup must remain silent")
+			assertEqual(callbackContentIds[1], "rbxassetid://100", "backend callback accounting must use exact Sound.SoundId")
+			assertEqual(callbackContentIds[2], "rbxassetid://200", "backend callbacks must preserve carrier order")
+			assertEqual(progressContentIds[1], "rbxassetid://100")
+			assertEqual(progressContentIds[2], "rbxassetid://200")
+			assertInstanceDestroyed(receivedTargets[1], "the first temporary Sound must be destroyed")
+			assertInstanceDestroyed(receivedTargets[2], "the second temporary Sound must be destroyed")
 			local result = preloader:GetRequestResult("AudioCatalog.Preload.v1")
 			assertTrue(result ~= nil, "the exact production request id must publish its sticky result")
+			assertEqual(result.RequestedTargets, 2)
+			assertEqual(result.ResolvedContent, 2)
 			assertEqual(result.Failed, 1, "Warn policy must continue after a backend failure")
 			assertEqual(result.Loaded, 1)
 		end)
+	end)
+
+	test("audio preload carriers are destroyed when the adapter raises", function()
+		local receivedTargets = nil
+		local fakePreloader = {
+			PreloadQuery = function() end,
+			GetRequestResult = function()
+				return nil
+			end,
+			Preload = function(_self, targets, options)
+				receivedTargets = table.clone(targets)
+				assertEqual(options.RequestId, "AudioCatalog.Preload.v1")
+				assertEqual(options.FailurePolicy, "Warn")
+				error("InjectedAudioPreloadAdapterFailure")
+			end,
+		}
+		local command = StartupContentPreloadCommand.new(fakePreloader)
+		local context = {
+			Services = {
+				AudioStartup = {
+					Enabled = true,
+					Catalog = {
+						GetSnapshot = function()
+							return { PreloadContentIds = { "rbxassetid://300", "rbxassetid://400" } }
+						end,
+					},
+				},
+			},
+		}
+
+		assertErrorContains(function()
+			command:Initialize(context)
+		end, "InjectedAudioPreloadAdapterFailure")
+		assertEqual(#receivedTargets, 2)
+		assertTrue(receivedTargets[1]:IsA("Sound"), "exception path must use a Sound carrier")
+		assertTrue(receivedTargets[2]:IsA("Sound"), "exception path must use a Sound carrier")
+		assertEqual(receivedTargets[1].SoundId, "rbxassetid://300")
+		assertEqual(receivedTargets[2].SoundId, "rbxassetid://400")
+		assertInstanceDestroyed(receivedTargets[1], "the first exceptional Sound carrier must be destroyed")
+		assertInstanceDestroyed(receivedTargets[2], "the second exceptional Sound carrier must be destroyed")
 	end)
 
 	test("concurrent named requests share one in-flight operation and result", function()

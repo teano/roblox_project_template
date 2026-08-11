@@ -1,11 +1,20 @@
 --!strict
 
 local AudioPlaybackWrapper = require(script.Parent.AudioPlaybackWrapper)
+local SpatialAnchorBindingRegistry = require(script.Parent.SpatialAnchorBindingRegistry)
 
 local Core = {}
 Core.__index = Core
 
 local ORDINARY_TYPES = { UI = true, SFX = true, World = true }
+local FORBIDDEN_CATALOG_OVERRIDE_FIELDS = table.freeze({
+	SourceVolume = true,
+	PlayerType = true,
+	Bus = true,
+	MaxActive = true,
+	Preload = true,
+	Source = true,
+})
 
 local function finite(value: any): boolean
 	return typeof(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
@@ -13,6 +22,18 @@ end
 
 local function inertHandle(): any
 	return table.freeze({ IsActive = function() return false end, Stop = function() end })
+end
+
+local function hasForbiddenCatalogOverride(options: any): boolean
+	if typeof(options) ~= "table" or getmetatable(options) ~= nil then
+		return false
+	end
+	for key in options do
+		if FORBIDDEN_CATALOG_OVERRIDE_FIELDS[key] == true then
+			return true
+		end
+	end
+	return false
 end
 
 local function validOptions(options: any): boolean
@@ -46,6 +67,7 @@ function Core.new(side: string, poolModule: any, logger: any, dependencies: any?
 		_graph = nil,
 		_pools = {},
 		_active = {},
+		_spatialRegistry = nil,
 		_runtime = dependencies or {},
 	}, Core)
 end
@@ -59,7 +81,16 @@ function Core:Initialize(startup: any, graph: any)
 	local pools = {}
 	local active = {}
 	local createdIds = {}
+	local spatialRegistry = nil
 	local ok = xpcall(function()
+		local worldRecord = startup.Config.PlayerTypes.World
+		local worldMaxActive = if self._side == "Server" then worldRecord.ServerMaxActive else worldRecord.ClientMaxActive
+		if worldMaxActive > 0 then
+			assert(self._runtime.Workspace ~= nil, "World playback requires injected Workspace")
+			local registryFactory = self._runtime.SpatialRegistryFactory or SpatialAnchorBindingRegistry
+			spatialRegistry = registryFactory.new(self._runtime.SpatialFrameDriver, self._logger)
+			spatialRegistry:Initialize()
+		end
 		for _, playerType in { "UI", "SFX", "World" } do
 			local record = startup.Config.PlayerTypes[playerType]
 			local maxActive = if self._side == "Server" then record.ServerMaxActive else record.ClientMaxActive
@@ -81,6 +112,7 @@ function Core:Initialize(startup: any, graph: any)
 	end, debug.traceback)
 	if not ok then
 		for index = #createdIds, 1, -1 do pcall(function() self._poolModule:RemovePool(createdIds[index]) end) end
+		if spatialRegistry ~= nil then pcall(function() spatialRegistry:Destroy() end) end
 		self._logger:Warn("AudioDisabled", { ReasonCode = "PoolConstructionFailed", Side = self._side })
 		return
 	end
@@ -88,6 +120,7 @@ function Core:Initialize(startup: any, graph: any)
 	self._graph = graph
 	self._pools = pools
 	self._active = active
+	self._spatialRegistry = spatialRegistry
 	self._enabled = true
 end
 
@@ -110,9 +143,11 @@ function Core:ValidateVariant(variant: any, source: any, options: any): (boolean
 	if not self._enabled then
 		return false, "AudioDisabled"
 	end
-	if variant == nil or not ORDINARY_TYPES[variant.PlayerType] or not validOptions(options) then
+	if variant == nil or not ORDINARY_TYPES[variant.PlayerType] then
 		return false, "InvalidRequest"
 	end
+	if hasForbiddenCatalogOverride(options) then return false, "TypeMismatch" end
+	if not validOptions(options) then return false, "InvalidRequest" end
 	if variant.PlayerType == "World" then
 		if source == nil or (source.Kind ~= "Point" and source.Kind ~= "Attached") then
 			return false, "SpatialSourceRequired"
@@ -141,7 +176,7 @@ function Core:ValidateVariant(variant: any, source: any, options: any): (boolean
 	local effectiveVolume = variant.SourceVolume * (if options and options.VolumeMultiplier then options.VolumeMultiplier else 1)
 	local effectiveSpeed = variant.PlaybackSpeed * (if options and options.PlaybackSpeedMultiplier then options.PlaybackSpeedMultiplier else 1)
 	if effectiveVolume < typeConfig.SourceVolumeMin or effectiveVolume > typeConfig.SourceVolumeMax
-		or effectiveSpeed < typeConfig.PlaybackSpeedMin or effectiveSpeed > typeConfig.PlaybackSpeedMax then return false, "PlaybackBounds" end
+		or effectiveSpeed < typeConfig.PlaybackSpeedMin or effectiveSpeed > typeConfig.PlaybackSpeedMax then return false, "TypeMismatch" end
 	if options ~= nil and options.TimePosition ~= nil and variant.PlaybackRegion ~= nil
 		and (options.TimePosition < variant.PlaybackRegion.Start or options.TimePosition >= variant.PlaybackRegion.End)
 	then return false, "InvalidRegion" end
@@ -161,7 +196,9 @@ function Core:PlayVariant(variant: any, source: any, options: any): (any?, strin
 	local endedQueued = false
 	local acquireContext = {
 		Variant = variant,
-		Parent = if self._side == "Server" then self._graph.ServerPlayback else self._graph.LocalRoot,
+		Parent = if variant.PlayerType == "World"
+			then self._runtime.Workspace
+			else if self._side == "Server" then self._graph.ServerPlayback else self._graph.LocalRoot,
 		Fader = self._graph.Faders[variant.PlayerType],
 		InteractionGroupId = self._graph.Config.InteractionGroupId,
 		SpatialProfile = if variant.SpatialProfileId then self._graph.Config.SpatialProfilesById[variant.SpatialProfileId] else nil,
@@ -174,6 +211,7 @@ function Core:PlayVariant(variant: any, source: any, options: any): (any?, strin
 		ReadinessWait = self._runtime.ReadinessWait,
 		Spawn = self._runtime.Spawn,
 		Logger = self._logger,
+		SpatialBindingRegistry = self._spatialRegistry,
 		OnEnded = function()
 			if lease == nil then endedQueued = true else self:_release(variant.PlayerType, lease) end
 		end,

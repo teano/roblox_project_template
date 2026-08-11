@@ -184,7 +184,11 @@ addition to request `Startup`, the same command executes exactly one sorted,
 deduplicated request `AudioCatalog.Preload.v1` with `Warn`, derived only from
 valid catalog/physical descriptors marked `Preload=true`. Invalid audio startup
 skips the request and publishes its disabled boundary; it does not create a
-second preloader or retry loop. See [AudioSystem.md](AudioSystem.md).
+second preloader or retry loop. The audio adapter preserves that ID order while
+creating temporary unparented, non-playing `Sound` targets with exact `SoundId`
+values, destroys the descriptor-only carriers after the synchronous request,
+and checks the completed sticky result before allocating carriers on repeated
+command initialization. See [AudioSystem.md](AudioSystem.md).
 
 ## Pooling
 
@@ -223,6 +227,8 @@ TF-0005 preload changes additionally require `AudioCatalogTestRunner`,
 `AudioIntegrationTestRunner`, and the aggregate suite. The exact enabled
 production-path fixture is `AudioCatalog/StartupPreloadSet` in
 `ContentPreloaderTestRunner`; it proves the sorted unique
-`PreloadContentIds`, request ID `AudioCatalog.Preload.v1`, `Warn` continuation,
-and sticky reuse. Catalog-only tests do not substitute for that command-path
+`PreloadContentIds`, ordered `Sound` target class and exact `SoundId`
+values, callback accounting, carrier destruction, request ID
+`AudioCatalog.Preload.v1`, `Warn` continuation, and sticky reuse without a
+second backend call. Catalog-only tests do not substitute for that command-path
 fixture.

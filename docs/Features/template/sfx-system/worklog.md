@@ -803,3 +803,582 @@ convergence. Owner-05 has exhausted its third and final remediation return;
 any later engineering remediation transfers to owner-06. Any lifecycle
 transition, commit, push, publish, attachment, or scene mutation still
 requires explicit user authorization.
+
+## 2026-08-09T08:54:40.3789855+00:00 — paused
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 production SFX implementation was committed and pushed as 8fd6bc621dd278e51086f00903a14151320b4169 on template-feature/tf-0005-sfx-system. The commit contains validated audio configuration/catalog, graph/listener ownership, ordinary and Music playback, hybrid delivery, AudioSettings persistence compatibility, ADRs, documentation, and focused/regression tests. Git was clean before Pause. The feature remains unfinished because 15 mandatory multi-client/runtime QA scenarios are not complete.
+
+### Important decisions and discussions
+
+Keep the blocking scope focused on the SFX module and its exact integration boundaries. Generic Save, SessionLock, Players, Wallet, Statistics, DataStore, and shutdown lifecycle backlog stays outside TF-0005 except for the minimal AudioSettings compatibility already committed. Continue to distinguish shipped SFX defects from rare concurrency, defensive hardening, theoretical numeric conformance, and evidence grooming. Final SFX reviews found no Critical or Major defect; one nonblocking defensive Music duplicate-pool ownership hardening remains optional. QA must not claim human hearing or promote single-client proxies to multi-client PASS. Reopening whole-project refactoring was rejected.
+
+### Verification state
+
+Commit/push completed: local, upstream, and origin/template-feature/tf-0005-sfx-system all resolve to 8fd6bc621dd278e51086f00903a14151320b4169. Pre-commit checks passed: staged diff check, feature-workflow validator, synchronized feature dashboard check, repository layout validator, feature-workflow regression tests, two Rojo preflights, and temporary Rojo build (1,311,578 bytes). The exact frozen candidate revision d4f5f77e982068b1b8308297504fcb9446a0a529a306451cd51caa6e84b8b862 was reproduced at 53/26/8. Recorded Studio evidence on that revision is focused/shared 332/332 and aggregate 338/338; final verification Review PASS, architecture Review PASS with one Minor defensive finding. Independent QA completed 1 PASS, 0 product failures, and 15 BLOCKED_ENVIRONMENT. Not run: the remaining 15 mandatory two-client/save-rejoin scenarios and human auditory evaluation.
+
+### Blockers
+
+None.
+
+### Next step
+
+After an explicit user Continue, reuse this reserved branch and the canonical Studio place, then execute only the 15 remaining SFX multi-client scenarios with one server and two clients. Use an approved save backend plus controlled leave/rejoin for ClientMusicSettingsSave, keep generic lifecycle backlog excluded, record objective graph/audibility/runtime proxies without a hearing claim, and separately decide whether the optional Music duplicate-pool ownership hardening is worth a targeted fix before a later user-authorized Finish.
+
+## 2026-08-09T09:48:31.0464937Z — active implementation checkpoint
+
+This checkpoint records implementation context only. The feature remains
+`in_progress/active`; no Pause or Finish transition was requested or applied.
+
+### Result and current state
+
+The user requested a collaborative test system in which the agent prepares and
+drives a complete Audio test plan while the operator performs Roblox movement,
+camera, focus, respawn, and reconnect actions and reports what they hear. A
+manual Studio-only QA system is now implemented in the worktree: one canonical
+plan, inert client/server drivers that reuse the production manifest services,
+primitive-only objective snapshots, a server report coordinator, a
+deterministic plan/evaluator runner, and an operator runbook. The aggregate
+runner registers the new plan suite after the three focused Audio suites.
+
+### Important decisions and discussions
+
+Full coverage is the union of deterministic runners and collaborative Studio
+scenarios. Failure, boundary, generation, transport, save-rollback, and Music
+mutation matrices remain deterministic; real audibility, two-client
+isolation/replication, spatial perception, listener motion, independent
+settings/Music state, and background/foreground behavior remain collaborative.
+The harness adds no bootstrap, startup Script/LocalScript, RemoteEvent, replay,
+or alternate Audio implementation. Objective runtime evidence and human
+hearing confirmation are stored separately, and a hearing-required scenario
+cannot pass without both. The plan maps all `PRD-AC-001..079`, all public Audio
+capabilities, and the exact 16 Studio observation identities. Distinguishable
+Music stack entries reuse the approved Music asset with bounded playback-speed
+overrides instead of adding an asset dependency.
+
+### Verification state
+
+Passed on the current worktree: mandatory Rojo preflight, three temporary Rojo
+builds, repository layout validation, feature-workflow validation, synchronized
+feature dashboard check, and `git diff --check`. The final build contains all
+four new QA ModuleScripts, is 1,373,100 bytes, and has SHA-256
+`cd5471fc0534225e30f3644becac495a307c2e55060bce38fadbdfa30708e642`.
+The existing canonical Studio instance was selected
+explicitly and its exact PlaceId `91045933836846` and GameId `10596427617` were
+confirmed. A clean Play attempt proved that this instance's Rojo plugin had not
+synchronized the current branch: its DataModel lacked
+`ReplicatedStorage.Shared.Audio` and bootstrapped the pre-Audio command set.
+Play was stopped without opening or replacing Studio. Therefore the new
+`AudioManualQaTestRunner`, focused suites, aggregate suite, and live manual
+harness were not executed on this worktree revision; no runtime or hearing
+claim was made.
+
+### Blockers
+
+- Restore the Rojo plugin connection to the already-open canonical Studio
+  instance so the current branch is present in that DataModel.
+- `ClientMusicSettingsSave` still requires a user-approved persistence backend
+  and controlled leave/rejoin; otherwise that scenario must remain blocked.
+
+### Next step
+
+After Rojo is restored in the existing canonical Studio window, rerun the
+preflight, verify exact DataModel identity and synchronized Audio sources, then
+run the new plan runner, all three focused Audio runners, the full aggregate,
+and the agent/operator two-client procedure in `docs/AudioManualQA.md`.
+
+## 2026-08-09T11:51:40.5409177Z — active real-asset QA checkpoint
+
+This checkpoint updates portable implementation context only. TF-0005 remains
+`in_progress/active`; no Pause, Finish, readiness change, commit, push, publish,
+or lifecycle transition was requested or applied.
+
+### Result and current state
+
+The production CSV and generated catalog now contain exactly three real Audio
+rows and no audible UI placeholder: `Template.SFX.CartoonBubble/Default`
+resolves `5852470908` at
+`Shared/Sounds/SFX/Cartoon bubble button Sound`;
+`Template.World.OldCarEngine/Default` resolves `137048982817372` at
+`Shared/Sounds/SFX/engine sound for old cars`; and
+`Template.Music.PrayerRiver/Default` resolves `91760644839532` at
+`Shared/Sounds/Music/祈りの川`. The reviewed CSV-to-Luau conversion produced
+the matching three-row `SoundCatalog` used by focused and live identity tests.
+
+The collaborative Audio QA harness is bound only through the existing
+successful server/client bootstrap VMs in Studio. It uses side-local exact-
+whitelist `BindableFunction`s, exports sanitized objective evidence, owns its
+cleanup, and adds no remote, executable QA script, service locator, or alternate
+Audio path. Deterministic coverage maps all 79 acceptance criteria and the 16
+Studio scenarios, validates exact real descriptor/catalog identity, exact cue
+refs, accepted handle-less one-shots, reconnect Start, invalid settings
+rollback, explicit operator evidence, public preload result inspection, and
+both wrapped and raw Bindable boundary behavior. Repository validation now
+enforces the exact QA inventory, formatting-tolerant post-success Studio gates,
+all Tests/QA `.server`/`.client` Lua/Luau suffixes, and lexical remote creation
+plus colon/dot Fire/Invoke calls while ignoring comments and strings.
+
+### Verification state
+
+The latest clean canonical Studio Play used session
+`ce5ac517-12b2-4c9e-bf1b-af02b7a9dba9`, PlaceId `91045933836846`, and GameId
+`10596427617`. Focused results are catalog 37/37, playback 47/47, integration
+36/36, manual QA 21/21, and system 20/20; aggregate regression passed 359/359
+across 14 suites. Server and client bridge Start/Snapshot/Cleanup previously
+resolved the exact three live descriptors and production catalog records.
+Repository layout, feature workflow/index, `git diff --check`, Rojo preflight,
+and temporary Rojo build pass on the current worktree. Studio was returned to
+Edit after verification. No automated result is recorded as proof that audio
+was heard.
+
+The canonical saved `place.rbxl` still records
+`SoundService.AcousticSimulationEnabled=false`, while the selected Studio
+DataModel observed `true`; that Studio value is unsaved relative to the binary
+scene source and cannot close the saved-place prerequisite. Client public
+preload evidence for `AudioCatalog.Preload.v1` reports `Loaded=0`, `Failed=3`,
+with all three exact ContentIds at `Status="Failure"`; the associated runtime
+diagnostic is HTTP 429. Server evidence reports `ServiceNotBound` rather than
+performing another lookup. These observations were not masked with retries or
+production changes.
+
+### Remaining work and blockers
+
+- Reconcile and save the canonical acoustic property deliberately; do not use
+  the current unsaved Studio value as scene-source evidence.
+- Resolve or authorize the three real Audio preload failures/HTTP 429 before
+  treating readiness or audibility scenarios as executable.
+- Run the remaining one-server/two-client collaborative scenarios with the
+  operator and collect explicit human hearing statements; deterministic
+  snapshots cannot substitute for hearing.
+- `ClientMusicSettingsSave` still requires a user-approved persistence backend
+  and controlled leave/rejoin. Without it, that scenario remains blocked.
+
+### Next step
+
+After the scene/preload prerequisites and persistence backend are available,
+reuse the existing canonical Studio session, rerun the exact preflight and
+identity checks, then execute the agent/operator two-client plan from
+`docs/AudioManualQA.md`. Keep objective evidence separate from operator hearing
+statements and leave TF-0005 active until the user explicitly requests a
+lifecycle transition.
+
+## 2026-08-09T17:35:16.0968624Z — ACTIVE collaborative Audio QA checkpoint
+
+This checkpoint records partial evidence for collaborative RunId
+`TF0005-AUDIO-COLLAB-01`. TF-0005 remains `in_progress/active`; no feature
+status, readiness, handoff, lifecycle, commit, push, or publish change was
+requested or applied.
+
+### Result and current state
+
+Identity evidence was recorded only after Play had stopped, in the canonical
+Edit session: PlaceId `91045933836846`, GameId `10596427617`, and
+`SoundService.AcousticSimulationEnabled=true`. Server, ClientA, and ClientB
+`Start` each passed exact live-identity validation for the same three records:
+
+- `Template.SFX.CartoonBubble/Default`, asset `5852470908`, descriptor
+  `Shared/Sounds/SFX/Cartoon bubble button Sound`;
+- `Template.World.OldCarEngine/Default`, asset `137048982817372`, descriptor
+  `Shared/Sounds/SFX/engine sound for old cars`;
+- `Template.Music.PrayerRiver/Default`, asset `91760644839532`, descriptor
+  `Shared/Sounds/Music/祈りの川`.
+
+ClientA and ClientB each reported the public `AudioCatalog.Preload.v1` result
+with `Loaded=0`, `Failed=3`, and all three exact ContentIds at
+`Status="Failure"`. The server reported `ServiceNotBound`, which is the
+expected server-side observation for this optional public preload inspection.
+
+### LocalSFX objective and operator evidence
+
+- ClientA's exact local SFX route passed its structural checks, but its
+  `AudioPlayer` remained `IsReady=false` and `IsPlaying=false`, and the client
+  emitted `LoadTimeout`. The separate operator statement was that no sound was
+  heard.
+- ClientB executed the same exact local capability and observed
+  `IsReady=true`, `IsPlaying=true`, with no `LoadTimeout`. The separate operator
+  statement was that the sound was heard. This closes the ClientB `LocalSFX`
+  capability path as PASS for this run.
+- ClientA is classified as a transient/per-client content-delivery failure for
+  this run, not as evidence that the shared local playback implementation is
+  universally broken.
+- `Studio-E2E-AUDIO-01/LocalOnly` remains INCONCLUSIVE/BLOCKED. ClientB was
+  explicitly commanded to play the same local capability, so this run cannot
+  prove that ClientA's sound was absent on an otherwise silent second client.
+  It must not be promoted to a two-client isolation PASS.
+
+The other 15 collaborative scenarios remain pending. Cleanup completed with
+zero remaining QA-owned active state on ClientA, ClientB, and Server, and the
+final Stop completed successfully.
+
+### Remaining work and blockers
+
+- Repeat `LocalOnly` from a fresh run with ClientB kept silent except for its
+  snapshot and operator observation.
+- Treat ClientA's delivery timeout as per-client/transient evidence until a
+  fresh run establishes whether it recurs; do not mask it with retries or
+  infer audibility from structural state.
+- Execute the 15 still-pending scenarios and retain the existing separate
+  persistence-backend requirement for `ClientMusicSettingsSave`.
+
+### Next step
+
+Start a fresh one-server/two-client collaborative run, revalidate exact
+identity and acoustic prerequisites, rerun `LocalOnly` without commanding
+ClientB playback, and continue the remaining plan while keeping objective
+runtime observations separate from operator hearing statements.
+
+## 2026-08-10T07:52:24.0743693Z — ACTIVE collaborative Audio QA checkpoint
+
+This checkpoint records the completed interactive evidence collection for
+RunId `TF0005-AUDIO-COLLAB-02`. TF-0005 remains `in_progress/active`; no
+feature status, readiness, handoff, lifecycle, commit, stage, push, publish,
+source, or Studio scene change was requested or applied.
+
+### Result and current state
+
+The one-server/two-client run completed its QA cleanup and final Studio Stop.
+After Stop, the canonical Edit DataModel was rechecked at exact PlaceId
+`91045933836846`, GameId `10596427617`, with
+`SoundService.AcousticSimulationEnabled=true`. Server, ClientA, and ClientB
+had all started against the exact three real catalog/descriptor pairs from the
+prior checkpoint. Final cleanup reported no QA handles, no active Music
+handles or leases, and no remaining local/server playback on ClientA, ClientB,
+or Server.
+
+The exact 16-scenario result matrix is **9 PASS / 6 BLOCKED / 1 FAIL**:
+
+| Scenario | Result | Run-02 evidence |
+|---|---|---|
+| `LocalOnly` | PASS | ClientA played one exact `CartoonBubble` with `IsReady=true` and `IsPlaying=true`; the operator heard one sound. ClientB remained silent and its snapshot showed no handle or local playback. |
+| `ServerVariantOnce` | PASS | Server accepted the exact `CartoonBubble/Default` selection once and created one ready/playing server wrapper. |
+| `ServerSingleAudibleReplication` | PASS | The operator heard one server sound on each client; server evidence retained one accepted one-shot and one server playback, without application-level per-client duplicates. |
+| `HybridPrediction` | BLOCKED | Nonspatial prediction, initiator exclusion, and recipient transport passed: the operator heard the initiator sound and then the second client with a small delay. The scenario also requires spatial audible confirmation, which was blocked by `AudioEmitter.PositionType is not enabled yet`. |
+| `HybridNoServerPlayer` | PASS | Server snapshots remained free of a hybrid `AudioPlayer`/lease while the client prediction and recipient presentation paths executed. |
+| `PointAttenuation` | BLOCKED | The exact `OldCarEngine` point graph was ready and playing with a lease-owned emitter and point anchor, and ClientB received one World presentation, but no engine was heard and Studio emitted `AudioEmitter.PositionType is not enabled yet`. |
+| `AttachedFollowOrientation` | BLOCKED | Attached spatial audibility/orientation could not be established while the same Roblox `AudioEmitter.PositionType` capability was unavailable. |
+| `ServerAttachedReplication` | BLOCKED | Attached server replication could not complete its required audible spatial observation while `AudioEmitter.PositionType` was unavailable. |
+| `NonSpatialInvariant` | PASS | ClientA heard one exact `CartoonBubble` before movement and another with the same volume/character after moving far away and rotating the camera 180 degrees. Both snapshots used the nonspatial SFX route. |
+| `CharacterPositionCameraOrientation` | PASS | After character reset, ClientA retained one enabled/output-bound listener with zero position/rotation delta and no active playback; ClientB remained independently clean. |
+| `CategoryIsolation` | PASS | SFX disable produced `FaderVolume.SFX=0`; a ready/playing muted `CartoonBubble` was not heard. Music remained at `FaderVolume.Music=1`, and the operator heard ready/playing `PrayerRiver` at volume `0.5`. This functional PASS does not waive the run's unexpected settings integration diagnostic. |
+| `ClientMusicSettingsSave` | BLOCKED | The in-session settings revision changed and restore completed, but both settings writes emitted `GameDataClient:35: attempt to index nil with 'ProviderId'`; no approved persistence backend plus controlled leave/rejoin evidence was completed. |
+| `IndependentMusicStacks` | PASS | ClientA proved LIFO Music A/B/C with audible speed identities `0.8 -> 1.0 -> 1.2`, C stop resumed B, and B stop resumed A. ClientB remained at zero Music handles/leases/playback. |
+| `IndependentFaders` | BLOCKED | Functional category separation was observed, but the required clean independent-settings path and persistence evidence were blocked by the reproducible `GameDataClient` nil-`ProviderId` integration failure and the missing rejoin backend. |
+| `BackgroundForegroundLifo` | PASS | Audible background `0.85` crossfaded to foreground `1.15`; minimize/restore preserved the foreground; stopping it resumed background; `StopAllMusic` stopped playback and released all Music state. |
+| `CleanGraphRuntime` | FAIL | The run contained unexpected diagnostics: `GameDataClient:35: attempt to index nil with 'ProviderId'` occurred exactly twice, and the spatial attempt emitted `AudioEmitter.PositionType is not enabled yet`. A clean-output release gate therefore cannot pass. |
+
+The public preload result on both clients remained `Loaded=0`, `Failed=3` for
+the exact three configured ContentIds. This did not prevent on-demand delivery
+from succeeding for the exercised nonspatial assets: `CartoonBubble` and
+`PrayerRiver` later reached `IsReady=true`, `IsPlaying=true`, and were heard by
+the operator. `OldCarEngine` likewise reached an exact ready/playing point
+graph and recipient presentation, but its audible spatial result remained
+blocked by the unavailable `AudioEmitter.PositionType` capability. No retry,
+placeholder sound, alternate playback implementation, or inferred hearing
+claim was used.
+
+Additional objective coverage passed inside the run: invalid AudioSettings
+snapshot application returned `Rejected=true`, `ReasonCode="InvalidSettings"`,
+`RevisionUnchanged=true`, and `SettingsUnchanged=true`; Music handles and pool
+leases returned to zero after each cleanup boundary; and the final ClientA,
+ClientB, and Server cleanup snapshots contained no active QA-owned playback.
+
+### Verification state
+
+This checkpoint records interactive runtime evidence only. The deterministic
+focused/manual/aggregate suites were not rerun during Run-02. The previously
+verified `359/359` aggregate belongs to the prior verified worktree revision
+and is retained as historical evidence, not reported as a result of this
+interactive run. Documentation validation after this append is recorded in
+the task result, without changing feature lifecycle state.
+
+### Remaining blockers and next step
+
+- Diagnose the reproducible `GameDataClient:35` nil-`ProviderId` listener
+  failure before settings persistence and independent-fader release gates can
+  be cleanly closed.
+- Provide an approved persistence backend and controlled leave/rejoin to close
+  `ClientMusicSettingsSave`.
+- Re-run the three spatial audible scenarios when Roblox exposes the required
+  `AudioEmitter.PositionType` behavior, then repeat `HybridPrediction` as the
+  combined nonspatial/spatial scenario.
+- Repeat the clean graph/runtime gate after those diagnostics are resolved.
+
+Keep TF-0005 active. Any Pause, Finish, readiness, commit, push, publish, or
+scene transition still requires a separate explicit user request.
+
+## 2026-08-10T08:04:58.0689022+00:00 — paused
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 is paused with the real-asset implementation and collaborative Audio QA harness still uncommitted on `template-feature/tf-0005-sfx-system` at HEAD `8fd6bc621dd278e51086f00903a14151320b4169`. Interactive RunId `TF0005-AUDIO-COLLAB-02` completed, ClientA/ClientB/Server cleanup reached zero QA handles, Music handles/leases, and local/server playback, final Stop completed, and the post-Stop canonical Studio instance `ce5ac517-12b2-4c9e-bf1b-af02b7a9dba9` remained in Edit at PlaceId `91045933836846`, GameId `10596427617`, with `SoundService.AcousticSimulationEnabled=true`.
+
+The exact 16-scenario result is **9 PASS / 6 BLOCKED / 1 FAIL**. PASS: `LocalOnly`, `ServerVariantOnce`, `ServerSingleAudibleReplication`, `HybridNoServerPlayer`, `NonSpatialInvariant`, `CharacterPositionCameraOrientation`, functional `CategoryIsolation`, `IndependentMusicStacks`, and `BackgroundForegroundLifo`. BLOCKED: `HybridPrediction` (nonspatial prediction/fanout passed; point audibility blocked), `PointAttenuation`, `AttachedFollowOrientation`, and `ServerAttachedReplication` at the spatial platform gate; `ClientMusicSettingsSave` because rejoin/backend evidence is incomplete and settings integration errored; and `IndependentFaders` because further settings mutations stopped after that error. FAIL: `CleanGraphRuntime` because unexpected diagnostics occurred even though graph, acoustic policy, and topology were correct.
+
+Spatial creation/transport reached the exact OldCarEngine graph and presentation, but Studio emitted `AudioEmitter.PositionType is not enabled yet` and no engine was heard. `set_enabled` and `restore_settings` each applied/restored their mutation but produced exactly two total `GameDataClient:35: attempt to index nil with 'ProviderId'` listener errors through `Signal:65`. Both clients reported public preload `Loaded=0`/`Failed=3` for all three real IDs; this is delivery/blocker evidence, not a blanket playback failure, because on-demand CartoonBubble and PrayerRiver later reached `IsReady=true`/`IsPlaying=true` and were heard. Invalid settings rollback separately passed with `ReasonCode=InvalidSettings`, unchanged revision, and unchanged settings.
+
+The worktree is intentionally substantial and uncommitted: 18 tracked paths are modified and 8 paths are untracked. Modified: `.agents/rules/audio.md`, `README.md`, `configs/audio/Sounds.csv`, `docs/AudioSystem.md`, `docs/Features/template/README.md`, `docs/Features/template/sfx-system/feature.json`, `docs/Features/template/sfx-system/handoff.md`, `docs/Features/template/sfx-system/worklog.md`, `docs/TestCoverage.md`, `docs/adr/template/README.md`, `place.rbxl`, `scripts/validate-repository-layout.ps1`, `src/ReplicatedStorage/Shared/Configs/Audio/SoundCatalog.luau`, both bootstraps, `AllTestsRunner.luau`, `AudioCatalogTestRunner.luau`, and `AudioPlaybackTestRunner.luau`. Untracked: `docs/AudioManualQA.md`, template ADR-0042, four shared Audio manual-QA modules, `AudioManualQaServer.luau`, and `AudioManualQaTestRunner.luau`. Nothing was staged, committed, pushed, published, or fixed during this Pause.
+
+### Important decisions and discussions
+
+Keep the three real assets and exact identities as the test authority: `Template.SFX.CartoonBubble/Default` -> `5852470908` at `Shared/Sounds/SFX/Cartoon bubble button Sound`; `Template.World.OldCarEngine/Default` -> `137048982817372` at `Shared/Sounds/SFX/engine sound for old cars`; and `Template.Music.PrayerRiver/Default` -> `91760644839532` at `Shared/Sounds/Music/祈りの川`. The authoritative authoring path remains `configs/audio/Sounds.csv`, with generated `SoundCatalog.luau` consumed by tests.
+
+Objective runtime state and operator hearing remain separate evidence. No `IsReady`/`IsPlaying`, graph, transport, or snapshot state substitutes for a hearing-required observation, and no hearing statement substitutes for exact route/identity evidence. Public preload failure is not equivalent to failed on-demand playback: keep `Loaded=0`/`Failed=3` visible while recognizing the later successful CartoonBubble and PrayerRiver delivery. The unavailable PositionType capability leaves spatial scenarios BLOCKED, never PASS. The two nil-ProviderId settings errors fail the clean-output, settings persistence/rejoin, and independent-fader gates even though the immediate setting mutations applied. No retry, placeholder, alternate playback implementation, source fix, Studio mutation, broader Save/GameData refactor, or lifecycle Finish is authorized by this Pause.
+
+### Verification state
+
+Run-02 runtime evidence is fully recorded in the immediately preceding ACTIVE checkpoint and the Pause summary: exact 9 PASS / 6 BLOCKED / 1 FAIL; exact three real descriptor/catalog identities; client preload `Loaded=0`/`Failed=3`; correct nonspatial local/hybrid/server behavior; invalid-settings rollback PASS; Music stack/background-foreground behavior PASS; character/listener survival PASS; spatial PositionType blocker; exactly two GameDataClient nil-ProviderId diagnostics; zero-state cleanup on ClientA, ClientB, and Server; and final Stop/Edit identity confirmation.
+
+The latest deterministic evidence remains historical from the prior verified worktree: aggregate `359/359` across 14 suites, `AudioManualQaTestRunner` `21/21`, and `SystemTestRunner` `20/20`. Those suites, focused Audio runners, aggregate, Rojo build, and clean Studio bootstrap were **not rerun during Run-02 or this Pause**. This Pause performs documentation/workflow validation only and must not relabel prior deterministic results as current Run-02 results. No persistence-backend leave/rejoin test completed.
+
+### Blockers
+
+- Spatial audible QA remains blocked because Studio reports AudioEmitter.PositionType is not enabled yet; OldCarEngine point/attached scenarios cannot be promoted to PASS.
+- AudioSettings integration emits GameDataClient:35 nil ProviderId listener errors; persistence/rejoin and clean independent-fader gates remain incomplete.
+- The public AudioCatalog.Preload.v1 result remains Loaded=0/Failed=3 for all three real assets; on-demand CartoonBubble and PrayerRiver playback succeeded, but delivery diagnostics remain unresolved.
+- Hybrid spatial, point attenuation, attached replication/orientation, settings persistence/rejoin, independent faders, and the clean-runtime release gate require focused reruns after fixes.
+
+### Next step
+
+After a future explicit `$feature-continue`, reconstruct this checkpoint on the reserved branch; diagnose and fix the spatial `AudioEmitter.PositionType` compatibility boundary and the `GameDataClient` provider-envelope handling with focused regression tests; then rerun the focused and deterministic Audio suites and complete a clean one-server/two-client manual QA pass, including approved persistence backend plus controlled leave/rejoin for `ClientMusicSettingsSave`, independent faders, all spatial audible scenarios, and the clean-runtime gate. This next step records intent only and does not authorize implementation now.
+
+## 2026-08-10T09:11:35.1740837+00:00 — ACTIVE continuation checkpoint
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 remains `in_progress/active` on `template-feature/tf-0005-sfx-system` at HEAD `8fd6bc621dd278e51086f00903a14151320b4169`. This continuation fixed the current AudioSettings/GameData change contract: `SetLevel` and `SetEnabled` now emit structured records containing `ProviderId`, exact path, old value, and new value, and the focused regression proves both mutations reach `GameDataClient.ItemChanged` with `ItemId` and profile revision enrichment and without the former nil-`ProviderId` listener failure.
+
+The startup audio adapter now performs the final typed conversion from the catalog's sorted normalized content IDs to temporary unparented, non-playing `Sound` carriers with exact `SoundId`. It checks the completed sticky request before carrier allocation, keeps the canonical `AudioCatalog.Preload.v1`/`Warn` contract, destroys every carrier after synchronous completion and when the adapter raises, and rethrows the original failure. Focused tests cover exact class/order/`SoundId`, callback and progress accounting, non-playing state, actual destruction, exceptional cleanup/rethrow, and repeated-command reuse without a second backend call.
+
+The implementation and focused-test changes in this continuation are exactly `src/ReplicatedStorage/Client/Audio/AudioSettingsClient.luau`, `src/ServerScriptService/Tests/AudioIntegrationTestRunner.luau`, `src/ReplicatedStorage/Client/Initialization/Commands/StartupContentPreloadCommand.luau`, and `src/ServerScriptService/Tests/ContentPreloaderTestRunner.luau`. The corresponding current documentation changes are `docs/ContentPreloading.md` and `docs/Features/template/sfx-system/technical-specification.md`; this checkpoint also refreshes `feature.json`, `handoff.md`, `worklog.md`, and the generated template feature dashboard.
+
+Run-02 remains historical evidence at 9 PASS / 6 BLOCKED / 1 FAIL and is not relabeled. Its first-run `Loaded=0`/`Failed=3` HTTP 429 observation is now classified as transient content-delivery evidence, not a current implementation defect: the current clean startup resolved the same exact three configured assets at 3/3 without retry. No new human hearing statement was collected or inferred in this continuation.
+
+### Important decisions and discussions
+
+Keep `AudioSettingsClient` responsible for publishing its normal structured domain change record; do not broaden `GameDataClient` to accept missing payloads or hide provider-contract violations. Keep `ContentPreloader` side-neutral and unchanged: the audio startup adapter owns the Roblox-specific temporary `Sound.SoundId` carriers while still routing the request through the existing preloader. Preserve sticky named-request semantics, exact ID ordering, best-effort `Warn`, no retry, and silent carrier cleanup.
+
+Do not convert the unavailable spatial engine capability into an authored fallback that violates wrapper ownership. The four spatial scenarios remain external Pending. The former nil-`ProviderId` and 0-of-3 preload observations remain in the append-only Run-02 history but are no longer current blockers after their focused and clean-startup evidence passed.
+
+### Verification state
+
+Non-Studio gates passed on the current worktree: mandatory Rojo preflight, temporary Rojo build, `validate-feature-workflow.ps1`, `sync-feature-index.ps1 -Check -Scope All`, `validate-repository-layout.ps1`, and `git diff --check`.
+
+In a fresh Play of canonical Studio instance `ce5ac517-12b2-4c9e-bf1b-af02b7a9dba9`, exact identity matched PlaceId `91045933836846` and GameId `10596427617`. `AudioIntegrationTestRunner` passed 37/37, `ContentPreloaderTestRunner` passed 9/9, and `AllTestsRunner` passed 361/361 across 14 suites. Natural startup `AudioCatalog.Preload.v1` reported `RequestedTargets=3`, `ResolvedContent=3`, `Loaded=3`, `Failed=0` for the exact three configured assets, with no retry. Console inspection found only diagnostics expected by negative-path tests and no unexpected error. Cleanup stopped Play, returned the canonical instance to Edit, revalidated the same IDs, and observed `SoundService.AcousticSimulationEnabled=true`.
+
+No one-server/two-client collaborative scenario was rerun: the connector cannot establish two clients or address ClientA and ClientB separately. `CategoryIsolation`, `ClientMusicSettingsSave`, `IndependentFaders`, and `CleanGraphRuntime` therefore remain pending collaborative recheck. The four spatial scenarios remain Pending at the external `AudioEmitter.PositionType` gate. No safe persistence backend or controlled leave/rejoin was used.
+
+### Blockers
+
+- Spatial audible QA remains Pending at the external platform gate: Studio reports AudioEmitter.PositionType is not enabled yet, so HybridPrediction, PointAttenuation, AttachedFollowOrientation, and ServerAttachedReplication cannot be promoted to PASS.
+- The available Studio connector can select the canonical session and run server/single-client deterministic Play, but it cannot establish a two-client topology or address ClientA and ClientB separately; the remaining collaborative per-client scenarios require the user-assisted step.
+- ClientMusicSettingsSave still requires an approved safe persistence backend plus a controlled leave/rejoin; no persistence-backend test was run.
+
+### Next step
+
+Reuse the existing canonical Studio instance for a fresh one-server/two-client run after the user establishes the two-client topology and participates in the per-client steps. Revalidate exact IDs and acoustic policy, then rerun `CategoryIsolation`, `IndependentFaders`, and `CleanGraphRuntime`; run `ClientMusicSettingsSave` only with an approved safe persistence backend and controlled leave/rejoin. Keep `HybridPrediction`, `PointAttenuation`, `AttachedFollowOrientation`, and `ServerAttachedReplication` Pending until Roblox exposes the required `AudioEmitter.PositionType` behavior. Record objective client/server snapshots separately from any user hearing statements and finish with zero-state cleanup and final Stop/Edit identity verification.
+
+## 2026-08-10T09:57:41.9793182+00:00 — ACTIVE collaborative Audio QA checkpoint
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 remains `in_progress/active` on `template-feature/tf-0005-sfx-system` at HEAD `8fd6bc621dd278e51086f00903a14151320b4169`. The authoritative schema-3 export for collaborative RunId `TF0005-AUDIO-COLLAB-03` matched PlaceId `91045933836846` and GameId `10596427617`, contained no invalid records, and evaluated the four focused scenarios as **2 PASS / 2 BLOCKED / 12 PENDING / 0 FAIL** overall `BLOCKED`.
+
+`CategoryIsolation` passed. The objective snapshots showed SFX disabled with `FaderVolume.SFX=0` while Music remained at `1`, and the exact operator statement was: CartoonBubble был полностью не слышен, а PrayerRiver был слышен. Settings and playback were restored afterward.
+
+`ClientMusicSettingsSave` remains blocked only on the unexecuted approved persistence-backend leave/rejoin boundary. Its in-session parts passed: ClientA accepted `SFX.Level=0.25` and `UI.Enabled=false`; ClientB remained at its independent defaults; the invalid snapshot was rejected with `ReasonCode=InvalidSettings`, unchanged revision, and unchanged settings; both clients returned to defaults without the former nil-`ProviderId` diagnostic.
+
+`IndependentFaders` objectively passed its separate-client behavior: ClientA alone held `Master.Level=0.2` with fader `0.003981071524322033` and Music `1`, while ClientB alone held `Music.Level=0.7` with fader `0.1258925348520279` and Master `1`. Its formal record remains `BLOCKED` because the required timely operator statement was not requested or captured during the scenario. This is a test-process evidence gap and is not retroactively converted to human evidence.
+
+`CleanGraphRuntime` passed. ClientA finished at save revision `9`, ClientB at revision `4`; both had default settings/faders, zero active handles, zero Music handles/leases/playback, zero local/server playback, and client preload `RequestedTargets=3`, `ResolvedContent=3`, `Loaded=3`, `Failed=0`. The exported server final snapshot had a ready generation-1 graph, five faders at `1`, four wires, zero handles/accepted one-shots/server playback, zero active SFX/World pool items, and `AcousticSimulationEnabled=true`; server preload inspection remained the expected `ServiceNotBound`. The supplied run output contained no unexpected warning or error.
+
+The twelve other manual-QA scenarios were not recorded in this focused run. Spatial scenarios were not run and retain the external Roblox `AudioEmitter.PositionType` Pending blocker. Historical Run-02 remains unchanged at 9 PASS / 6 BLOCKED / 1 FAIL. The latest deterministic evidence also remains the separately completed `AllTestsRunner` result of 361/361 across 14 suites; it was not rerun during COLLAB-03.
+
+### Important decisions and discussions
+
+Treat the schema-3 `Report` export as the authoritative COLLAB-03 result and preserve the distinction between objective snapshots and operator hearing evidence. Keep the exact CategoryIsolation operator statement as human evidence. Do not promote IndependentFaders from its recorded `BLOCKED` status even though its objective client-isolation values passed, because the required operator statement was not requested at the correct time. Do not infer persistence from in-session revisions, and do not infer spatial audibility while the engine capability is unavailable.
+
+The earlier connector/topology blocker is closed for these focused steps because the user established one server and two clients and supplied separate ClientA/ClientB evidence. No source fix, fallback spatial architecture, retry, persistence backend, lifecycle transition, commit, push, publish, or scene mutation is part of this checkpoint.
+
+### Verification state
+
+Validated the exact user-supplied export: `SchemaVersion=3`; `RunId=TF0005-AUDIO-COLLAB-03`; PlaceId `91045933836846`; GameId `10596427617`; records for `CategoryIsolation=PASS`, `ClientMusicSettingsSave=BLOCKED`, `IndependentFaders=BLOCKED` with `ObjectivePassed=true`, and `CleanGraphRuntime=PASS`; evaluation `Total=16`, `Passed=2`, `Blocked=2`, `Pending=12`, `Failed=0`, `Overall=BLOCKED`, `InvalidRecords=[]`; and a clean server `FinalSnapshot`.
+
+Correlated the export with the supplied client snapshots: both clients started with runtime/save/listener ready and preload 3/3; CategoryIsolation restored cleanly; settings mutation/isolation and invalid rollback passed; independent fader values were side-local; cleanup snapshots had no active handles, leases, or playback and returned all settings/faders to defaults. No unexpected warning or error appeared in the supplied COLLAB-03 output. The run did not execute persistence/rejoin, spatial scenarios, focused deterministic runners, aggregate suites, a Rojo build, or a post-Stop identity recheck. Existing 361/361 deterministic evidence is retained without relabeling it as a COLLAB-03 result.
+
+### Blockers
+
+- Spatial audible QA remains Pending at the external platform gate: Studio reports AudioEmitter.PositionType is not enabled yet, so HybridPrediction, PointAttenuation, AttachedFollowOrientation, and ServerAttachedReplication cannot be promoted to PASS.
+- ClientMusicSettingsSave still requires an approved safe persistence backend plus a controlled leave/rejoin; COLLAB-03 passed in-session mutation, client isolation, invalid rollback, and restore only.
+- IndependentFaders objective snapshots passed in COLLAB-03, but the formal scenario remains BLOCKED because the required timely operator statement was not requested or captured; rerun that focused observation without inferring it retroactively.
+
+### Next step
+
+The COLLAB-03 export and final snapshots are valid, so the operator may press Stop in the current Local Server test. For later evidence collection, run `ClientMusicSettingsSave` only in an approved safe persistence environment with controlled leave/rejoin; rerun `IndependentFaders` with the required operator statement requested and captured at scenario time; and keep the four spatial scenarios Pending until Roblox exposes the required `AudioEmitter.PositionType` behavior. Preserve TF-0005 as active unless the user separately authorizes a lifecycle transition.
+
+## 2026-08-10T12:46:19.3997435+00:00 — paused
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 remains unfinished on its reserved template feature branch at committed HEAD 8fd6bc621dd278e51086f00903a14151320b4169. The current uncommitted worktree fixes the AudioSettingsClient Changed contract: SetLevel and SetEnabled emit structured ProviderId, exact path, old value, and new value records, so GameDataClient enrichment no longer raises the former nil-ProviderId listener failure. Startup audio preload now converts sorted normalized catalog IDs into temporary unparented, non-playing typed Sound carriers with exact SoundId while retaining the single sticky AudioCatalog.Preload.v1 Warn request, synchronous cleanup, and no retry. The worktree also contains the collaborative QA harness, exact real audio assets/catalog, bootstrap test bindings, validators, current audio/preload/test documentation, Accepted QA ADR/index work, and the canonical place acoustic authoring change; none is staged. Technical specification revision 8 now captures the future two-strategy spatial requirement and remains draft-blocked because its engineering gates are intentionally open. Current deterministic evidence is 361/361 across 14 suites. The authoritative collaborative COLLAB-03 schema-3 export is 2 PASS / 2 BLOCKED / 12 PENDING / 0 FAIL: CategoryIsolation and CleanGraphRuntime passed; ClientMusicSettingsSave is blocked on safe persistence plus controlled leave/rejoin; IndependentFaders objective side-local values passed but its formal record remains blocked because timely operator confirmation was not requested. Spatial scenarios remain Pending because the current Studio runtime reports AudioEmitter.PositionType is not enabled yet. No commit, stage, push, publish, strategy source implementation, or additional scene mutation is performed by this Pause.
+
+### Important decisions and discussions
+
+Keep AudioSettingsClient responsible for publishing valid structured domain change records; do not broaden GameDataClient to accept missing payloads or conceal provider-contract violations. Keep ContentPreloader side-neutral and unchanged: the Roblox-specific startup adapter owns temporary typed Sound carriers, exact sorted ordering, sticky completed-request reuse, cleanup on success or exception, original-error rethrow, Warn policy, and no retry. Preserve objective runtime snapshots separately from human hearing evidence; do not infer audibility, persistence, or a missing timely operator statement.
+
+Future World positioning uses one exact shared static AudioRuntimeConfig.SpatialEmitterStrategy value on server and client, selected and frozen once at fresh bootstrap. The only strategies are shipped/default ParentProxy and preserved InstanceReference. Live switching, auto-detection, side-specific overrides, silent fallback, and automatic fallback are forbidden. ParentProxy keeps the modern AudioPlayer to Wire to AudioEmitter graph and uses a wrapper-owned positionable proxy as the emitter parent: Point is positioned once with no frame subscription, while Attached copies the full source transform through one centralized injected side-appropriate frame driver with generation-tagged registration and cleanup. Emitters are never parented into gameplay targets. InstanceReference isolates the existing PositionType=Instance and PositionInstance contract, remains dormant unless explicitly selected, and performs its protected capability probe only when selected; capability failure disables the side before graph and pools with one stable SpatialStrategyUnavailable boundary and does not choose ParentProxy automatically. Public PlayAt, PlayAttached, hybrid point DTOs, transport semantics, pool identities, handles, wrapper ownership, and completion ownership remain stable across strategies.
+
+Revision 8 is a future requirement, not implemented behavior. No strategy source implementation is allowed before blocking OQ-001 proves exact ParentProxy client/server DataModel placement, cross-tree Wire connectivity, native one-lease server replication, cleanup, and exact object inventory. The approved PRD must then be updated separately, followed by a new Accepted template ADR and the audio rule, current documentation, test-evidence, and strategy-aware object-ceiling cascade. Existing historical runtime failures and preload observations remain historical and are not relabeled.
+
+### Verification state
+
+Current-worktree non-Studio verification passed before collaborative QA: mandatory Rojo preflight, temporary Rojo build, validate-feature-workflow.ps1, sync-feature-index.ps1 -Check -Scope All, validate-repository-layout.ps1, and git diff --check. Canonical Studio identity matched PlaceId 91045933836846 and GameId 10596427617 with SoundService.AcousticSimulationEnabled=true. AudioIntegrationTestRunner passed 37/37, ContentPreloaderTestRunner passed 9/9, and AllTestsRunner passed 361/361 across 14 suites. Natural startup AudioCatalog.Preload.v1 resolved the exact three configured assets with RequestedTargets=3, ResolvedContent=3, Loaded=3, Failed=0 and no retry; output inspection found no unexpected diagnostic.
+
+The later two-client collaborative COLLAB-03 export matched the same PlaceId/GameId and evaluated Total=16, Passed=2, Blocked=2, Pending=12, Failed=0, Overall=BLOCKED, InvalidRecords empty. CategoryIsolation and CleanGraphRuntime passed; settings mutation, client isolation, invalid rollback, and restore passed in-session; IndependentFaders objective snapshots proved separate client values but lack timely operator evidence. Final client/server snapshots had default settings and faders, zero active handles, leases, local/server/Music playback, clean server graph state, and client preload 3/3; supplied output contained no unexpected warning or error.
+
+Specification revision 8 capture checks recorded PASS-001, PASS-002, and PASS-005 as pass; PASS-003, PASS-004, and PASS-011 produced warnings F-031 through F-033 rather than release approval. The scoped specification git diff --check passed, and revision 8 remains draft-blocked. Not run: spatial audible scenarios while PositionType is unavailable; an approved persistence-backed controlled leave/rejoin; the focused IndependentFaders rerun with timely operator evidence; OQ-001; implementation or tests for either new strategy. COLLAB-03 itself did not rerun deterministic suites, a Rojo build, or a post-Stop identity recheck, so those earlier results are retained without being relabeled as COLLAB-03 evidence.
+
+### Blockers
+
+- Spatial audible QA remains Pending at the external platform gate: Studio reports AudioEmitter.PositionType is not enabled yet, so HybridPrediction, PointAttenuation, AttachedFollowOrientation, and ServerAttachedReplication cannot be promoted to PASS.
+- ClientMusicSettingsSave still requires an approved safe persistence backend plus a controlled leave/rejoin; COLLAB-03 passed in-session mutation, client isolation, invalid rollback, and restore only.
+- IndependentFaders objective snapshots passed in COLLAB-03, but the formal scenario remains BLOCKED because the required timely operator statement was not requested or captured; rerun that focused observation without inferring it retroactively.
+
+### Next step
+
+After an explicit Continue, close blocking OQ-001 with a focused canonical Studio spike proving exact ParentProxy client/server DataModel placement, cross-tree Wire connectivity, native one-lease server replication, point and attached transform behavior, cleanup, and exact object inventory. Then separately update the approved PRD through the specification pipeline, create the new Accepted template ADR, and complete the audio rule, current documentation, test-evidence, and strategy-aware object-ceiling cascade. Only after those gates close, implement strict bootstrap-only ParentProxy and InstanceReference strategies without fallback, reverify all focused suites, aggregate suites, validators, temporary build, clean Play, and one-server/two-client spatial scenarios. Finally, use an approved safe persistence backend for controlled leave/rejoin and rerun IndependentFaders with the required timely operator evidence.
+
+## 2026-08-10T17:59:03.6514837+00:00 — paused
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 remains unfinished on its reserved template feature branch at committed HEAD 8fd6bc621dd278e51086f00903a14151320b4169. The uncommitted worktree contains 25 modified tracked paths and 8 untracked files; nothing is staged, committed, pushed, or published. Existing implementation work includes the AudioSettings structured Changed fix, typed temporary Sound preload carriers, exact real catalog assets, the collaborative manual-QA harness, bootstrap bindings, validators, documentation, Accepted QA ADR work, and canonical place authoring.
+
+Product requirements revision 4 are approved, contain no Open Questions, and have exact SHA-256 9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde. Technical specification revision 11 is draft/draft-ok, traces that approved PRD exactly, contains no product or technical Open Questions or findings, and has SHA-256 996dbf66a69715ece22b8425671bfdc88d973586734e32f3b691001127db4745.
+
+The approved spatial target is not implemented yet. Production AudioPlaybackWrapper behavior, current audio rule/documentation, and relevant deterministic/manual tests still describe or use the old AudioEmitter.PositionType/PositionInstance path. The historical spatial platform failure therefore remains evidence about the current superseded implementation, not an unresolved product or architecture decision. ClientMusicSettingsSave still requires an approved safe persistence backend with controlled leave/rejoin. IndependentFaders still requires a focused rerun with the timely operator statement captured during the scenario.
+
+### Important decisions and discussions
+
+World playback uses one fixed wrapper-owned composition: an invisible anchored non-collidable SpatialAnchor Part under the injected Workspace, with immediate AudioPlayer, AudioEmitter, and Wire children. AudioEmitter uses default Parent positioning. Point playback sets the anchor transform once. Attached playback copies the complete source transform through one injected side-owned generation-safe binding registry/frame driver.
+
+There is no positioning strategy, proxy mode, InstanceReference alternative, capability probe, live switch, automatic detection, fallback path, emitter PositionType/PositionInstance playback access, or per-wrapper frame connection. These rejected alternatives must not be reintroduced during implementation.
+
+Server-all playback owns one server lease, creates the spatial composition in the server world, calls Play on the server, and relies on native Roblox replication. It must not create per-client mirrors, application playback fanout, or duplicate leases. Public Point/Attached APIs, handles, pool identities, and delivery semantics remain stable.
+
+Continue to preserve objective runtime observations separately from human hearing evidence. Do not infer audibility, persistence, or a missing timely operator statement. No product or technical decision questions remain.
+
+### Verification state
+
+The approved PRD revision 4 passed the canonical validator with --require-approved, zero errors, and zero warnings. Specification revision 11 passed exact authority trace and structure checks: eight unique TS-DEC records, exact sequential 001..079 acceptance-evidence rows, zero stale strategy/proxy/OQ/F-034 markers, strict UTF-8 with LF and no BOM, and scoped git diff --check. Immediately before Pause, validate-feature-workflow.ps1 passed, sync-feature-index.ps1 -Check -Scope All reported the template dashboard synchronized, and overall git diff --check passed with only informational LF-to-CRLF warnings.
+
+Earlier implementation evidence remains historical and is not relabeled for revision 11: mandatory Rojo preflight, temporary Rojo build, repository/workflow/index validators, focused AudioIntegration 37/37 and ContentPreloader 9/9 suites, aggregate Studio regression 361/361 across 14 suites, clean startup preload 3/3, and the two-client focused export at 2 PASS / 2 BLOCKED / 12 PENDING / 0 FAIL with clean final runtime state.
+
+Not run after the revision-11 documentation decision: implementation suites, a new Rojo build, fresh Studio Play, or one-server/two-client spatial scenarios, because the fixed SpatialAnchor topology has not been implemented. Persistence-backed leave/rejoin and the timely IndependentFaders hearing observation also remain unrun.
+
+### Blockers
+
+- Spatial audible QA remains Pending at the external platform gate: Studio reports AudioEmitter.PositionType is not enabled yet, so HybridPrediction, PointAttenuation, AttachedFollowOrientation, and ServerAttachedReplication cannot be promoted to PASS.
+- ClientMusicSettingsSave still requires an approved safe persistence backend plus a controlled leave/rejoin; COLLAB-03 passed in-session mutation, client isolation, invalid rollback, and restore only.
+- IndependentFaders objective snapshots passed in COLLAB-03, but the formal scenario remains BLOCKED because the required timely operator statement was not requested or captured; rerun that focused observation without inferring it retroactively.
+
+### Next step
+
+After an explicit Continue, implement the fixed SpatialAnchor composition and centralized generation-safe Attached binding driver; update the owning ADR, audio rule, current documentation, deterministic and manual tests; then run the complete required validators, Rojo build, focused and aggregate suites, clean Play, and one-server/two-client verification cascade.
+
+## 2026-08-10T18:20:48.4075024+00:00 — paused
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 remains unfinished at committed HEAD 8fd6bc621dd278e51086f00903a14151320b4169 with the pre-existing uncommitted SFX layer: 25 modified tracked paths and 8 untracked files, nothing staged. This activation reconstructed context only. No implementation change was retained; all experimental SpatialAnchor source and test edits and their temporary build artifact were removed before this checkpoint. The approved fixed SpatialAnchor target remains unimplemented.
+
+### Important decisions and discussions
+
+Preserve approved PRD revision 4 and technical specification revision 11: fixed wrapper-owned SpatialAnchor Part in injected Workspace with direct AudioPlayer, AudioEmitter, and Wire children; default Parent positioning; set-once Point transform; one side-owned generation-safe Attached binding driver; no PositionType or PositionInstance playback path, strategy, probe, fallback, proxy, per-wrapper frame connection, client mirrors, or application fanout. Public APIs, handles, pool identities, delivery semantics, and separation of objective versus human evidence remain unchanged. No new product or technical decision was made during this activation.
+
+### Verification state
+
+Mandatory Rojo preflight passed. A temporary Rojo build passed only against experimental edits that were subsequently discarded, so it is not current feature evidence and its artifact was removed. No validators, focused or aggregate suites, Studio Play, or collaborative QA were run against a retained source revision during this activation. Historical evidence remains unchanged and must not be relabeled for specification revision 11.
+
+### Blockers
+
+- Spatial audible QA remains Pending at the external platform gate: Studio reports AudioEmitter.PositionType is not enabled yet, so HybridPrediction, PointAttenuation, AttachedFollowOrientation, and ServerAttachedReplication cannot be promoted to PASS.
+- ClientMusicSettingsSave still requires an approved safe persistence backend plus a controlled leave/rejoin; COLLAB-03 passed in-session mutation, client isolation, invalid rollback, and restore only.
+- IndependentFaders objective snapshots passed in COLLAB-03, but the formal scenario remains BLOCKED because the required timely operator statement was not requested or captured; rerun that focused observation without inferring it retroactively.
+
+### Next step
+
+After an explicit Continue, implement the approved fixed SpatialAnchor composition and centralized generation-safe Attached binding driver; add the appropriate new template ADR without rewriting Accepted history; update the audio rule, current documentation, deterministic and manual tests; then run the full validators, temporary Rojo build, focused and aggregate suites, clean Play, and one-server/two-client verification cascade.
+
+## 2026-08-10T20:50:48.0271802+00:00 — paused
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 remains unfinished at committed HEAD 8fd6bc621dd278e51086f00903a14151320b4169 on its reserved template feature branch. The worktree contains 25 modified tracked paths and 13 untracked files, with nothing staged; this includes the preserved pre-existing SFX implementation and QA layer plus specification and planning controller artifacts. Approved PRD revision 4, SPEC_READY specification revision 12, and approved development plan revision 1 are now the current authority. The fixed SpatialAnchor implementation has not started. No commit, push, publish, or new scene mutation was performed during specification and planning.
+
+### Important decisions and discussions
+
+Preserve approved PRD revision 4 at SHA-256 9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde, approved specification revision 12 at SHA-256 88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459, and approved development plan revision 1 at SHA-256 3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0. Execution uses single_owner with one sequential writer for SLICE-001. ADR-0043 must be Accepted before the first source edit, followed immediately by the mandatory Rojo preflight. Preserve the existing dirty layer and do not introduce PositionType, PositionInstance, strategies, probes, fallbacks, proxies, mirrors, application fanout, or per-wrapper frame connections. The manifest's PositionType platform-blocker wording is historical under revision 12: the actual remaining spatial gate is the unimplemented fixed SpatialAnchor topology plus fresh deterministic and one-server/two-client evidence. The approved plan also retains one non-normative body sentence calling it a draft; its approved controller hash and status remain authoritative. No product, scope, ownership, boundary, or public-contract questions remain; proofreader PF-002 and PF-003 are engineer-resolvable minors.
+
+### Verification state
+
+Read-only checkpoint audit passed: the current branch matches the manifest, baseCommit remains an ancestor of HEAD, and the schema-v2 writer lease is owned by TF-0005 for the exact branch. Local PRD, specification, and development-plan hashes exactly match their approved controller records. The specification controller reached spec_ready after two proofreader waves with complete 50 REQ / 9 NFR / 79 AC coverage, zero Critical or Major findings, and two engineer-resolvable Minor findings. The development-plan controller validated and approved the single-owner SLICE-001 plan. Feature workflow validation passed, the generated feature dashboard was synchronized, repository layout validation passed during specification convergence, and git diff --check passed immediately before Pause with only informational line-ending warnings. No source edit followed the approved revision-12 specification and plan, so no new Rojo preflight, Rojo build, focused or aggregate implementation suites, Studio Play, collaborative QA, persistence leave/rejoin, or timely IndependentFaders observation was run for them. Historical 361/361 aggregate, preload 3/3, and COLLAB-03 2 PASS / 2 BLOCKED / 12 PENDING / 0 FAIL evidence remains historical and is not relabeled as revision-12 implementation evidence.
+
+### Blockers
+
+- Spatial audible QA remains Pending at the external platform gate: Studio reports AudioEmitter.PositionType is not enabled yet, so HybridPrediction, PointAttenuation, AttachedFollowOrientation, and ServerAttachedReplication cannot be promoted to PASS.
+- ClientMusicSettingsSave still requires an approved safe persistence backend plus a controlled leave/rejoin; COLLAB-03 passed in-session mutation, client isolation, invalid rollback, and restore only.
+- IndependentFaders objective snapshots passed in COLLAB-03, but the formal scenario remains BLOCKED because the required timely operator statement was not requested or captured; rerun that focused observation without inferring it retroactively.
+
+### Next step
+
+After an explicit Continue, execute approved SLICE-001 with one persistent integration owner. First freeze the complete dirty inventory, create and Accept template ADR-0043, synchronize the required audio rule/current documentation/static contract, and immediately before the first source-code edit run the mandatory Rojo preflight. Then implement the fixed wrapper-owned SpatialAnchor composition and the single generation-safe side-owned Attached binding registry, reconcile the preserved SFX layer, deterministic tests, and manual QA, and run the full validators, temporary Rojo build, focused and aggregate suites, clean Play, and one-server/two-client evidence cascade. Finally close the safe persistence leave/rejoin and timely IndependentFaders operator-evidence gates.
+
+## 2026-08-11T12:15:04.4691851+00:00 — finished
+
+- Feature: TF-0005
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+
+### Result and current state
+
+TF-0005 завершена: поставлена полная SFX/Audio вертикаль с локальной валидируемой конфигурацией и каталогом, интеграцией AssetRegistry и ContentPreloader, server/client AudioGraph, обычным local/server/hybrid playback, Music LIFO и transitions, AudioSettings, фиксированной четырёхобъектной SpatialAnchor-композицией, generation-safe Attached registry, Studio QA bridge, документацией, ADR и точной evidence-трассировкой. Итоговая composite revision b491623e6279869d63f0834c638895cf66632da1bec7ff155f5d952bb71e7a4a; product 7dba980c8441ba5b00ec1273184081ab758d0a984f6f1019d04b7a5722db2261; support 48ffa65db7b8ab31276b9c23362412e15fa541f4a43b11df55d5c749e4327a6d; evidence ba3d53018275b824def3e61a59e0dcc0cdebcfd703d3eb9b2d64e81af545de53. Блокеров и следующего шага реализации нет.
+
+### Important decisions and discussions
+
+World playback использует только fixed SpatialAnchor Part с прямыми AudioPlayer, AudioEmitter и Wire, default Parent positioning, set-once Point и одним generation-safe side-owned registry на сторону для Attached; PositionType/PositionInstance, strategies, probes, fallbacks, mirrors, application fanout, новые remotes и bootstraps отвергнуты. Catalog-owned forbidden overrides и effective configured-range violations возвращают TypeMismatch; unrelated malformed option keys остаются InvalidRequest, до acquire/mutation и с одним client diagnostic. ClientMusicSettingsSave исключён пользователем из Audio-модуля как NOT_APPLICABLE. Слуховой QA, двухклиентская репликация, attenuation, Music и independent-fader observations были фактически выполнены оператором; последующая product-правка затронула только taxonomy отклонённых options, не accepted playback, spatial composition или audible output, поэтому пользователь явно распорядился не повторять слуховые кейсы и принять уже записанные наблюдения. Новая feature для support/evidence remediation не создавалась; всё завершено внутри TF-0005.
+
+### Verification state
+
+До Finish уже завершены: approved PRD rev4 9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde, specification rev12 88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459 и plan rev1 3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0; exact mapping PRD-AC-001..079 = 79/79; evidence identities Required=110 Missing=0; feature/index/repository-layout/diff checks PASS; temporary Rojo build PASS. На exact b491 revision: AudioCatalog 39/39, AudioPlayback 61/61, AudioIntegration 39/39, AudioManualQa 22/22, AllTests 380/380 across 14 suites; canonical PlaceId 91045933836846 и GameId 10596427617; AudioRuntime generation 1, five faders, client initialized, listener/output и AcousticSimulationEnabled=true; output без attributable Audio errors; cleanup завершён, Studio Edit-only. Final independent contract review PASS без findings. Operator QA зафиксировал 15 PASS / 1 user-declared NOT_APPLICABLE / 0 FAIL, включая local/hybrid/server playback, Point attenuation, Attached native replication на обоих клиентах и разных расстояниях, category/fader isolation, Music stacks и background/foreground restore. Во время Finish тесты, validators, build и Studio намеренно не перезапускались согласно lifecycle contract.
+
+### Blockers
+
+None.
+
+### Next step
+
+None; feature is ready.

@@ -49,6 +49,8 @@ Repositories derived from the template receive these records from their
 | [ADR-0039](0039-allow-deterministic-audio-only-asset-key-first-wins.md) | Allow deterministic audio-only AssetKey first-wins | Accepted |
 | [ADR-0040](0040-own-audio-graph-and-acoustic-policy-at-bootstrap.md) | Own the audio graph and acoustic policy at bootstrap | Accepted |
 | [ADR-0041](0041-protect-audio-startup-and-keep-disabled-transport-handlers.md) | Protect audio startup and keep disabled transport handlers | Accepted |
+| [ADR-0042](0042-bind-studio-audio-qa-through-existing-bootstraps.md) | Bind Studio Audio QA through existing bootstraps | Accepted |
+| [ADR-0043](0043-fixed-spatial-anchor-composition.md) | Use one fixed SpatialAnchor composition | Accepted |
 
 ## Ownership and numbering
 

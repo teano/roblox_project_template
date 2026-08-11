@@ -101,6 +101,9 @@ local function makeSignal(): any
 		Fire = function(_self, ...)
 			for _, callback in table.clone(callbacks) do callback(...) end
 		end,
+		GetConnectionCount = function()
+			return #callbacks
+		end,
 	}
 end
 
@@ -276,8 +279,11 @@ local function makeOrdinaryEvidenceFixture(scope: any, side: string, playerType:
 		Faders = { [playerType] = {} },
 		Config = config,
 	}
+	local spatialFrameDriver = makeSignal()
 	local core = OrdinaryPlaybackCore.new(side, pools, makeLogger(events), {
 		WrapperFactory = function() return makeFakeWrapper(control, created) end,
+		Workspace = {},
+		SpatialFrameDriver = spatialFrameDriver,
 	})
 	core:Initialize({ Enabled = true, Catalog = {}, Config = config }, graph)
 	local variant = {
@@ -300,6 +306,7 @@ local function makeOrdinaryEvidenceFixture(scope: any, side: string, playerType:
 		Profile = profile,
 		Variant = variant,
 		Pool = pools:GetPool(`Audio.{side}.{playerType}`),
+		SpatialFrameDriver = spatialFrameDriver,
 	}
 end
 
@@ -307,6 +314,7 @@ local function makeProductionWrapperFixture(scope: any, side: string, playerType
 	local events = {}
 	local workers = {}
 	local created = {}
+	local createdKinds = {}
 	local pools = PoolModule.new()
 	pools:Initialize()
 	scope:Defer(function() pools:Destroy() end)
@@ -342,13 +350,18 @@ local function makeProductionWrapperFixture(scope: any, side: string, playerType
 		Config = config,
 	}
 	local factory = makeWrapperFactory()
+	local spatialFrameDriver = makeSignal()
+	local injectedWorkspace = {}
 	local core = OrdinaryPlaybackCore.new(side, pools, makeLogger(events), {
 		WrapperFactory = function(kind)
+			table.insert(createdKinds, kind)
 			local wrapper = Wrapper.new(kind, { InstanceFactory = factory })
 			table.insert(created, wrapper)
 			return wrapper
 		end,
 		Spawn = function(callback) table.insert(workers, callback) end,
+		Workspace = injectedWorkspace,
+		SpatialFrameDriver = spatialFrameDriver,
 	})
 	local variant = {
 		CueId = "Evidence", VariantId = "Default", ContentId = "rbxassetid://1",
@@ -362,9 +375,19 @@ local function makeProductionWrapperFixture(scope: any, side: string, playerType
 	core:Initialize({ Enabled = true, Catalog = catalog, Config = config }, graph)
 	return {
 		Core = core, Pools = pools, Pool = pools:GetPool(`Audio.{side}.{playerType}`),
-		Created = created, Workers = workers, Events = events, Graph = graph, Profile = profile,
+		Created = created, CreatedKinds = createdKinds, Workers = workers, Events = events, Graph = graph, Profile = profile,
 		Variant = variant, Catalog = catalog, Config = config,
+		SpatialFrameDriver = spatialFrameDriver, Workspace = injectedWorkspace,
 	}
+end
+
+local function poolStatsUnchanged(before: any, after: any): boolean
+	return after.Active == before.Active
+		and after.Available == before.Available
+		and after.Created == before.Created
+		and after.Acquired == before.Acquired
+		and after.Released == before.Released
+		and after.Destroyed == before.Destroyed
 end
 
 local function makePublicOrdinaryService(scope: any, side: string, looping: boolean): any
@@ -493,6 +516,214 @@ function Runner.runAll()
 		assert(endedReasons[1] == "ReadinessLost")
 	end)
 
+	test("AudioPlayback/PendingReadyBeforeTimeoutStarts", function(scope)
+		local workers = {}
+		local now = 0
+		local playCount = 0
+		local wrapper = Wrapper.new("SFX", {
+			InstanceFactory = makeWrapperFactory(),
+			Spawn = function(callback) table.insert(workers, callback) end,
+		})
+		scope:Defer(function() wrapper:Destroy() end)
+		wrapper.Player.IsReady = false
+		wrapper.Player.Play = function(player) playCount += 1; player.IsPlaying = true end
+		wrapper:OnAcquire({
+			Variant = { ContentId = "rbxassetid://1", SourceVolume = 0.5, PlaybackSpeed = 1, Looping = false, PlayerType = "SFX" },
+			Parent = {}, Fader = {}, InteractionGroupId = "AudioPlayback.Private.v1",
+			LoadTimeoutSeconds = 3, Clock = function() return now end,
+			ReadinessWait = function() coroutine.yield() end,
+			Spawn = function(callback) table.insert(workers, callback) end,
+		})
+		local thread = coroutine.create(workers[1])
+		assert(coroutine.resume(thread) and playCount == 0)
+		now = 1; wrapper.Player.IsReady = true
+		assert(coroutine.resume(thread) and playCount == 1 and wrapper.Player.IsPlaying)
+		wrapper:OnRelease()
+		assert(coroutine.resume(thread) and playCount == 1 and not wrapper.Player.IsPlaying)
+	end)
+
+	test("AudioPlayback/PendingStopBeforeReadyCleanup", function(scope)
+		local workers = {}
+		local ended = 0
+		local playCount = 0
+		local wrapper = Wrapper.new("SFX", {
+			InstanceFactory = makeWrapperFactory(),
+			Spawn = function(callback) table.insert(workers, callback) end,
+		})
+		scope:Defer(function() wrapper:Destroy() end)
+		wrapper.Player.IsReady = false
+		wrapper.Player.Play = function(player) playCount += 1; player.IsPlaying = true end
+		wrapper:OnAcquire({
+			Variant = { ContentId = "rbxassetid://1", SourceVolume = 0.5, PlaybackSpeed = 1, Looping = false, PlayerType = "SFX" },
+			Parent = {}, Fader = {}, InteractionGroupId = "AudioPlayback.Private.v1",
+			LoadTimeoutSeconds = 3, OnEnded = function() ended += 1 end,
+			Spawn = function(callback) table.insert(workers, callback) end,
+		})
+		wrapper:OnRelease()
+		workers[1]()
+		assert(playCount == 0 and ended == 0 and wrapper.Root.Parent == nil
+			and wrapper.Wire.SourceInstance == nil and wrapper.Wire.TargetInstance == nil)
+	end)
+
+	test("AudioPlayback/PendingLoadTimeoutCleanup", function(scope)
+		local workers = {}
+		local now = 0
+		local reasons = {}
+		local wrapper = Wrapper.new("SFX", {
+			InstanceFactory = makeWrapperFactory(),
+			Spawn = function(callback) table.insert(workers, callback) end,
+		})
+		scope:Defer(function() wrapper:Destroy() end)
+		wrapper.Player.IsReady = false
+		wrapper:OnAcquire({
+			Variant = { ContentId = "rbxassetid://1", SourceVolume = 0.5, PlaybackSpeed = 1, Looping = false, PlayerType = "SFX" },
+			Parent = {}, Fader = {}, InteractionGroupId = "AudioPlayback.Private.v1",
+			LoadTimeoutSeconds = 3, Clock = function() return now end,
+			ReadinessWait = function() now = 4 end,
+			OnEnded = function(_generation, reason)
+				table.insert(reasons, reason)
+				wrapper:OnRelease()
+			end,
+			Spawn = function(callback) table.insert(workers, callback) end,
+		})
+		workers[1]()
+		assert(#reasons == 1 and reasons[1] == "LoadTimeout" and not wrapper.Player.IsPlaying
+			and wrapper.Root.Parent == nil and wrapper.Wire.SourceInstance == nil)
+	end)
+
+	test("AudioPlayback/ActiveReadinessLossReleasesWithoutEnded", function(scope)
+		local workers = {}
+		local reasons = {}
+		local wrapper = Wrapper.new("SFX", {
+			InstanceFactory = makeWrapperFactory(),
+			Spawn = function(callback) table.insert(workers, callback) end,
+		})
+		scope:Defer(function() wrapper:Destroy() end)
+		wrapper:OnAcquire({
+			Variant = { ContentId = "rbxassetid://1", SourceVolume = 0.5, PlaybackSpeed = 1, Looping = true, PlayerType = "SFX" },
+			Parent = {}, Fader = {}, InteractionGroupId = "AudioPlayback.Private.v1",
+			ReadinessWait = function() coroutine.yield() end,
+			OnEnded = function(_generation, reason)
+				table.insert(reasons, reason)
+				wrapper:OnRelease()
+			end,
+			Spawn = function(callback) table.insert(workers, callback) end,
+		})
+		local thread = coroutine.create(workers[1])
+		assert(coroutine.resume(thread) and wrapper.Player.IsPlaying)
+		wrapper.Player.IsReady = false
+		assert(coroutine.resume(thread))
+		assert(#reasons == 1 and reasons[1] == "ReadinessLost" and wrapper.Root.Parent == nil
+			and wrapper.Wire.SourceInstance == nil and not wrapper.Player.IsPlaying)
+		wrapper.Player.Ended:Fire()
+		assert(#reasons == 1, "a later Ended callback must remain inert after readiness-loss release")
+	end)
+
+	test("AudioPlayback/ResolvedVariantAssetAndPlayerType", function(scope)
+		local fixture = makeProductionWrapperFixture(scope, "Client", "SFX", 1)
+		local handle = assert(fixture.Core:ResolveAndPlay({ CueId = "Evidence", VariantId = "Default" }, nil, nil))
+		assert(handle:IsActive() and fixture.Created[1].Player.Asset == fixture.Variant.ContentId
+			and fixture.CreatedKinds[1] == "SFX"
+			and fixture.Pool:GetStats().Active == 1)
+		handle:Stop()
+	end)
+
+	test("AudioPlayback/UnknownIdentifierNoAcquire", function(scope)
+		local fixture = makeProductionWrapperFixture(scope, "Client", "SFX", 1)
+		fixture.Catalog.Resolve = function() return nil, "UnknownRef" end
+		local handle, reason = fixture.Core:ResolveAndPlay({ CueId = "Missing" }, nil, nil)
+		assert(handle == nil and reason == "UnknownRef" and #fixture.Created == 0
+			and fixture.Pool:GetStats().Active == 0 and fixture.Pool:GetStats().Created == 0)
+	end)
+
+	test("AudioPlayback/PerPlayOverridesIsolated", function(scope)
+		local fixture = makeProductionWrapperFixture(scope, "Client", "SFX", 2)
+		local first = assert(fixture.Core:PlayVariant(fixture.Variant, nil, {
+			VolumeMultiplier = 0.5, PlaybackSpeedMultiplier = 0.5, TimePosition = 2,
+		}))
+		local second = assert(fixture.Core:PlayVariant(fixture.Variant, nil, {
+			VolumeMultiplier = 2, PlaybackSpeedMultiplier = 2, TimePosition = 4,
+		}))
+		assert(fixture.Created[1].Player.Volume == 0.25 and fixture.Created[1].Player.PlaybackSpeed == 0.5
+			and fixture.Created[1].Player.TimePosition == 2)
+		assert(fixture.Created[2].Player.Volume == 1 and fixture.Created[2].Player.PlaybackSpeed == 2
+			and fixture.Created[2].Player.TimePosition == 4)
+		assert(fixture.Variant.SourceVolume == 0.5 and fixture.Variant.PlaybackSpeed == 1)
+		first:Stop(); second:Stop()
+	end)
+
+	test("AudioPlayback/PerPlayEffectiveRangeRejectedBeforeAcquire", function(scope)
+		local client = makePublicOrdinaryService(scope, "Client", false)
+		client.Variant.SourceVolume = 0.8
+		local clientBefore = client.Pool:GetStats()
+		local handle = client.Service:PlayLocal({ CueId = "Loop" }, { VolumeMultiplier = 2 })
+		local clientAfter = client.Pool:GetStats()
+		assert(not handle:IsActive() and #client.Created == 0 and poolStatsUnchanged(clientBefore, clientAfter))
+		assert(#client.Events == 1 and client.Events[1].Event == "PlaybackRejected"
+			and client.Events[1].Data.ReasonCode == "TypeMismatch",
+			"effective-range rejection must emit exactly one TypeMismatch diagnostic")
+
+		local server = makePublicOrdinaryService(scope, "Server", false)
+		server.Variant.SourceVolume = 0.8
+		local serverBefore = server.Pool:GetStats()
+		local result = server.Service:Play({ CueId = "Loop" }, { VolumeMultiplier = 2 })
+		local serverAfter = server.Pool:GetStats()
+		assert(not result.Accepted and result.ReasonCode == "TypeMismatch"
+			and #server.Created == 0 and poolStatsUnchanged(serverBefore, serverAfter))
+	end)
+
+	test("AudioPlayback/ForbiddenCatalogOverrideFieldsRejected", function(scope)
+		local client = makePublicOrdinaryService(scope, "Client", false)
+		local server = makePublicOrdinaryService(scope, "Server", false)
+		local clientBefore = client.Pool:GetStats()
+		local serverBefore = server.Pool:GetStats()
+		for index, options in {
+			{ SourceVolume = 0.1 }, { PlayerType = "UI" }, { Bus = "UI" },
+			{ MaxActive = 99 }, { Preload = false }, { Source = {} },
+		} do
+			local handle = client.Service:PlayLocal({ CueId = "Loop" }, options)
+			assert(not handle:IsActive() and #client.Events == index
+				and client.Events[index].Event == "PlaybackRejected"
+				and client.Events[index].Data.ReasonCode == "TypeMismatch",
+				"each forbidden client override must emit exactly one TypeMismatch diagnostic")
+			local result = server.Service:Play({ CueId = "Loop" }, options)
+			assert(not result.Accepted and result.ReasonCode == "TypeMismatch")
+		end
+		local catalogOverrideDiagnosticCount = #client.Events
+		for index, options in {
+			{ Typo = 1 },
+			{ [1] = 0.5 },
+			{ VolumeMultiplier = 1, Typo = 1 },
+		} do
+			local handle = client.Service:PlayLocal({ CueId = "Loop" }, options)
+			local diagnosticIndex = catalogOverrideDiagnosticCount + index
+			assert(not handle:IsActive() and #client.Events == diagnosticIndex
+				and client.Events[diagnosticIndex].Event == "PlaybackRejected"
+				and client.Events[diagnosticIndex].Data.ReasonCode == "InvalidRequest",
+				"each unrelated malformed option key must emit exactly one InvalidRequest diagnostic")
+			local result = server.Service:Play({ CueId = "Loop" }, options)
+			assert(not result.Accepted and result.ReasonCode == "InvalidRequest")
+		end
+		assert(#client.Created == 0 and poolStatsUnchanged(clientBefore, client.Pool:GetStats()))
+		assert(#server.Created == 0 and poolStatsUnchanged(serverBefore, server.Pool:GetStats()))
+	end)
+
+	test("AudioPlayback/MusicStopAudibleIncumbentUnderPendingTop", function(scope)
+		local fixture = makeMusicFixture(scope)
+		local incumbent = fixture.Music:PlayMusic({ CueId = "A" })
+		local incumbentWrapper = fixture.Created[1]
+		fixture.Control.AutoReady = false
+		local pending = fixture.Music:PlayMusic({ CueId = "B" })
+		local pendingWrapper = fixture.Created[2]
+		assert(incumbent:IsActive() and pending:IsActive() and incumbentWrapper.Player.IsPlaying
+			and not pendingWrapper.Player.IsPlaying)
+		incumbent:Stop()
+		assert(not incumbent:IsActive() and pending:IsActive() and not pendingWrapper.Player.IsPlaying
+			and fixture.Pool:GetStats().Active == 1)
+		pendingWrapper:Ready()
+		assert(pending:IsActive() and pendingWrapper.Player.IsPlaying and fixture.Pool:GetStats().Active == 1)
+	end)
+
 	test("AudioPlayback/OrdinaryFifoValidationBeforeMutation", function(scope)
 		local events = {}
 		local created = {}
@@ -532,6 +763,8 @@ function Runner.runAll()
 	test("AudioPlayback/OrdinaryInitializationFailureAtomic", function()
 		local created = 0
 		local removed = {}
+		local registryInitialized = 0
+		local registryDestroyed = 0
 		local fakePools = {
 			CreatePoolablePool = function(_self, id)
 				created += 1
@@ -540,13 +773,25 @@ function Runner.runAll()
 			end,
 			RemovePool = function(_self, id) table.insert(removed, id); return true end,
 		}
-		local core = OrdinaryPlaybackCore.new("Client", fakePools, makeLogger({}))
+		local core = OrdinaryPlaybackCore.new("Client", fakePools, makeLogger({}), {
+			Workspace = {},
+			SpatialFrameDriver = makeSignal(),
+			SpatialRegistryFactory = {
+				new = function()
+					return {
+						Initialize = function() registryInitialized += 1 end,
+						Destroy = function() registryDestroyed += 1 end,
+					}
+				end,
+			},
+		})
 		local records = {}
 		for _, id in { "UI", "SFX", "World" } do records[id] = { ClientMaxActive = 1, ClientMaxRetained = 0 } end
 		local graph = { Enabled = true, Config = { PlayerTypes = records } }
 		core:Initialize({ Enabled = true, Catalog = {}, Config = graph.Config }, graph)
 		assert(created == 2 and #removed == 1 and removed[1] == "Audio.Client.UI")
-		assert(not core._enabled and next(core._pools) == nil)
+		assert(not core._enabled and next(core._pools) == nil
+			and registryInitialized == 1 and registryDestroyed == 1)
 		core:Initialize({ Enabled = true, Catalog = {}, Config = graph.Config }, graph)
 		assert(created == 2, "memoized fail-soft result must not duplicate pools")
 	end)
@@ -748,6 +993,10 @@ function Runner.runAll()
 		"AudioPlayback/ListenerEnabledOnceEmitterProfileIsolation",
 		"AudioPlayback/DirectionalPointAttachedSplit",
 		"AudioPlayback/LoopedDeliveryMatrix",
+		"AudioPlayback/SpatialAnchorFixedComposition",
+		"AudioPlayback/SpatialAnchorPointStatic",
+		"AudioPlayback/SpatialAnchorAttachedFullTransformGenerationCleanup",
+		"AudioPlayback/SpatialPublicSurface",
 	}
 	for _, identity in ordinaryEvidenceIdentities do
 		test(identity, function(scope)
@@ -806,15 +1055,9 @@ function Runner.runAll()
 				local target = scope:Track(Instance.new("Part")); target.Parent = workspace
 				local handle = assert(fixture.Core:PlayVariant(fixture.Variant, { Kind = "Attached", Instance = target }, nil))
 				assert(handle:IsActive() and fixture.Pool:GetStats().Active == 1)
-				target:Destroy()
-				local completed = false
-				for _ = 1, 30 do
-					if not handle:IsActive() and fixture.Pool:GetStats().Active == 0 and #fixture.Events == 1 then
-						completed = true
-						break
-					end
-					task.wait()
-				end
+			target:Destroy()
+				fixture.SpatialFrameDriver:Fire()
+				local completed = not handle:IsActive() and fixture.Pool:GetStats().Active == 0 and #fixture.Events == 1
 				assert(completed,
 					`target-removal timeout: active={tostring(handle:IsActive())} poolActive={fixture.Pool:GetStats().Active} events={#fixture.Events}`)
 				assert(not handle:IsActive() and fixture.Pool:GetStats().Active == 0)
@@ -829,8 +1072,8 @@ function Runner.runAll()
 				local second = assert(fixture.Core:PlayVariant(fixture.Variant, { Kind = "Point", Position = Vector3.new(2, 0, 0) }, nil))
 				local a, b = fixture.Created[1], fixture.Created[2]
 				assert(first:IsActive() and second:IsActive() and a.Emitter ~= b.Emitter and a.Anchor ~= b.Anchor)
-				assert(a.Emitter.PositionInstance == a.Anchor and b.Emitter.PositionInstance == b.Anchor)
-				assert(a.Anchor.Position == Vector3.new(1, 0, 0) and b.Anchor.Position == Vector3.new(2, 0, 0))
+				assert(a.Emitter.Parent == a.Anchor and b.Emitter.Parent == b.Anchor)
+				assert(a.Anchor.CFrame.Position == Vector3.new(1, 0, 0) and b.Anchor.CFrame.Position == Vector3.new(2, 0, 0))
 				first:Stop(); second:Stop()
 				return
 			end
@@ -843,14 +1086,95 @@ function Runner.runAll()
 				local wrapper = fixture.Created[1]
 				local emitter, anchor = wrapper.Emitter, wrapper.Anchor
 				assert(wrapper.Player.Asset == "rbxassetid://1" and wrapper.Wire.SourceInstance == wrapper.Player
-					and wrapper.Wire.TargetInstance == emitter and emitter.PositionInstance == anchor)
+					and wrapper.Wire.TargetInstance == emitter and emitter.Parent == anchor)
 				handle:Stop()
 				assert(wrapper.Root.Parent == nil and wrapper.Player.Asset == "" and not wrapper.Player.IsPlaying
 					and wrapper.Wire.SourceInstance == nil and wrapper.Wire.TargetInstance == nil
 					and wrapper.Player.Volume == 1 and wrapper.Player.PlaybackSpeed == 1 and not wrapper.Player.Looping
 					and wrapper.Player.PlaybackRegion == NumberRange.new(0, 60000)
 					and wrapper.Player.LoopRegion == NumberRange.new(0, 60000) and wrapper.Player.TimePosition == 0
-					and wrapper.Emitter == nil and wrapper.Anchor == nil and emitter.Destroyed and anchor.Destroyed)
+					and wrapper.Emitter == emitter and wrapper.Anchor == anchor
+					and not emitter.Destroyed and not anchor.Destroyed and anchor.CFrame == CFrame.new())
+				return
+			end
+			if identity == "AudioPlayback/SpatialAnchorFixedComposition" then
+				local fixture = makeProductionWrapperFixture(scope, "Server", "World", 1)
+				local handle = assert(fixture.Core:PlayVariant(
+					fixture.Variant,
+					{ Kind = "Point", Position = Vector3.new(3, 4, 5) },
+					nil
+				))
+				local wrapper = fixture.Created[1]
+				assert(wrapper.Root.ClassName == "Part" and wrapper.Root.Name == "SpatialAnchor"
+					and wrapper.Root.Anchored and not wrapper.Root.CanCollide and not wrapper.Root.CanQuery
+					and not wrapper.Root.CanTouch and wrapper.Root.Transparency == 1
+					and wrapper.Root.Parent == fixture.Workspace)
+				assert(wrapper.Player.Parent == wrapper.Root and wrapper.Emitter.Parent == wrapper.Root
+					and wrapper.Wire.Parent == wrapper.Root and wrapper.Wire.SourceInstance == wrapper.Player
+					and wrapper.Wire.TargetInstance == wrapper.Emitter)
+				handle:Stop()
+				return
+			end
+			if identity == "AudioPlayback/SpatialAnchorPointStatic" then
+				local fixture = makeProductionWrapperFixture(scope, "Client", "World", 1)
+				local handle = assert(fixture.Core:PlayVariant(
+					fixture.Variant,
+					{ Kind = "Point", Position = Vector3.new(11, 12, 13) },
+					nil
+				))
+				local wrapper = fixture.Created[1]
+				local initial = wrapper.Anchor.CFrame
+				assert(fixture.Core._spatialRegistry:GetActiveCount() == 0
+					and fixture.SpatialFrameDriver:GetConnectionCount() == 1)
+				fixture.SpatialFrameDriver:Fire()
+				assert(wrapper.Anchor.CFrame == initial)
+				handle:Stop()
+				assert(wrapper.Root.Parent == nil and fixture.Core._spatialRegistry:GetActiveCount() == 0)
+				return
+			end
+			if identity == "AudioPlayback/SpatialAnchorAttachedFullTransformGenerationCleanup" then
+				local fixture = makeProductionWrapperFixture(scope, "Client", "World", 1)
+				local target = scope:Track(Instance.new("Part"))
+				target.CFrame = CFrame.fromOrientation(0.2, 0.4, 0.6) + Vector3.new(5, 6, 7)
+				target.Parent = workspace
+				local handle = assert(fixture.Core:PlayVariant(
+					fixture.Variant,
+					{ Kind = "Attached", Instance = target },
+					nil
+				))
+				local wrapper = fixture.Created[1]
+				local firstBinding = fixture.Core._spatialRegistry._bindings[wrapper]
+				assert(wrapper.Anchor.CFrame == target:GetPivot()
+					and fixture.Core._spatialRegistry:GetActiveCount() == 1
+					and fixture.SpatialFrameDriver:GetConnectionCount() == 1)
+				target.CFrame = CFrame.fromOrientation(-0.1, 0.7, 0.3) + Vector3.new(-2, 8, 9)
+				fixture.SpatialFrameDriver:Fire()
+				assert(wrapper.Anchor.CFrame == target:GetPivot(), "Attached must copy full transform")
+				handle:Stop()
+				assert(fixture.Core._spatialRegistry:GetActiveCount() == 0 and not firstBinding.IsCurrent())
+				local point = assert(fixture.Core:PlayVariant(
+					fixture.Variant,
+					{ Kind = "Point", Position = Vector3.new(1, 2, 3) },
+					nil
+				))
+				local reusedCFrame = wrapper.Anchor.CFrame
+				firstBinding.OnInvalid("TargetRemoved")
+				fixture.SpatialFrameDriver:Fire()
+				assert(point:IsActive() and wrapper.Anchor.CFrame == reusedCFrame
+					and fixture.Core._spatialRegistry:GetActiveCount() == 0,
+					"stale Attached generation must not release or move a reused Point lease")
+				point:Stop()
+				return
+			end
+			if identity == "AudioPlayback/SpatialPublicSurface" then
+				local fixture = makeOrdinaryEvidenceFixture(scope, "Client", "World", 1)
+				assert(fixture.Graph.Config.PositionType == nil and fixture.Graph.Config.PositioningMode == nil)
+				local valid = fixture.Core:ValidateVariant(
+					fixture.Variant,
+					{ Kind = "Point", Position = Vector3.zero },
+					nil
+				)
+				assert(valid, "fixed spatial composition must preserve the existing Point public surface")
 				return
 			end
 			if identity == "AudioPlayback/SpatialCurveBoundaryMatrix" then
@@ -949,6 +1273,7 @@ function Runner.runAll()
 					local good = table.clone(SoundCatalog[2])
 					good.CueId = `Spatial.Good{caseIndex}`; good.VariantId = "Good"
 					good.PlayerType = "World"; good.SpatialProfile = "ValidSibling"; good.AssetId = tostring(caseIndex * 2)
+					good.ResourcePath = nil; good.Preload = false
 					local bad = table.clone(good)
 					bad.CueId = `Spatial.Bad{caseIndex}`; bad.VariantId = "Bad"
 					bad.SpatialProfile = "RejectedProfile"; bad.AssetId = tostring(caseIndex * 2 + 1)
@@ -982,7 +1307,8 @@ function Runner.runAll()
 				local point = assert(fixture.Core:PlayVariant(fixture.Variant, { Kind = "Point", Position = Vector3.zero }, nil))
 				local emitter = fixture.Created[1].Emitter
 				assert(emitter.DistanceAttenuation[0] == 1 and emitter.DistanceAttenuation[400] == 0
-					and emitter.AngleAttenuation == nil, "distance 0/400 and nil-angle profile must reach the real wrapper setter")
+					and emitter.AngleAttenuation[0] == 1 and emitter.AngleAttenuation[180] == 1,
+					"distance 0/400 and nil-angle profile must produce nondirectional gain")
 				fixture.Profile.AngleCurve = { { Angle = 0, Gain01 = 0 }, { Angle = 180, Gain01 = 1 } }
 				local target = scope:Track(Instance.new("Part")); target.Parent = workspace
 				local attached = assert(fixture.Core:PlayVariant(fixture.Variant, { Kind = "Attached", Instance = target }, nil))
@@ -1140,6 +1466,7 @@ function Runner.runAll()
 				local good = table.clone(SoundCatalog[2])
 				good.CueId = "Spatial.Good"; good.VariantId = "Good"; good.PlayerType = "World"
 				good.SpatialProfile = "Valid"; good.AssetId = "1"
+				good.ResourcePath = nil; good.Preload = false
 				local bad = table.clone(good)
 				bad.CueId = "Spatial.Bad"; bad.VariantId = "Bad"; bad.SpatialProfile = "Invalid"; bad.AssetId = "2"
 				local catalog = AudioCatalog.new({ bad, good }, normalized.Config, {

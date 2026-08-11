@@ -1,6 +1,7 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TestHarness = require(script.Parent.TestHarness)
 local Codec = require(ReplicatedStorage.Shared.Audio.AudioHybridCodec)
 local AudioProtocol = require(ReplicatedStorage.Shared.Audio.AudioProtocol)
@@ -16,6 +17,7 @@ local TableUtil = require(ReplicatedStorage.Shared.Util.TableUtil)
 local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 local AudioGraphClient = require(ReplicatedStorage.Client.Audio.AudioGraphClient)
 local AudioSettingsClient = require(ReplicatedStorage.Client.Audio.AudioSettingsClient)
+local GameDataClient = require(ReplicatedStorage.Client.GameData.GameDataClient)
 local OrdinarySoundClient = require(ReplicatedStorage.Client.Audio.OrdinarySoundClient)
 local HybridClient = require(ReplicatedStorage.Client.Audio.HybridOneShotClientController)
 local ClientSaveController = require(ReplicatedStorage.Client.Save.ClientSaveController)
@@ -113,6 +115,8 @@ local function makeOrdinaryClient(scope: any, catalog: any, config: any, events:
 	scope:Defer(function() pools:Destroy() end)
 	local ordinary = OrdinarySoundClient.new(pools, makeLogger(events), {
 		WrapperFactory = function() return makePlaybackWrapper(created) end,
+		Workspace = workspace,
+		SpatialFrameDriver = makeSignal(),
 	})
 	ordinary:Initialize({ Enabled = true, Catalog = catalog, Config = config }, {
 		Enabled = true,
@@ -377,6 +381,55 @@ function Runner.runAll()
 		settings:Stop()
 	end)
 
+	test("AudioIntegration/AudioSettingsGameDataChangeContract", function(scope)
+		local owner = makeSettingsGraphOwner()
+		local settings = AudioSettingsClient.new(owner)
+		settings:SetMemento(settings:_defaults())
+		settings:Run()
+		scope:Defer(function()
+			settings:Stop()
+			settings.MementoChanged:Destroy()
+			settings.Changed:Destroy()
+		end)
+
+		local controller = {
+			Ready = makeSignal(),
+			IsReady = function() return true end,
+			GetRevision = function() return 12 end,
+		}
+		local gameData = GameDataClient.new(controller, { settings })
+		scope:Defer(function() gameData:Destroy() end)
+
+		local observed = {}
+		gameData.ItemChanged:Connect(function(change)
+			observed[change.Path[1]] = change
+		end)
+
+		local oldLevel = settings:GetLevel("SFX")
+		local newLevel = if oldLevel == 0.25 then 0.75 else 0.25
+		local oldEnabled = settings:IsEnabled("SFX")
+		assert(settings:SetLevel("SFX", newLevel))
+		assert(settings:SetEnabled("SFX", not oldEnabled))
+
+		for _ = 1, 30 do
+			if observed.Levels ~= nil and observed.Enabled ~= nil then break end
+			task.wait()
+		end
+
+		local levelChange = observed.Levels
+		local enabledChange = observed.Enabled
+		assert(levelChange ~= nil and enabledChange ~= nil,
+			"both AudioSettings mutations must reach GameData.ItemChanged without listener errors")
+		assert(levelChange.ProviderId == "AudioSettings" and levelChange.ItemId == "AudioSettings"
+			and levelChange.ProfileRevision == 12 and levelChange.Path[2] == "SFX"
+			and levelChange.OldValue == oldLevel and levelChange.NewValue == newLevel,
+			"SetLevel must publish the exact GameData change record")
+		assert(enabledChange.ProviderId == "AudioSettings" and enabledChange.ItemId == "AudioSettings"
+			and enabledChange.ProfileRevision == 12 and enabledChange.Path[2] == "SFX"
+			and enabledChange.OldValue == oldEnabled and enabledChange.NewValue == (not oldEnabled),
+			"SetEnabled must publish the exact GameData change record")
+	end)
+
 	test("AudioIntegration/AudioSettingsClientControllerSnapshotPatchAndTwoClientIsolation", function(scope)
 		local function makeController(): (any, any, any, { any })
 			local owner = makeSettingsGraphOwner()
@@ -589,6 +642,51 @@ function Runner.runAll()
 		assert(rollbackController:FlushDirty(rollbackPlayer))
 		assert(rollbackController:BuildSnapshot(rollbackPlayer).Revision == 9,
 			"a later capture must not discover dirty data already folded into an old revision")
+	end)
+
+	test("AudioIntegration/GlobalSnapshotExcludesPlaybackState", function(scope)
+		local player = { UserId = 606 }
+		local settings = AudioSettingsModule.new()
+		settings:Initialize({ Enabled = true, Config = validatedConfig() })
+		local controller = ServerSaveController.new({
+			Id = "Global",
+			Providers = { settings },
+			Storage = makeStorage({
+				FormatVersion = 1, Revision = 0, Providers = {},
+				Metadata = { CreatedAt = 1, UpdatedAt = 1 }, Session = nil,
+			}),
+			KeyResolver = function() return "global-snapshot" end,
+			Logger = makeLogger({}),
+		})
+		scope:Defer(function() controller:Destroy() end)
+		assert(controller:Load(player).Ok)
+		local snapshot = controller:BuildSnapshot(player)
+		assert(snapshot.Providers.AudioSettings ~= nil and snapshot.Providers.AudioSettings.Data.Levels.Master ~= nil)
+		local providerCount = 0
+		for providerId in snapshot.Providers do
+			providerCount += 1
+			assert(providerId == "AudioSettings", `GlobalSnapshot exposed unexpected provider {providerId}`)
+		end
+		assert(providerCount == 1, "GlobalSnapshot must expose only AudioSettings provider data")
+		assert(snapshot.Providers.Playback == nil and snapshot.Providers.Music == nil
+			and snapshot.Playback == nil and snapshot.Music == nil and snapshot.Requests == nil)
+		local forbiddenTransientKeys = {
+			playback = true, playbackstate = true, activeplayback = true,
+			loopleases = true, musicstack = true, requests = true,
+			deliverystate = true, deliveryrequests = true,
+		}
+		local function assertNoPlaybackState(value: any)
+			if typeof(value) ~= "table" then return end
+			for key, child in value do
+				if typeof(key) == "string" then
+					local lowered = string.lower(key)
+					assert(not forbiddenTransientKeys[lowered],
+						`GlobalSnapshot leaked transient audio state through {key}`)
+				end
+				assertNoPlaybackState(child)
+			end
+		end
+		assertNoPlaybackState(snapshot)
 	end)
 
 	test("AudioIntegration/ServerApplyPreparationLifecycleReservation", function(scope)
@@ -1319,6 +1417,15 @@ function Runner.runAll()
 		assert(table.concat(clientCommands.AudioGraph.DependsOn, ",") == "AudioStartup,Players")
 		local modules = clientCommands.DomainData._modules
 		assert(modules[1].Id == "Wallet" and modules[2].Id == "AudioSettings" and modules[3].Id == "Version")
+	end)
+
+	test("AudioIntegration/FixedSpatialCompositionInjection", function()
+		local clientRuntime = ClientManifest.Services.OrdinarySound._core._runtime
+		local serverRuntime = ServerManifest.Services.OrdinarySound._core._runtime
+		assert(clientRuntime.Workspace == workspace and clientRuntime.SpatialFrameDriver == RunService.RenderStepped,
+			"client Ordinary composition must inject Workspace and one RenderStepped driver")
+		assert(serverRuntime.Workspace == workspace and serverRuntime.SpatialFrameDriver == RunService.Heartbeat,
+			"server Ordinary composition must inject Workspace and one Heartbeat driver")
 	end)
 
 	test("AudioIntegration/ServerGraphNoPartialPublish", function(scope)

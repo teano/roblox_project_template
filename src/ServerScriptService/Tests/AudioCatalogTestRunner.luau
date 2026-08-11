@@ -44,9 +44,40 @@ local function deepClone(value: any): any
 	return result
 end
 
+local function syntheticSfxRow(): any
+	local result = table.clone(SoundCatalog[1])
+	result.ResourcePath = nil
+	result.Preload = false
+	return result
+end
+
+local function shippedRegistry(scope: any): any
+	local byPath = {}
+	local paths = {}
+	local sounds = {}
+	for _, row in SoundCatalog do
+		local sound = scope:Track(Instance.new("Sound"))
+		sound.Name = row.CueId
+		sound.SoundId = "rbxassetid://" .. row.AssetId
+		byPath[row.ResourcePath] = sound
+		paths[sound] = row.ResourcePath
+		table.insert(sounds, sound)
+	end
+	return {
+		GetByKey = function() return nil end,
+		Get = function(_self: any, path: string): Instance? return byPath[path] end,
+		GetPath = function(_self: any, instance: Instance): string? return paths[instance] end,
+		FindAll = function() return sounds end,
+	}
+end
+
 function Runner.runAll()
 	local tests = {}
 	local function test(name, callback) table.insert(tests, { Name = name, Callback = callback }) end
+	test("AudioStatic/CanonicalAcousticProperty", function()
+		assert(game:GetService("SoundService").AcousticSimulationEnabled == true,
+			"the canonical authored acoustic prerequisite must remain enabled")
+	end)
 	test("AudioConfig/ShippedExactConfigAndMapping", function()
 		local config = validated("Client")
 		assert(config.PlayerTypes.UI.LoadTimeoutSeconds == 2 and config.PlayerTypes.Music.LoadTimeoutSeconds == 15)
@@ -54,7 +85,7 @@ function Runner.runAll()
 		local runtime = table.clone(RuntimeConfig); runtime.PlayerTypes = table.clone(RuntimeConfig.PlayerTypes)
 		runtime.PlayerTypes.SFX = table.clone(RuntimeConfig.PlayerTypes.SFX)
 		runtime.PlayerTypes.SFX.SourceVolumeMin = 1; runtime.PlayerTypes.SFX.SourceVolumeMax = 2
-		local catalog = Catalog.new({ table.clone(SoundCatalog[2]) }, validated("Client", runtime), emptyRegistry(), logger())
+		local catalog = Catalog.new({ syntheticSfxRow() }, validated("Client", runtime), emptyRegistry(), logger())
 		assert(catalog:GetSnapshot().Variants[1].SourceVolume == 1.8)
 	end)
 	test("AudioConfig/FatalSchemaAndAggregateCeilings", function()
@@ -77,9 +108,9 @@ function Runner.runAll()
 		local isolated = Validator.validate(RuntimeConfig, RoutingConfig, sparse, "Client", logger(events))
 		assert(isolated.Enabled and isolated.Config.SpatialProfilesById.BrokenDefault == nil)
 		assert(isolated.Config.DefaultWorldProfileId == nil, "unresolved default must normalize to nil")
-		local explicitWorld = table.clone(SoundCatalog[2]); explicitWorld.CueId = "World.Explicit"; explicitWorld.PlayerType = "World"; explicitWorld.SpatialProfile = "WorldGood"; explicitWorld.AssetId = "1"
+		local explicitWorld = syntheticSfxRow(); explicitWorld.CueId = "World.Explicit"; explicitWorld.PlayerType = "World"; explicitWorld.SpatialProfile = "WorldGood"; explicitWorld.AssetId = "1"
 		local implicitWorld = table.clone(explicitWorld); implicitWorld.CueId = "World.Implicit"; implicitWorld.SpatialProfile = nil; implicitWorld.AssetId = "2"
-		local unrelated = table.clone(SoundCatalog[2]); unrelated.CueId = "SFX.Unrelated"; unrelated.AssetId = "3"
+		local unrelated = syntheticSfxRow(); unrelated.CueId = "SFX.Unrelated"; unrelated.AssetId = "3"
 		local catalog = Catalog.new({ explicitWorld, implicitWorld, unrelated }, isolated.Config, emptyRegistry(), logger(events))
 		assert(#catalog:GetSnapshot().Variants == 2)
 		assert(catalog:GetNamedVariant("World.Explicit", explicitWorld.VariantId) ~= nil)
@@ -101,9 +132,9 @@ function Runner.runAll()
 			local result = Validator.validate(RuntimeConfig, RoutingConfig, spatial, "Client", logger(events))
 			assert(result.Enabled and result.Config.DefaultWorldProfileId == nil)
 			assert(result.Config.SpatialProfilesById.WorldGood ~= nil)
-			local explicitWorld = table.clone(SoundCatalog[2]); explicitWorld.CueId = "World.Explicit"; explicitWorld.PlayerType = "World"; explicitWorld.SpatialProfile = "WorldGood"; explicitWorld.AssetId = "1"
+			local explicitWorld = syntheticSfxRow(); explicitWorld.CueId = "World.Explicit"; explicitWorld.PlayerType = "World"; explicitWorld.SpatialProfile = "WorldGood"; explicitWorld.AssetId = "1"
 			local implicitWorld = table.clone(explicitWorld); implicitWorld.CueId = "World.Implicit"; implicitWorld.SpatialProfile = nil; implicitWorld.AssetId = "2"
-			local unrelated = table.clone(SoundCatalog[2]); unrelated.CueId = "SFX.Unrelated"; unrelated.AssetId = "3"
+			local unrelated = syntheticSfxRow(); unrelated.CueId = "SFX.Unrelated"; unrelated.AssetId = "3"
 			local catalog = Catalog.new({ explicitWorld, implicitWorld, unrelated }, result.Config, emptyRegistry(), logger(events))
 			assert(catalog:GetNamedVariant("World.Explicit", explicitWorld.VariantId) ~= nil)
 			assert(catalog:GetNamedVariant("World.Implicit", implicitWorld.VariantId) == nil)
@@ -114,17 +145,36 @@ function Runner.runAll()
 	test("AudioCatalog/UnreadableCatalogIsFatal", function()
 		assert(not pcall(function() Catalog.new("bad", validated("Client"), emptyRegistry(), logger()) end))
 	end)
-	test("AudioCatalog/StablePairAndExactSoundRef", function()
-		local catalog = Catalog.new(SoundCatalog, validated("Client"), emptyRegistry(), logger(), function() return 0 end)
-		local variant = catalog:GetNamedVariant("Template.SFX.Pulse", "Default")
-		assert(variant and variant.AssetId == "9120386436" and variant.SourceVolume == 0.8)
-		assert(catalog:Resolve({ AssetId = "9120386436" }) == variant)
+	test("AudioCatalog/StablePairAndExactSoundRef", function(scope)
+		local catalog = Catalog.new(SoundCatalog, validated("Client"), shippedRegistry(scope), logger(), function() return 0 end)
+		local sfx = catalog:GetNamedVariant("Template.SFX.CartoonBubble", "Default")
+		local world = catalog:GetNamedVariant("Template.World.OldCarEngine", "Default")
+		local music = catalog:GetNamedVariant("Template.Music.PrayerRiver", "Default")
+		assert(#catalog:GetSnapshot().Variants == 3, "Shipped catalog must contain exactly three reviewed live rows")
+		assert(sfx and sfx.AssetId == "5852470908" and sfx.SourceVolume == 0.8
+			and sfx.ResourcePath == "Shared/Sounds/SFX/Cartoon bubble button Sound"
+			and sfx.PlayerType == "SFX" and sfx.Preload == true and sfx.AllowClientHybrid == true)
+		assert(world and world.AssetId == "137048982817372" and world.SourceVolume == 0.8
+			and world.ResourcePath == "Shared/Sounds/SFX/engine sound for old cars"
+			and world.PlayerType == "World" and world.SpatialProfileId == "WorldDefault"
+			and world.Preload == true and world.AllowClientHybrid == true)
+		assert(music and music.AssetId == "91760644839532" and music.SourceVolume == 0.5
+			and music.ResourcePath == "Shared/Sounds/Music/祈りの川"
+			and music.PlayerType == "Music" and music.Looping == true
+			and music.Preload == true and music.AllowClientHybrid == false)
+		assert(catalog:Resolve({ AssetId = "5852470908" }) == sfx)
+		assert(catalog:Resolve({ ResourcePath = "Shared/Sounds/SFX/engine sound for old cars" }) == world)
+		assert(catalog:Resolve({ AssetId = "91760644839532" }) == music)
+		local preload = catalog:GetSnapshot().PreloadContentIds
+		assert(#preload == 3 and preload[1] == "rbxassetid://137048982817372"
+			and preload[2] == "rbxassetid://5852470908" and preload[3] == "rbxassetid://91760644839532",
+			"Shipped preload set must be exact, sorted, and contain all three live assets")
 		assert(catalog:Resolve({}) == nil)
-		assert(catalog:Resolve({ CueId = "Template.SFX.Pulse", AssetId = "9120386436" }) == nil)
-		assert(table.isfrozen(catalog:GetSnapshot()) and table.isfrozen(variant))
+		assert(catalog:Resolve({ CueId = "Template.SFX.CartoonBubble", AssetId = "5852470908" }) == nil)
+		assert(table.isfrozen(catalog:GetSnapshot()) and table.isfrozen(sfx) and table.isfrozen(world) and table.isfrozen(music))
 	end)
 	test("AudioCatalog/IdentifierAndFiniteNumericGrammar", function()
-		local base = table.clone(SoundCatalog[2])
+		local base = syntheticSfxRow()
 		local leading = table.clone(base); leading.AssetId = "0001"
 		local long = table.clone(base); long.VariantId = "Long"; long.AssetId = string.rep("1", 33)
 		local invalidKey = table.clone(base); invalidKey.VariantId = "Key"; invalidKey.AssetId = "1"; invalidKey.AssetKey = "bad/key"
@@ -134,7 +184,7 @@ function Runner.runAll()
 	end)
 	test("AudioCatalog/PresentOptionalFieldsRejectAndWeightFallsBack", function()
 		local function row(cueId: string, assetId: string): any
-			local result = table.clone(SoundCatalog[2]); result.CueId = cueId; result.AssetId = assetId
+			local result = syntheticSfxRow(); result.CueId = cueId; result.AssetId = assetId
 			return result
 		end
 		local speed = row("Bad.Speed", "1"); speed.PlaybackSpeed = math.huge
@@ -157,12 +207,12 @@ function Runner.runAll()
 	end)
 	test("AudioCatalog/InvalidRowIsolation", function()
 		local function row(cue: string, assetId: string): any
-			local value = table.clone(SoundCatalog[2])
+			local value = syntheticSfxRow()
 			value.CueId = cue; value.VariantId = cue; value.AssetId = assetId
 			return value
 		end
 		local rows = {
-			[1] = SoundCatalog[2],
+			[1] = syntheticSfxRow(),
 			[5] = row("Sparse", "9"),
 			[0] = row("Zero", "10"),
 			[-1] = row("Negative", "11"),
@@ -189,14 +239,14 @@ function Runner.runAll()
 			"zero, negative, fractional, and both infinite keys need one stable InvalidRow diagnostic each")
 	end)
 	test("AudioCatalog/PhysicalAssetIdBuildsRecursiveFolders", function(scope)
-		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://9120386436"
+		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://5852470908"
 		local registry = {
 			GetByKey = function() return nil end, Get = function() return nil end,
 			GetPath = function(_self, instance) return if instance == sound then "Shared/Sounds/Nested/Tone" else nil end,
 			FindAll = function() return { sound } end,
 		}
-		local catalog = Catalog.new({ SoundCatalog[2] }, validated("Client"), registry, logger(), function() return 0 end)
-		local variant = catalog:GetNamedVariant("Template.SFX.Pulse", "Default")
+		local catalog = Catalog.new({ syntheticSfxRow() }, validated("Client"), registry, logger(), function() return 0 end)
+		local variant = catalog:GetNamedVariant("Template.SFX.CartoonBubble", "Default")
 		assert(variant.ResourcePath == "Shared/Sounds/Nested/Tone")
 		assert(catalog:Resolve({ FolderPath = "Nested" }) == variant)
 		assert(catalog:Resolve({ FolderPath = "Shared/Sounds/Nested" }) == variant)
@@ -222,7 +272,7 @@ function Runner.runAll()
 		assert(sawConflict)
 	end)
 	test("AudioCatalog/WeightedAntiRepeatUsesRemainingWeights", function()
-		local first = table.clone(SoundCatalog[2]); first.CueId = "Weighted"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = 100
+		local first = syntheticSfxRow(); first.CueId = "Weighted"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = 100
 		local second = table.clone(first); second.VariantId = "B"; second.AssetId = "2"; second.Weight = 1
 		local catalog = Catalog.new({ first, second }, validated("Client"), emptyRegistry(), logger(), function() return 0 end)
 		local a = catalog:Resolve({ CueId = "Weighted" })
@@ -287,13 +337,13 @@ function Runner.runAll()
 	-- these literal named fixtures. Keep these cases granular: the coverage
 	-- manifest validates the names mechanically instead of pointing at a broad
 	-- aggregate case.
-	test("AudioCatalog/RawAssetExactVariant", function()
-		local catalog = Catalog.new(SoundCatalog, validated("Client"), emptyRegistry(), logger(), function() return 0 end)
-		local expected = catalog:GetNamedVariant("Template.SFX.Pulse", "Default")
-		assert(expected ~= nil and catalog:Resolve({ AssetId = "rbxassetid://9120386436" }) == expected)
+	test("AudioCatalog/RawAssetExactVariant", function(scope)
+		local catalog = Catalog.new(SoundCatalog, validated("Client"), shippedRegistry(scope), logger(), function() return 0 end)
+		local expected = catalog:GetNamedVariant("Template.SFX.CartoonBubble", "Default")
+		assert(expected ~= nil and catalog:Resolve({ AssetId = "rbxassetid://5852470908" }) == expected)
 	end)
 	test("AudioCatalog/RequiredStableCueVariantPair", function()
-		local valid = table.clone(SoundCatalog[2])
+		local valid = syntheticSfxRow()
 		local missingCue = table.clone(valid); missingCue.CueId = ""; missingCue.AssetId = "1"
 		local missingVariant = table.clone(valid); missingVariant.VariantId = ""; missingVariant.AssetId = "2"
 		local duplicate = table.clone(valid); duplicate.AssetId = "3"
@@ -394,7 +444,7 @@ function Runner.runAll()
 		for _, case in cases do assertDisabled(case) end
 	end)
 	test("AudioCatalog/WeightedAntiRepeat", function()
-		local a = table.clone(SoundCatalog[2]); a.CueId = "Weighted.Exact"; a.VariantId = "A"; a.AssetId = "1"; a.Weight = 4
+		local a = syntheticSfxRow(); a.CueId = "Weighted.Exact"; a.VariantId = "A"; a.AssetId = "1"; a.Weight = 4
 		local b = table.clone(a); b.VariantId = "B"; b.AssetId = "2"; b.Weight = 1
 		local catalog = Catalog.new({ a, b }, validated("Client"), emptyRegistry(), logger(), function() return 0 end)
 		assert(catalog:Resolve({ CueId = a.CueId }).VariantId == "A")
@@ -402,7 +452,7 @@ function Runner.runAll()
 		assert(catalog:Resolve({ CueId = a.CueId }).VariantId == "A")
 	end)
 	test("AudioCatalog/OptionalDefaults", function()
-		local authored = table.clone(SoundCatalog[2])
+		local authored = syntheticSfxRow()
 		authored.Volume01 = nil; authored.PlaybackSpeed = nil; authored.Weight = nil
 		authored.Looping = nil; authored.Preload = nil; authored.AllowClientHybrid = nil
 		local variant = Catalog.new({ authored }, validated("Client"), emptyRegistry(), logger()):GetSnapshot().Variants[1]
@@ -410,13 +460,13 @@ function Runner.runAll()
 		assert(not variant.Looping and not variant.Preload and not variant.AllowClientHybrid)
 	end)
 	test("AudioCatalog/CanonicalPathNormalization", function(scope)
-		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://9120386436"
+		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://5852470908"
 		local registry = {
 			GetByKey = function() return nil end, Get = function() return nil end,
 			GetPath = function() return "Shared/Sounds/Nested/Tone" end,
 			FindAll = function() return { sound } end,
 		}
-		local catalog = Catalog.new({ SoundCatalog[2] }, validated("Client"), registry, logger(), function() return 0 end)
+		local catalog = Catalog.new({ syntheticSfxRow() }, validated("Client"), registry, logger(), function() return 0 end)
 		local relative = catalog:Resolve({ FolderPath = "Nested" })
 		assert(relative ~= nil and catalog:Resolve({ FolderPath = "Shared/Sounds/Nested" }) == relative)
 		assert(catalog:Resolve({ FolderPath = "ReplicatedStorage/Assets/Shared/Sounds/Nested" }) == relative)
@@ -424,7 +474,7 @@ function Runner.runAll()
 	test("AudioCatalog/RecursivePhysicalFolder", function(scope)
 		local a = scope:Track(Instance.new("Sound")); a.SoundId = "rbxassetid://1"
 		local b = scope:Track(Instance.new("Sound")); b.SoundId = "rbxassetid://2"
-		local first = table.clone(SoundCatalog[2]); first.CueId = "Folder.A"; first.AssetId = "1"
+		local first = syntheticSfxRow(); first.CueId = "Folder.A"; first.AssetId = "1"
 		local second = table.clone(first); second.CueId = "Folder.B"; second.AssetId = "2"
 		local paths = { [a] = "Shared/Sounds/Nested/A", [b] = "Shared/Sounds/Nested/Deep/B" }
 		local registry = {
@@ -438,7 +488,7 @@ function Runner.runAll()
 		assert(catalog:Resolve({ FolderPath = "Nested/Deep" }).CueId == "Folder.B")
 	end)
 	test("AudioCatalog/CuePolicyFirstRow", function()
-		local first = table.clone(SoundCatalog[2]); first.CueId = "Policy"; first.VariantId = "A"; first.AssetId = "1"
+		local first = syntheticSfxRow(); first.CueId = "Policy"; first.VariantId = "A"; first.AssetId = "1"
 		local mismatch = table.clone(first); mismatch.VariantId = "B"; mismatch.AssetId = "2"; mismatch.PlayerType = "UI"
 		local events = {}
 		local catalog = Catalog.new({ first, mismatch }, validated("Client"), emptyRegistry(), logger(events), function() return 0 end)
@@ -447,7 +497,7 @@ function Runner.runAll()
 	end)
 	test("AudioCatalog/PhysicalCatalogIdentityConflict", function(scope)
 		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://2"
-		local authored = table.clone(SoundCatalog[2]); authored.AssetId = "1"; authored.ResourcePath = "Shared/Sounds/Tone"
+		local authored = syntheticSfxRow(); authored.AssetId = "1"; authored.ResourcePath = "Shared/Sounds/Tone"
 		local events = {}
 		local registry = {
 			GetByKey = function() return nil end, Get = function() return sound end,
@@ -458,14 +508,14 @@ function Runner.runAll()
 		assert(events[1].Event == "CatalogRowSkipped" and events[1].Data.ReasonCode == "PhysicalIdentityConflict")
 	end)
 	test("AudioCatalog/WeightedBoundarySelection", function()
-		local first = table.clone(SoundCatalog[2]); first.CueId = "Boundary"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = 1
+		local first = syntheticSfxRow(); first.CueId = "Boundary"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = 1
 		local second = table.clone(first); second.VariantId = "B"; second.AssetId = "2"; second.Weight = 3
 		local catalog = Catalog.new({ first, second }, validated("Client"), emptyRegistry(), logger(), function() return 0.99 end)
 		assert(catalog:Resolve({ CueId = "Boundary" }).VariantId == "B")
 	end)
 	test("AudioCatalog/HugeFiniteWeightsRemainProportional", function()
 		local function resolve(firstWeight: number, secondWeight: number, sample: number): string
-			local first = table.clone(SoundCatalog[2]); first.CueId = "Huge"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = firstWeight
+			local first = syntheticSfxRow(); first.CueId = "Huge"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = firstWeight
 			local second = table.clone(first); second.VariantId = "B"; second.AssetId = "2"; second.Weight = secondWeight
 			local catalog = Catalog.new({ first, second }, validated("Client"), emptyRegistry(), logger(), function() return sample end)
 			return catalog:Resolve({ CueId = "Huge" }).VariantId
@@ -486,7 +536,7 @@ function Runner.runAll()
 			"reversed huge/tiny order changed the high-sample dominant bucket"
 		)
 		do
-			local first = table.clone(SoundCatalog[2]); first.CueId = "Huge.ReversedTie"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = 1e308
+			local first = syntheticSfxRow(); first.CueId = "Huge.ReversedTie"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = 1e308
 			local second = table.clone(first); second.VariantId = "B"; second.AssetId = "2"
 			local reversed = Catalog.new({ second, first }, validated("Client"), emptyRegistry(), logger(), function() return 0.5 end)
 			assert(reversed:Resolve({ CueId = first.CueId }).VariantId == "A", "reversed tie did not preserve catalog-order half-open intervals")
@@ -504,7 +554,7 @@ function Runner.runAll()
 			"reversed tiny/huge ordering changed the dominant interval"
 		)
 
-		local first = table.clone(SoundCatalog[2]); first.CueId = "Huge.AntiRepeat"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = 1e308
+		local first = syntheticSfxRow(); first.CueId = "Huge.AntiRepeat"; first.VariantId = "A"; first.AssetId = "1"; first.Weight = 1e308
 		local second = table.clone(first); second.VariantId = "B"; second.AssetId = "2"; second.Weight = 1e308
 		local antiRepeat = Catalog.new({ first, second }, validated("Client"), emptyRegistry(), logger(), function() return 0.9 end)
 		assert(antiRepeat:Resolve({ CueId = first.CueId }).VariantId == "B")
@@ -527,7 +577,7 @@ function Runner.runAll()
 	test("AudioCatalog/IndependentAntiRepeatOwners", function(scope)
 		local a = scope:Track(Instance.new("Sound")); a.SoundId = "rbxassetid://1"
 		local b = scope:Track(Instance.new("Sound")); b.SoundId = "rbxassetid://2"
-		local first = table.clone(SoundCatalog[2]); first.CueId = "Owners"; first.VariantId = "A"; first.AssetId = "1"
+		local first = syntheticSfxRow(); first.CueId = "Owners"; first.VariantId = "A"; first.AssetId = "1"
 		local second = table.clone(first); second.VariantId = "B"; second.AssetId = "2"
 		local paths = { [a] = "Shared/Sounds/Owners/A", [b] = "Shared/Sounds/Owners/B" }
 		local registry = {
@@ -541,7 +591,7 @@ function Runner.runAll()
 	end)
 	test("AudioCatalog/SoundRefExactOne", function(scope)
 		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://1"; sound:SetAttribute("AssetKey", "tone")
-		local authored = table.clone(SoundCatalog[2]); authored.CueId = "Refs"; authored.VariantId = "Only"; authored.AssetId = "1"; authored.AssetKey = "tone"; authored.ResourcePath = "Shared/Sounds/Refs/Tone"
+		local authored = syntheticSfxRow(); authored.CueId = "Refs"; authored.VariantId = "Only"; authored.AssetId = "1"; authored.AssetKey = "tone"; authored.ResourcePath = "Shared/Sounds/Refs/Tone"
 		local registry = {
 			GetByKey = function() return sound end, Get = function() return sound end,
 			GetPath = function() return "Shared/Sounds/Refs/Tone" end, FindAll = function() return { sound } end,
@@ -555,17 +605,17 @@ function Runner.runAll()
 		assert(catalog:Resolve({}) == nil and catalog:Resolve({ AssetId = "1", AssetKey = "tone" }) == nil)
 	end)
 	test("AudioCatalog/PhysicalDescriptorMapsToNamedVariant", function(scope)
-		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://9120386436"
+		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://5852470908"
 		local registry = {
 			GetByKey = function() return nil end, Get = function() return nil end,
 			GetPath = function() return "Shared/Sounds/Named/Tone" end, FindAll = function() return { sound } end,
 		}
-		local catalog = Catalog.new({ SoundCatalog[2] }, validated("Client"), registry, logger())
-		assert(catalog:Resolve({ FolderPath = "Named" }) == catalog:GetNamedVariant("Template.SFX.Pulse", "Default"))
+		local catalog = Catalog.new({ syntheticSfxRow() }, validated("Client"), registry, logger())
+		assert(catalog:Resolve({ FolderPath = "Named" }) == catalog:GetNamedVariant("Template.SFX.CartoonBubble", "Default"))
 	end)
 	test("AudioCatalog/ResourcePathAssetIdNormalization", function(scope)
 		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://1"
-		local authored = table.clone(SoundCatalog[2]); authored.AssetId = "1"; authored.ResourcePath = "Shared/Sounds/Tone"
+		local authored = syntheticSfxRow(); authored.AssetId = "1"; authored.ResourcePath = "Shared/Sounds/Tone"
 		local registry = {
 			GetByKey = function() return nil end, Get = function() return sound end,
 			GetPath = function() return "Shared/Sounds/Tone" end, FindAll = function() return { sound } end,
@@ -574,7 +624,7 @@ function Runner.runAll()
 		assert(variant.AssetId == "1" and variant.ContentId == "rbxassetid://1")
 	end)
 	test("AudioCatalog/PerIndexFirstWins", function()
-		local first = table.clone(SoundCatalog[2]); first.CueId = "First"; first.AssetId = "1"
+		local first = syntheticSfxRow(); first.CueId = "First"; first.AssetId = "1"
 		local second = table.clone(first); second.CueId = "Second"; second.AssetId = "1"
 		local events = {}
 		local catalog = Catalog.new({ first, second }, validated("Client"), emptyRegistry(), logger(events))
@@ -827,7 +877,7 @@ function Runner.runAll()
 		assert(not AudioHybridCodec.validate({ Version = 1, CueId = "C", VariantId = identifierBoundary .. "x", Spatial = { Kind = "None" } }))
 		assert(AudioHybridCodec.validate({ Version = 1, CueId = "C", VariantId = "V", Spatial = { Kind = "Point", Position = Vector3.new(AudioSafetyLimits.HybridWorldCoordinateAbsMax, 0, 0) } }))
 		assert(not AudioHybridCodec.validate({ Version = 1, CueId = "C", VariantId = "V", Spatial = { Kind = "Point", Position = Vector3.new(AudioSafetyLimits.HybridWorldCoordinateAbsMax + 1, 0, 0) } }))
-		local catalogBoundary = table.clone(SoundCatalog[2])
+		local catalogBoundary = syntheticSfxRow()
 		catalogBoundary.CueId = identifierBoundary
 		catalogBoundary.VariantId = identifierBoundary
 		catalogBoundary.AssetId = string.rep("1", 32)
@@ -854,9 +904,9 @@ function Runner.runAll()
 		assert(invalidProfileResult.Enabled and next(invalidProfileResult.Config.SpatialProfilesById) == nil
 			and #invalidProfileEvents == 2,
 			"65-byte spatial identifiers must isolate the profile/default without disabling valid audio")
-		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://9120386436"
+		local sound = scope:Track(Instance.new("Sound")); sound.SoundId = "rbxassetid://5852470908"
 		local assetKeyBoundary = "K" .. string.rep("x", AudioSafetyLimits.MaxIdentifierBytes - 1)
-		local assetKeyRow = table.clone(SoundCatalog[2]); assetKeyRow.AssetId = nil; assetKeyRow.AssetKey = assetKeyBoundary
+		local assetKeyRow = syntheticSfxRow(); assetKeyRow.AssetId = nil; assetKeyRow.AssetKey = assetKeyBoundary
 		local assetKeyRegistry = {
 			GetByKey = function(_self, key) return if key == assetKeyBoundary then sound else nil end,
 			Get = function() return nil end,
@@ -873,7 +923,7 @@ function Runner.runAll()
 			GetPath = function() return pathBoundary end,
 			FindAll = function() return { sound } end,
 		}
-		local pathRow = table.clone(SoundCatalog[2]); pathRow.ResourcePath = pathBoundary
+		local pathRow = syntheticSfxRow(); pathRow.ResourcePath = pathBoundary
 		local acceptedPath = Catalog.new({ pathRow }, shippedClient.Config, registry, logger())
 		assert(acceptedPath:GetSnapshot().Variants[1].ResourcePath == pathBoundary)
 		pathRow = table.clone(pathRow); pathRow.ResourcePath = pathBoundary .. "x"
@@ -1121,6 +1171,20 @@ function Runner.runAll()
 			and AudioSafetyLimits.HybridAcceptedRateServer == 128 and AudioSafetyLimits.HybridAcceptedBurstServer == 256
 			and AudioSafetyLimits.HybridFanoutRecipientsRateServer == 1024 and AudioSafetyLimits.HybridFanoutRecipientsBurstServer == 2048
 			and AudioSafetyLimits.MaxPathBytes == 512)
+	end)
+	test("AudioConfig/FixedSpatialCompositionObjectCeiling", function()
+		for _, side in { "Client", "Server" } do
+			local config = validated(side)
+			local active, retained = 0, 0
+			for playerType, record in config.PlayerTypes do
+				if side == "Client" or playerType ~= "Music" then
+					active += if side == "Client" then record.ClientMaxActive else record.ServerMaxActive
+					retained += if side == "Client" then record.ClientMaxRetained else record.ServerMaxRetained
+				end
+			end
+			assert(4 * (active + retained) <= AudioSafetyLimits.MaxWorstCasePlaybackObjectsPerSide,
+				`{side} fixed SpatialAnchor composition must retain the exact four-object ceiling`)
+		end
 	end)
 	test("AudioConfig/AuthoringCannotRaiseSafetyLimits", function()
 		local authored = table.clone(RuntimeConfig); authored.PlayerTypes = table.clone(RuntimeConfig.PlayerTypes)

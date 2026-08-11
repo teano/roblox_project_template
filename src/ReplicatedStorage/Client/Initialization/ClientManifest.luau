@@ -96,7 +96,10 @@ local audioGraph = AudioGraphClient.new({
 	ListenerFrameDriver = RunService.RenderStepped,
 	Logger = audioLogger,
 })
-local ordinarySound = OrdinarySoundClient.new(poolModule, audioLogger)
+local ordinarySound = OrdinarySoundClient.new(poolModule, audioLogger, {
+	Workspace = Workspace,
+	SpatialFrameDriver = RunService.RenderStepped,
+})
 local hybridAudio = HybridOneShotClientController.new({
 	Communication = communication,
 	Logger = audioLogger,

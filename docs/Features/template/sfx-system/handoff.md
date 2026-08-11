@@ -1,89 +1,26 @@
 # Feature handoff
 
 - Feature: TF-0005 SFX System
-- Status: in_progress / active
-- Branch: `template-feature/tf-0005-sfx-system`
-- Base HEAD: `ccea174b678d8d2f3d4e2b3b3687d77a3f9ca9fb`
-- Updated: 2026-08-08T04:51:51.7318248Z
+- Status: ready / none
+- Head: 8fd6bc621dd278e51086f00903a14151320b4169
+- Updated: 2026-08-11T12:15:04.4479653+00:00
 
 ## Result and current state
 
-The implementation and owner-05 final convergence-wave-12 remediation are
-complete in the uncommitted feature worktree. The approved PRD remains
-immutable revision 3, SHA-256
-`cb79c583a0f1a0f4e8c568103b3ca354057c08776ae5b56ff7fd291d87b49fa0`.
-The technical specification remains immutable revision 7, SHA-256
-`bd8e88795a9cbf807ff2747c606433e356e41e6d406c5ed85f4fad2c6f38eaf9`.
+TF-0005 завершена: поставлена полная SFX/Audio вертикаль с локальной валидируемой конфигурацией и каталогом, интеграцией AssetRegistry и ContentPreloader, server/client AudioGraph, обычным local/server/hybrid playback, Music LIFO и transitions, AudioSettings, фиксированной четырёхобъектной SpatialAnchor-композицией, generation-safe Attached registry, Studio QA bridge, документацией, ADR и точной evidence-трассировкой. Итоговая composite revision b491623e6279869d63f0834c638895cf66632da1bec7ff155f5d952bb71e7a4a; product 7dba980c8441ba5b00ec1273184081ab758d0a984f6f1019d04b7a5722db2261; support 48ffa65db7b8ab31276b9c23362412e15fa541f4a43b11df55d5c749e4327a6d; evidence ba3d53018275b824def3e61a59e0dcc0cdebcfd703d3eb9b2d64e81af545de53. Блокеров и следующего шага реализации нет.
 
-The exact Wave-11 result and frozen Wave-12 input is composite
-`3da325ca373f16f62196b1e7536767f610bf32385d34849307b97c808ac2358d`,
-product `e10701874f6d02f4f1d7f3eab67cf577d830b0aa6b18460715f3fde3857fd11e`,
-support `da5529eca79dc548b504a42e77f2f39cb94d13c70041cc42c0f6ab03f971a072`,
-and evidence `b22c1212c550e274dfd347edd3391f580d3e6187fef68c8106f4bf3042bda085`
-with exact inventory `51/26/8`. The Wave-12 result inventory is `53/26/8`:
-the existing shutdown coordinator and Wallet provider are now explicit product
-members of the frozen shared lifecycle boundary.
+## Important decisions and discussions
 
-All normalized findings `CONV-W12-001` through `CONV-W12-007` were resolved as
-one atomic batch. Retained close ownership survives a deadline withdrawal
-behind an active lock refresh; storage save acknowledgement is fail-closed for
-malformed result shapes; shutdown uses one absolute deadline and one bounded
-worker owner through preparation, capture, save, Stop, Release, retry, and
-finalization. Session-lock completion is revalidated against the exact
-registered entry after every yield, and controller-owned mutation admission
-keeps retained Wallet/Statistics runtimes capturable but closed to gameplay.
-
-Shutdown snapshots the identity-deduplicated union of live players and exact
-departed retained runtime owners before stopping the session-lock scheduler.
-Weighted audio selection now uses maximum-normalized compensated half-open CDF
-intervals without clamping any valid `[0, 1)` sample, preserving catalog-order
-ties, representable high-sample tails, tiny/huge ordering, ordinary parity,
-and anti-repeat without an authoring ceiling.
-
-Risk classification is explicit: W12-003/005/006 correct shipped
-production-reachable paths; W12-001/004 close rare deterministic concurrency
-schedules; W12-002 is defensive adapter hardening because all shipped storage
-implementations return table/boolean acknowledgements; W12-007 is minor
-accepted-domain numeric conformance because the shipped catalog currently has
-four rows and every authored Weight is exactly `1`.
-
-Feature lifecycle state was not changed: `status=in_progress` and
-`activity=active` remain authoritative until an explicit user lifecycle
-instruction.
+World playback использует только fixed SpatialAnchor Part с прямыми AudioPlayer, AudioEmitter и Wire, default Parent positioning, set-once Point и одним generation-safe side-owned registry на сторону для Attached; PositionType/PositionInstance, strategies, probes, fallbacks, mirrors, application fanout, новые remotes и bootstraps отвергнуты. Catalog-owned forbidden overrides и effective configured-range violations возвращают TypeMismatch; unrelated malformed option keys остаются InvalidRequest, до acquire/mutation и с одним client diagnostic. ClientMusicSettingsSave исключён пользователем из Audio-модуля как NOT_APPLICABLE. Слуховой QA, двухклиентская репликация, attenuation, Music и independent-fader observations были фактически выполнены оператором; последующая product-правка затронула только taxonomy отклонённых options, не accepted playback, spatial composition или audible output, поэтому пользователь явно распорядился не повторять слуховые кейсы и принять уже записанные наблюдения. Новая feature для support/evidence remediation не создавалась; всё завершено внутри TF-0005.
 
 ## Verification state
 
-- Focused/shared suites passed 332/332: catalog 37/37, playback 47/47, audio
-  integration 36/36, production readiness 45/45, production integration
-  52/52, statistics 30/30, teleport 30/30, asset registry 6/6, preloader 8/8,
-  resource management 10/10, config catalog 11/11, and system 20/20.
-- Aggregate regression passed 338/338 across 13 suites. No executable failure
-  occurred; final narrow authority checks were followed by successful focused
-  and aggregate reruns.
-- Exact acceptance topology remains 79 contiguous rows and 109 approved
-  identities: 81 automated, 12 static/CSV, and 16 manual QA reservations.
-- Canonical Studio session `f63c2797-a771-4d71-a097-3d2b30ea0f50` was reused
-  after Rojo preflight and verified as PlaceId `91045933836846`, GameId
-  `10596427617`.
-- The read-only CSV freshness preview remained `ok` with zero diff and zero
-  diagnostics; converter implementation and generated catalog were not edited.
-- Temporary Rojo builds, workflow/dashboard/layout/static/diff/ADR/forbidden
-  gates, and a separate production-only Play passed. The clean Play completed
-  every server/client bootstrap command with no warning or error and published
-  `ClientInitialized=true`; both DataModels retained the canonical IDs and
-  authoring-owned acoustic setting.
+До Finish уже завершены: approved PRD rev4 9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde, specification rev12 88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459 и plan rev1 3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0; exact mapping PRD-AC-001..079 = 79/79; evidence identities Required=110 Missing=0; feature/index/repository-layout/diff checks PASS; temporary Rojo build PASS. На exact b491 revision: AudioCatalog 39/39, AudioPlayback 61/61, AudioIntegration 39/39, AudioManualQa 22/22, AllTests 380/380 across 14 suites; canonical PlaceId 91045933836846 и GameId 10596427617; AudioRuntime generation 1, five faders, client initialized, listener/output и AcousticSimulationEnabled=true; output без attributable Audio errors; cleanup завершён, Studio Edit-only. Final independent contract review PASS без findings. Operator QA зафиксировал 15 PASS / 1 user-declared NOT_APPLICABLE / 0 FAIL, включая local/hybrid/server playback, Point attenuation, Attached native replication на обоих клиентах и разных расстояниях, category/fader isolation, Music stacks и background/foreground restore. Во время Finish тесты, validators, build и Studio намеренно не перезапускались согласно lifecycle contract.
 
-## Artifacts
+## Blockers
 
-- `tests/sfx-system/verification/eng-tf0005-sfx-owner-05/convergence-wave-12/input-revision-manifest.json`
-- `tests/sfx-system/verification/eng-tf0005-sfx-owner-05/convergence-wave-12/revision-manifest.json`
-- `tests/sfx-system/verification/eng-tf0005-sfx-owner-05/convergence-wave-12/coverage-manifest.json`
-- `tests/sfx-system/verification/eng-tf0005-sfx-owner-05/convergence-wave-12/verification-report.md`
+None.
 
 ## Next step
 
-Preserve the current feature branch and uncommitted worktree for independent
-exact-result convergence review. Owner-05 has exhausted its third and final
-remediation return; any later engineering remediation transfers to owner-06.
-Any lifecycle transition, commit, push, publication, attachment, or scene
-mutation requires separate explicit user authorization.
+None; feature is ready.

@@ -685,6 +685,10 @@ require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 недетерминированных внешних зависимостей. Матрица контрактов и релизный чек-лист
 находятся в [docs/TestCoverage.md](docs/TestCoverage.md).
 
+Совместная проверка Audio с одним сервером, двумя клиентами, командами агента,
+объективными runtime-снимками и отдельным подтверждением игрока описана в
+[docs/AudioManualQA.md](docs/AudioManualQA.md).
+
 Отключённый по умолчанию smoke-тест требует отдельного опубликованного
 тестового place с разрешённым доступом Studio к API:
 
