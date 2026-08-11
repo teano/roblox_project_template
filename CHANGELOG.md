@@ -15,6 +15,56 @@ Git-теги описывают версии самого шаблона. Они
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-11
+
+### Added
+
+- Добавлена production-ready Audio/SFX вертикаль с локальным, серверным и
+  hybrid one-shot playback, нативной серверной репликацией и раздельными
+  однородными пулами на сервере и каждом клиенте.
+- Добавлены валидируемые локальные Luau-конфиги `AudioRuntimeConfig`,
+  `RoutingConfig` и `SpatialProfiles`, а также генерируемый из
+  `configs/audio/Sounds.csv` каталог с вариантами, весами, preload-флагами и
+  стабильными `CueId`/`VariantId`.
+- Добавлены `AudioGraph`, иерархия фейдеров Master/UI/SFX/World/Music,
+  клиентский LIFO-стек Music с transitions и сохраняемые пользовательские
+  уровни и enabled-флаги AudioSettings.
+- Добавлен фиксированный пространственный контракт: один невидимый anchored
+  `SpatialAnchor` с прямыми `AudioPlayer`, `AudioEmitter` и `Wire`, статическая
+  Point-позиция и generation-safe Attached tracking полного transform.
+- Добавлены совместный Studio QA-контур, руководство по слуховой проверке,
+  точная трассировка 79 acceptance criteria и расширенные Audio suites.
+
+### Changed
+
+- `AssetRegistry` и `ContentPreloader` интегрированы с физическими Sound-
+  дескрипторами и детерминированной audio-only first-wins политикой; startup
+  fail-closed отключает Audio-сторону до создания graph и pools при невалидной
+  конфигурации или превышении лимитов.
+- Каноническая сцена теперь владеет `SoundService.AcousticSimulationEnabled`
+  и listener anchor; runtime не меняет глобальное acoustic-состояние.
+- Клиентский и серверный manifests явно собирают Audio dependencies и frame
+  drivers без новых bootstrap-скриптов или обходных transport remotes.
+
+### Fixed
+
+- Запрещённые catalog-owned overrides и значения вне настроенного диапазона
+  отклоняются как `TypeMismatch` до acquire/mutation и с одним клиентским
+  diagnostic; прочие malformed option keys сохраняют `InvalidRequest`.
+- Spatial playback больше не зависит от недоступных
+  `PositionType`/`PositionInstance`: default Parent topology единообразно
+  работает для Point и Attached источников и безопасно очищает stale callbacks.
+
+### Verification
+
+- Пройдены AudioCatalog `39/39`, AudioPlayback `61/61`, AudioIntegration
+  `39/39`, AudioManualQa `22/22` и aggregate `380/380` в 14 suites, Rojo build,
+  clean Studio Play и двухклиентские слуховые проверки replication,
+  attenuation, независимых фейдеров и Music LIFO.
+- Breaking migration отсутствует. Для использования системы нужно заполнить
+  `configs/audio/Sounds.csv`, сгенерировать каталог штатным конвертером и
+  разместить соответствующие Sound-дескрипторы под approved assets root.
+
 ## [0.17.0] - 2026-08-06
 
 ### Added
@@ -273,7 +323,8 @@ Git-теги описывают версии самого шаблона. Они
 - Добавлены Rojo project mapping, канонические agent rules, ADR и первые
   системные и production integration tests.
 
-[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/teano/roblox_project_template/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/teano/roblox_project_template/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/teano/roblox_project_template/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/teano/roblox_project_template/compare/v0.14.1...v0.15.0
