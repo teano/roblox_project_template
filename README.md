@@ -9,6 +9,14 @@ production и построенная с помощью [Rojo](https://rojo.space
 В проект намеренно не входят игровая логика, карта, HUD, VFX, SFX и сторонние
 пакеты, специфичные для конкретной игры.
 
+## Работа над игровой фичей
+
+Если вы впервые работаете с feature workflow и Agentic GameDev Pipeline,
+используйте [пошаговую инструкцию по разработке игровой фичи](docs/FeatureDevelopmentForBeginners.md).
+В ней указаны точные команды для Start, Requirements, Specification,
+Development Plan, Production Pipeline, Pause, Continue, Finish и Reopen, а
+также ссылки и инструкции по установке обоих требуемых пайплайнов.
+
 ## Включённые системы
 
 - Детерминированная серверная и клиентская инициализация с явными манифестами,
