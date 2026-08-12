@@ -15,6 +15,55 @@ Git-теги описывают версии самого шаблона. Они
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-08-12
+
+### Added
+
+- Добавлено детерминированное сокращение feature ID вида `####`: оно
+  разрешается только при единственном совпадении `TF-####` или `F-####` среди
+  всех видимых namespace, а ноль или несколько совпадений останавливают
+  lifecycle-команду до любых изменений.
+- Добавлены regression fixtures для полного ID, slug, title, folder,
+  однозначных template/project suffixes, foreign ownership и fail-closed
+  no-mutation поведения всех lifecycle actions.
+
+### Changed
+
+- `$feature-continue` теперь только активирует paused feature, восстанавливает
+  writer lease, синхронизирует owning dashboard и даёт базовый обзор из
+  `feature.json` и `handoff.md`. После отчёта turn завершается без
+  implementation, review, audit, pipeline, проверок, Rojo/Studio или
+  сабагентов.
+- PRD, specification, полный worklog, Git, source, rules, docs, ADR и
+  verification evidence загружаются лениво только отдельно запрошенным
+  рабочим процессом; записанный next step остаётся информационным.
+- `$feature-pause` фиксирует только уже известные факты, не создаёт новое
+  verification evidence и не делегирует checkpoint сабагенту. ADR-0044
+  закрепляет эту границу и supersedes ADR-0037 без ослабления user-only
+  lifecycle authority.
+- Continue CLI больше не направляет агента к обязательному чтению полного
+  worklog и Git range.
+
+### Fixed
+
+- Исключён сценарий, в котором Continue-only поглощал полный рабочий контекст
+  или воспринимался как разрешение сразу начать реализацию записанного
+  следующего шага.
+- Неоднозначный числовой suffix больше не может выбрать namespace по текущей
+  ветке, writable ownership или порядку enumeration и изменить feature state.
+
+### Verification
+
+- Полный feature-workflow suite прошёл на Windows PowerShell 5.1 за
+  344.066 секунды и PowerShell 7 за 208.870 секунды.
+- Пройдены PowerShell parser checks, feature/dashboard/layout validators,
+  `git diff --check` и временный Rojo build за 0.127 секунды с удалением
+  результата.
+- Studio Play не запускался, поскольку Roblox runtime source и DataModel не
+  изменялись. Persisted manifest/lease/dashboard schemas и миграции не
+  изменились; для продолжения работы после Continue теперь требуется отдельный
+  явный пользовательский запрос.
+
 ## [0.19.0] - 2026-08-12
 
 ### Added
@@ -365,7 +414,8 @@ Git-теги описывают версии самого шаблона. Они
 - Добавлены Rojo project mapping, канонические agent rules, ADR и первые
   системные и production integration tests.
 
-[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/teano/roblox_project_template/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/teano/roblox_project_template/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/teano/roblox_project_template/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/teano/roblox_project_template/compare/v0.16.0...v0.17.0
