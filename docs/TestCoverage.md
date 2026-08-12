@@ -55,6 +55,45 @@ clean server/client bootstrap succeeds.
 | Teleport lifecycle | external/continued arrival, public/reserved requests, client bootstrap/events, two-client transport including negative Studio simulated-player UserIds, exact two-place template policy, unpublished zero-identity inert bootstrap, explicit opt-in runtime validation pad and configured routing | untrusted envelope, invalid group/destination, synchronous/late/queue failure, zero/fractional presentation UserId rejection, private-field rejection, post-Stop delivery, unrecorded place in the template Experience, unpublished destination rejection, default-disabled validation, malformed/mismatched/metatable-bearing validation GameId/routes/tester allowlist, unknown validation-config fields, unauthorized touch | unique sessions, three-visit continuity, GameId-gated derived current-place-only policy, immutable yielding group success/failure, pre-return init-failure ordering and exception/removal/Stop/retry retirement, per-player partial failure, stale result correlation, validation-pad touch re-entry/removal/recreation/deterministic lowest-present tester selection/idempotent Stop, repeated cleanup, observable snapshot reconciliation for every lost lifecycle/presentation transition, negative-ID peer departure followed by handler-failure snapshot recovery, maximum configured player capacity, initial queue clearing, handler-failure and backpressure resync | `TeleportModuleTestRunner`, `ProductionIntegrationTestRunner` |
 | Save registries | registered controller construction | duplicate/unknown/malformed registration, permanent terminal Stop failure, and stale object-form removal | single/mixed-bulk retry after failure, exact autosave/runtime/provider/signal/lock retention, successful lifecycle handoff, string-ID compatibility, same-ID replacement survival across server autosave/session-lock and client central dispatch, two simultaneous real-client pending routes, crossed/correct results, survivor removal, same-ID stale-result rejection, and independent server/client registries | `ProductionReadinessTestRunner` |
 
+## Deterministic feature-dashboard gate (TF-0008)
+
+The feature-workflow dashboard gate has 18 automated identities and no manual
+identities. `scripts/tests/feature-workflow.tests.ps1` runs the same contract
+separately under Windows PowerShell 5.1 and PowerShell 7.x on the mandatory
+Windows 11 release host. Child workflow commands use the current host; they do
+not fall back to another PowerShell executable. The isolated local fixtures
+cover `en-US`, `ru-RU`, `core.autocrlf=false|true`, LF/CRLF/CR/mixed line
+separators, template and derived ownership, and exact pre/post dashboard
+hashes without using a repository feature lease, network, Studio, Roblox, or
+wall-clock timing.
+
+| Automated identity | Acceptance | Contract coverage |
+|---|---|---|
+| `AUTO-TF0008-SPEC-TEST-001` | `PRD-AC-001`, `PRD-AC-015`, `PRD-AC-017` | Eight Windows 11 host/culture/Git cells produce one expected SHA-256, strict UTF-8 without BOM, LF only, and one terminal LF. |
+| `AUTO-TF0008-SPEC-TEST-002` | `PRD-AC-002` | Canonical LF Check succeeds and preserves the exact pre/post hash. |
+| `AUTO-TF0008-SPEC-TEST-003` | `PRD-AC-003` | Logically equal CRLF, CR, and mixed-separator dashboards pass Check without byte changes. |
+| `AUTO-TF0008-SPEC-TEST-004` | `PRD-AC-004` | Owning sync canonicalizes CRLF to UTF-8-no-BOM/LF/one-terminal-LF and a second sync preserves the exact hash. |
+| `AUTO-TF0008-SPEC-TEST-005` | `PRD-AC-005` | Derived all-namespace Check accepts a current inherited CRLF template dashboard and preserves its bytes. |
+| `AUTO-TF0008-SPEC-TEST-006` | `PRD-AC-006` | Project-only sync repairs the project dashboard while preserving the inherited template hash. |
+| `AUTO-TF0008-SPEC-TEST-007` | `PRD-AC-007`, `PRD-AC-013` | Counter, row, UTC date, marker, table, order, title, prose, and manifest-path drift fails read-only Check; owning sync restores the exact full-file projection, including missing owning output. |
+| `AUTO-TF0008-SPEC-TEST-008` | `PRD-AC-008` | Foreign title, prose, or manifest-path drift fails without mutation or a forbidden template-sync instruction; project-only sync does not repair it. |
+| `AUTO-TF0008-SPEC-TEST-009` | `PRD-AC-009` | `2026-08-05T13:28:08Z` displays as `2026-08-05` under both cultures and hosts. |
+| `AUTO-TF0008-SPEC-TEST-010` | `PRD-AC-010` | `2026-08-05T00:30:00+14:00` displays as UTC date `2026-08-04`. |
+| `AUTO-TF0008-SPEC-TEST-011` | `PRD-AC-011` | `2026-08-05T23:30:00-12:00` displays as UTC date `2026-08-06`. |
+| `AUTO-TF0008-SPEC-TEST-012` | `PRD-AC-012` | Date-only, culture-formatted, impossible, zone-less, and malformed-offset timestamps fail before write and preserve the dashboard hash. |
+| `AUTO-TF0008-SPEC-TEST-013` | `PRD-AC-013` | Missing owning output is created with the exact scaffold, one marker pair, table, UTF-8 without BOM, LF, and one terminal LF; repeat sync is idempotent. |
+| `AUTO-TF0008-SPEC-TEST-014` | `PRD-AC-014` | Missing foreign template output fails closed without creating a file or directory. |
+| `AUTO-TF0008-SPEC-TEST-015` | `PRD-AC-015`, `PRD-AC-017` | The original Windows 10/PowerShell 7/`ru-RU` fixture runs deterministically on Windows 11 with `2026-08-05T13:28:08.08195+03:00`, retains `2026-08-05`, passes workflow/layout validation, and preserves dashboard bytes. |
+| `AUTO-TF0008-SPEC-TEST-016` | `PRD-AC-016` | The complete existing lifecycle and feature-workflow contract suite plus TF-0008 regressions runs under both supported PowerShell hosts without weakened assertions. |
+| `AUTO-TF0008-SPEC-TEST-017` | `PRD-AC-017` | Both hosts run the feature validator, all-namespace Check, layout validator, and feature-workflow suite; `git diff --check` and one temporary Rojo build complete the repository gate. |
+| `AUTO-TF0008-SPEC-TEST-018` | `PRD-AC-001`, `PRD-AC-004`, `PRD-AC-008`, `PRD-AC-012` | Cyrillic, emoji, and escaped Markdown survive both hosts; invalid UTF-8 manifests/dashboards and invalid surrogate escapes fail before mutation, valid pairs pass, strict encoding rejects an unpaired output surrogate before creating output, and owning recovery is byte-idempotent. |
+
+The release gate requires all 18 identities to pass. Real Windows 10 execution
+may compare the same fixture and expected SHA-256 when a runner is available,
+but it is optional, nonblocking evidence and never changes the mandatory
+result. Studio Play is not part of this gate because TF-0008 does not change
+Roblox source or the DataModel.
+
 ## Deterministic Studio gate
 
 Start a fresh Studio Play session and run from the server:

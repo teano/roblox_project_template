@@ -1,45 +1,95 @@
 {
   "analysis": {
     "mode": "single_owner",
-    "rationale": "The remaining SFX work is one coupled end-to-end spatial-topology replacement across wrapper composition, side-owned binding, manifest injection, ADR/rules/docs, deterministic evidence, manual QA, and reconciliation of a substantial pre-existing dirty feature layer. Artificial server/client, code/test/docs, or deterministic/manual splits would compete for the same contracts and paths. Use one persistent integration Engineer with five explicit milestones.",
-    "recorded_at": "2026-08-10T20:25:01+00:00",
-    "seams_assessment": "No stable independent vertical seam exists: server and client share the same wrapper/registry generation contract; runtime, focused tests, QA observations, rules, ADR, and current docs must converge together. Milestones are sequential evidence checkpoints, not separate writer slices.",
-    "working_set": "High complexity but bounded for one persistent Engineer: baseline 8fd6bc621dd278e51086f00903a14151320b4169 plus 25 modified and 8 untracked pre-existing SFX paths; expected remaining 1 new runtime module, 1 new ADR, 12-18 existing paths, 600-1200 additional lines; hard baseline budget 42 product files and 8500 changed lines, with a 10-runtime-file/900-production-line remaining sub-budget."
+    "rationale": "Manifest decoding, UTC timestamp semantics, canonical full-file rendering, strict byte writing, ownership-aware Check/Sync behavior, source encoding, and the mandatory Windows 11/PowerShell/locale/Git regression matrix converge in one module and one tightly coupled suite; only one end-to-end slice is independently verifiable, while Windows 10 evidence is optional and nonblocking.",
+    "recorded_at": "2026-08-11T20:32:19+00:00",
+    "seams_assessment": "No stable independent vertical seam exists. Loader/date versus renderer/writer, implementation versus tests, template versus derived ownership, PowerShell hosts, mandatory Windows 11 versus optional Windows 10 evidence, and code versus documentation share contracts or postpone the only observable result; retain one phase-scoped integration writer with five milestones.",
+    "working_set": "Medium-high but narrow: six expected write surfaces, roughly 10-14 internal PowerShell helpers, 18 mandatory automated identities, estimated 730-1280 changed lines including tests/docs/generated output; preserve existing plan-wide and slice context ceilings."
   },
-  "analyst_id": "sfx-planning-analyst-01",
+  "analyst_id": "tf-0008-planning-analyst-02",
   "approval": {
-    "approval_note": "User explicitly approved submitted development plan draft SHA-256 f69cf5d8f0669b5a60a1943d297cb46a94b2f2bb7111b140e0ca4bb5d3d055d6.",
-    "approved_at": "2026-08-10T20:44:29+00:00",
+    "approval_note": "User explicitly approved submitted development plan revision 2 SHA-256 ad18aa2942a551593fd62c4e0f41ae121de63eb855dd5bdc42fa50f21cafa30a with: \u0443\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u044e.",
+    "approved_at": "2026-08-11T20:36:34+00:00",
     "approved_by": "user",
-    "approved_sha256": "3bb689fe78287759931f0ce1d395718ab8bb70711f77391ff6cd4ccf5a0728e0",
-    "submitted_sha256": "f69cf5d8f0669b5a60a1943d297cb46a94b2f2bb7111b140e0ca4bb5d3d055d6"
+    "approved_sha256": "5766496762cd6cfb53db95bced258c65c643fb9713b3b2b79fd797b386d9fc70",
+    "submitted_sha256": "ad18aa2942a551593fd62c4e0f41ae121de63eb855dd5bdc42fa50f21cafa30a"
   },
-  "created_at": "2026-08-10T20:14:51+00:00",
+  "created_at": "2026-08-11T20:27:06+00:00",
+  "decision_ledger_path": "docs/Features/template/deterministic-feature-dashboard-validation/decision-ledger.jsonl",
   "drift": [],
-  "feature": "sfx-system",
-  "history": [],
-  "plan_path": "docs/Features/template/sfx-system/development-plan.md",
+  "feature": "deterministic-feature-dashboard-validation",
+  "history": [
+    {
+      "analysis": {
+        "mode": "single_owner",
+        "rationale": "Manifest decoding, UTC timestamp semantics, canonical full-file rendering, strict byte writing, ownership-aware Check/Sync behavior, source encoding, and the Windows/locale/Git regression matrix converge in one module and one tightly coupled suite; only one end-to-end slice is independently verifiable.",
+        "recorded_at": "2026-08-11T19:01:58+00:00",
+        "seams_assessment": "No stable independent vertical seam exists. Loader/date versus renderer/writer, implementation versus tests, template versus derived ownership, host families, and code versus documentation all compete on the same contracts or postpone the only observable outcome; use one phase-scoped integration writer with five milestones.",
+        "working_set": "Medium-high but narrow: six owned implementation/test/normative/generated paths, roughly 10-14 internal PowerShell helpers, 18 mandatory automated identities, estimated 730-1280 changed lines total, with product ceiling 5 files and 700 product lines."
+      },
+      "analyst_id": "tf-0008-planning-analyst-01",
+      "approval": {
+        "approval_note": "User explicitly approved the current submitted development plan draft SHA-256 c194dd0b1f204857fc505bf4b15c23968cf924d44899a4cf11e0c4ae94996864 with: \u0430\u043f\u0440\u0443\u0432.",
+        "approved_at": "2026-08-11T19:08:10+00:00",
+        "approved_by": "user",
+        "approved_sha256": "18ffde85ff63067c7f695a7bb3299dccf3b367f470976fe8521d8cee19046f94",
+        "submitted_sha256": "c194dd0b1f204857fc505bf4b15c23968cf924d44899a4cf11e0c4ae94996864"
+      },
+      "created_at": "2026-08-11T18:52:50+00:00",
+      "decision_ledger_path": "docs/Features/template/deterministic-feature-dashboard-validation/decision-ledger.jsonl",
+      "drift": [
+        "prd.revision: expected '1', got '2'",
+        "prd.sha256: expected 'd4d27516cfe2524fbd1a7e095319157c4bc705e115b996124f5f603228bf91a3', got 'ec6edd8462d5fed2c4f97909eb3bdcd20ce2ef99fe382e5f12d5d48b12b3258a'",
+        "specification.revision: expected '1', got '2'",
+        "specification.sha256: expected '98866b92f0d7e6084073722c0203c9e6b80c5cbfa2cf8d5fecb66fb4591fa3b9', got 'ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2'"
+      ],
+      "plan_path": "docs/Features/template/deterministic-feature-dashboard-validation/development-plan.md",
+      "prd": {
+        "path": "docs/Features/template/deterministic-feature-dashboard-validation/product-requirements.md",
+        "revision": "1",
+        "sha256": "d4d27516cfe2524fbd1a7e095319157c4bc705e115b996124f5f603228bf91a3"
+      },
+      "specification": {
+        "path": "docs/Features/template/deterministic-feature-dashboard-validation/technical-specification.md",
+        "revision": "1",
+        "sha256": "98866b92f0d7e6084073722c0203c9e6b80c5cbfa2cf8d5fecb66fb4591fa3b9"
+      },
+      "status": "stale",
+      "submission": {
+        "mode": "single_owner",
+        "path": "docs/Features/template/deterministic-feature-dashboard-validation/development-plan.md",
+        "sha256": "c194dd0b1f204857fc505bf4b15c23968cf924d44899a4cf11e0c4ae94996864",
+        "slice_ids": [
+          "SLICE-001"
+        ],
+        "status": "draft",
+        "submitted_at": "2026-08-11T19:04:24+00:00"
+      },
+      "updated_at": "2026-08-11T20:26:57+00:00"
+    }
+  ],
+  "plan_path": "docs/Features/template/deterministic-feature-dashboard-validation/development-plan.md",
   "prd": {
-    "path": "docs/Features/template/sfx-system/product-requirements.md",
-    "revision": "4",
-    "sha256": "9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde"
+    "path": "docs/Features/template/deterministic-feature-dashboard-validation/product-requirements.md",
+    "revision": "2",
+    "sha256": "ec6edd8462d5fed2c4f97909eb3bdcd20ce2ef99fe382e5f12d5d48b12b3258a"
   },
   "schema_version": 1,
   "specification": {
-    "path": "docs/Features/template/sfx-system/technical-specification.md",
-    "revision": "12",
-    "sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459"
+    "path": "docs/Features/template/deterministic-feature-dashboard-validation/technical-specification.md",
+    "revision": "2",
+    "sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2"
   },
   "status": "approved",
   "submission": {
     "mode": "single_owner",
-    "path": "docs/Features/template/sfx-system/development-plan.md",
-    "sha256": "f69cf5d8f0669b5a60a1943d297cb46a94b2f2bb7111b140e0ca4bb5d3d055d6",
+    "path": "docs/Features/template/deterministic-feature-dashboard-validation/development-plan.md",
+    "sha256": "ad18aa2942a551593fd62c4e0f41ae121de63eb855dd5bdc42fa50f21cafa30a",
     "slice_ids": [
       "SLICE-001"
     ],
     "status": "draft",
-    "submitted_at": "2026-08-10T20:42:43+00:00"
+    "submitted_at": "2026-08-11T20:33:35+00:00"
   },
-  "updated_at": "2026-08-10T20:44:29+00:00"
+  "updated_at": "2026-08-11T20:36:34+00:00"
 }

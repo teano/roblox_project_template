@@ -46,6 +46,55 @@ the feature's affected paths and architectural concerns.
 - Unknown historical branches or commits remain `null` or omitted; agents MUST
   NOT guess them.
 
+## Canonical dashboard and verification contract
+
+- Every namespace dashboard is a complete generated projection of the valid
+  `feature.json` manifests in that namespace. The renderer MUST produce the
+  fixed namespace title and explanatory text, exactly one generated-marker
+  pair, the existing summary and nine-column table, and exactly one row per
+  manifest. Existing ordering, counters, labels, links, escaping, and field
+  meanings remain unchanged.
+- Manifest and dashboard input MUST be decoded as strict UTF-8 without
+  replacement fallback. Manifest JSON timestamps remain strings, and JSON
+  Unicode escapes MUST reject isolated or mismatched surrogate halves before
+  rendering. Invalid manifest encoding, JSON, schema, or timestamp data fails
+  before any dashboard mutation.
+- `updatedAt` MUST be a complete RFC 3339 instant with an explicit `Z` or
+  numeric offset. Its displayed value is the UTC calendar date formatted
+  exactly as `yyyy-MM-dd` with invariant culture. Non-empty `startedAt` and
+  `completedAt` use the same strict timestamp validation; culture, UI culture,
+  local timezone, and host-specific JSON date coercion MUST NOT affect the
+  result.
+- Owning sync MUST validate and render the entire dashboard before mutation,
+  encode it once as strict UTF-8 without BOM, and write canonical LF with
+  exactly one terminal LF through the atomic dashboard writer. Missing,
+  malformed, stale, CRLF/CR, or invalid-UTF-8 owning dashboards are replaced
+  by the complete canonical output; a second sync with unchanged manifests
+  MUST preserve the exact bytes.
+- Check mode MUST build the same complete expected dashboard, remain
+  read-only, and preserve every existing dashboard byte on both success and
+  failure. Comparison normalizes only `CRLF -> LF` and then `CR -> LF`, using
+  ordinal case-sensitive equality. It MUST NOT trim, fold whitespace or case,
+  normalize Unicode, parse Markdown, or ignore terminal-newline count,
+  markers, counters, ordering, or any other character difference.
+- Check diagnostics MUST identify the namespace, path, and stable drift
+  category (`missing`, `markers`, `encoding`, `content`, or `manifest`). An
+  owning failure may direct the caller to the exact owning sync. A foreign
+  template failure in a derived repository MUST instead direct the caller to
+  approved upstream restoration and MUST NOT suggest or perform template
+  sync.
+- The two generated dashboard paths MUST retain exact `text eol=lf`
+  attributes. This checkout policy does not weaken Check: logically identical
+  LF, CRLF, CR, or mixed separators pass without rewrite, while every other
+  full-file drift remains significant.
+- The deterministic dashboard contract suite MUST run separately on the
+  mandatory Windows 11 host under Windows PowerShell 5.1 and PowerShell 7.x,
+  using the current host for child commands, and cover `en-US`, `ru-RU`,
+  `core.autocrlf=false|true`, ownership, strict encoding, UTC boundaries, and
+  LF/CRLF/CR/mixed fixtures. Windows 10 execution is optional best-effort
+  evidence and does not affect the required pass/fail result; Studio Play is
+  not required when Roblox source and the DataModel are unchanged.
+
 ## User authority over state
 
 - Only an explicit request in the current user message authorizes a feature
