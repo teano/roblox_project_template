@@ -312,10 +312,13 @@ switch ($Action) {
 		Write-FeatureManifest -Path $record.Path -Manifest $manifest
 		Sync-FeatureIndex -RepositoryRoot $repositoryRoot -NamespaceRole $record.Namespace | Out-Null
 		Write-Output "Continuing $($manifest.id) '$($manifest.title)'."
+		Write-Output "Namespace: $($record.Namespace)"
+		Write-Output "State: $($manifest.status) / $($manifest.activity)"
+		Write-Output "Branch: $($manifest.branch)"
+		Write-Output "Base: $($manifest.baseCommit)"
+		Write-Output "Blockers: $(@($manifest.blockers) -join '; ')"
 		Write-Output "Manifest: $($record.Path)"
 		Write-Output "Handoff: $(Join-Path $record.Directory 'handoff.md')"
-		Write-Output "Worklog: $(Join-Path $record.Directory 'worklog.md')"
-		Write-Output "Git range: $($manifest.baseCommit)..HEAD"
 	}
 
 	"Pause" {

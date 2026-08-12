@@ -640,6 +640,12 @@ Worklog: updated
 controller state сохраняется стадиями, а lifecycle-паузой управляет
 `$feature-pause`.
 
+`$feature-pause` записывает только факты, уже известные агенту до команды:
+выполненную работу, решения, реально выполненные или не выполненные проверки,
+blockers и следующий шаг. Ради checkpoint он не исследует Git/исходники заново,
+не запускает реализацию, тесты, validators, Rojo или Studio и не создаёт
+сабагента.
+
 ## 7. Продолжение фичи
 
 Продолжение всегда состоит из двух отдельных сообщений.
@@ -655,11 +661,23 @@ $feature-continue F-0004
 ```text
 Feature state: in_progress/active
 Writer lease: acquired
-Context: reconstructed
+Basic context: restored from feature.json and handoff.md only
 ```
 
 `$feature-continue` не продолжает GameDev-пайплайн. Он восстанавливает feature
-state, ветку, lease и переносимый контекст.
+state, ветку и lease, затем читает только `feature.json` и `handoff.md` для
+краткого общего обзора. Полные PRD/spec/worklog, Git changes, controller state,
+исходники, rules и ADR на этом этапе не загружаются. Записанный next step —
+подсказка для следующего сообщения, а не команда агенту.
+
+После recovery-отчёта Continue-turn обязательно заканчивается. Он не запускает
+реализацию, review, audit, pipeline, тесты, validators, Rojo, Studio или
+сабагентов. Нужный процесс пользователь вызывает отдельным сообщением; этот
+процесс сам загружает только необходимый ему контекст.
+
+Можно передать только четыре цифры ID, например `0004`, если во всех видимых
+template/project namespace существует ровно одно совпадение. При нуле или
+нескольких совпадениях используйте полный `TF-####` или `F-####`.
 
 ### Сообщение 2: нужная GameDev-стадия
 
@@ -895,6 +913,7 @@ $feature-finish F-0004
 - [Feature Continue skill](../.agents/skills/feature-continue/SKILL.md)
 - [Feature Pause skill](../.agents/skills/feature-pause/SKILL.md)
 - [Feature Finish skill](../.agents/skills/feature-finish/SKILL.md)
-- [ADR-0037: Reserve feature state transitions for users](adr/template/0037-reserve-feature-state-transitions-for-users.md)
+- [ADR-0044: Bound feature lifecycle work and recover context lazily](adr/template/0044-bound-feature-lifecycle-work.md) — current authority for bounded Continue recovery and factual-only Pause
+- [ADR-0037: Reserve feature state transitions for users](adr/template/0037-reserve-feature-state-transitions-for-users.md) — historical decision, superseded by ADR-0044
 - [Agentic Game Development Pipeline 0.5.0](https://github.com/teano/agentic_game_development_pipeline_codex/)
 - [Specification Pipeline](https://github.com/teano/specification-pipeline-codex)

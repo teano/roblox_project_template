@@ -1,0 +1,28 @@
+{
+    "schemaVersion":  2,
+    "id":  "TF-0009",
+    "slug":  "feature-workflow-optimization",
+    "title":  "Оптимизация работы с фичами",
+    "status":  "ready",
+    "activity":  "none",
+    "branch":  "template-feature/tf-0009-feature-workflow-optimization",
+    "baseCommit":  "77db58e8f9b4ba3bba4c98933bafb458efdc105d",
+    "startedAt":  "2026-08-12T17:59:38.1459998+00:00",
+    "completedAt":  "2026-08-12T19:56:08.4405329+00:00",
+    "updatedAt":  "2026-08-12T19:56:08.4405329+00:00",
+    "blockers":  [
+
+                 ],
+    "artifacts":  [
+                      "product-requirements.md",
+                      "technical-specification.md"
+                  ],
+    "verification":  {
+                         "completedAt":  "2026-08-12T19:56:08.4405329+00:00",
+                         "head":  "77db58e8f9b4ba3bba4c98933bafb458efdc105d",
+                         "summary":  "До Finish выполнены: обязательный Rojo preflight; PowerShell parser checks; feature workflow validator; полный scripts/tests/feature-workflow.tests.ps1 на Windows PowerShell 5.1 PASS за 344.066 секунды и PowerShell 7 PASS за 208.870 секунды; dashboard Check Scope All; repository layout validator; git diff --check; временный Rojo build PASS за 0.127 секунды с последующим удалением результата. Независимые contract, code/test, docs/ADR и release audits завершены, все actionable findings исправлены. Studio Play не запускался, потому что Roblox runtime source и DataModel не изменялись. Blockers: None."
+                     },
+    "recoveryLog":  [
+
+                    ]
+}

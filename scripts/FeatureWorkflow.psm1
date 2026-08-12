@@ -489,8 +489,28 @@ function Resolve-FeatureRecord {
 	)
 
 	$needle = $Feature.Trim()
+	$records = @(Get-FeatureManifests -RepositoryRoot $RepositoryRoot)
+	if ($needle -match '^[0-9]{4}$') {
+		$numericIds = @("TF-$needle", "F-$needle")
+		$numericMatches = @(
+			$records |
+				Where-Object { $numericIds -contains ([string]$_.Manifest.id).ToUpperInvariant() }
+		)
+		if ($numericMatches.Count -eq 0) {
+			throw "Feature suffix '$needle' has no visible canonical ID. Use a full feature ID or a valid feature name."
+		}
+		if ($numericMatches.Count -gt 1) {
+			$candidates = @(
+				$numericMatches |
+					ForEach-Object { [string]$_.Manifest.id }
+			)
+			[Array]::Sort($candidates, [StringComparer]::Ordinal)
+			throw "Feature suffix '$needle' is ambiguous: $($candidates -join ', '). Use a full feature ID."
+		}
+		return $numericMatches[0]
+	}
 	$matches = @(
-		Get-FeatureManifests -RepositoryRoot $RepositoryRoot |
+		$records |
 			Where-Object {
 				$manifest = $_.Manifest
 				([string]$manifest.id).Equals($needle, [StringComparison]::OrdinalIgnoreCase) -or

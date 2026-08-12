@@ -70,6 +70,49 @@ function Invoke-TestGit {
 	return $output
 }
 
+function Get-WorkflowMutationSnapshot {
+	$featureRoot = Join-Path $testRoot "docs\Features"
+	$featureInventory = @()
+	if (Test-Path -LiteralPath $featureRoot -PathType Container) {
+		$featureInventory = @(
+			Get-ChildItem -LiteralPath $featureRoot -Force -Recurse |
+				Sort-Object FullName |
+				ForEach-Object {
+					$relative = $_.FullName.Substring($featureRoot.Length).TrimStart([char]92).Replace('\', '/')
+					if ($_.PSIsContainer) { "D:$relative" } else { "F:${relative}:$((Get-TestFileSha256 -Path $_.FullName))" }
+				}
+		)
+	}
+	$leaseRoot = Join-Path $testRoot ".git\feature-workflow\locks"
+	$leaseInventory = @()
+	if (Test-Path -LiteralPath $leaseRoot -PathType Container) {
+		$leaseInventory = @(
+			Get-ChildItem -LiteralPath $leaseRoot -Force -Recurse |
+				Sort-Object FullName |
+				ForEach-Object {
+					$relative = $_.FullName.Substring($leaseRoot.Length).TrimStart([char]92).Replace('\', '/')
+					if ($_.PSIsContainer) { "D:$relative" } else { "F:${relative}:$((Get-TestFileSha256 -Path $_.FullName))" }
+				}
+		)
+	}
+	return [PSCustomObject]@{
+		Branch = ([string]@(Invoke-TestGit -Arguments @("branch", "--show-current"))[0]).Trim()
+		FeatureInventory = $featureInventory -join "`n"
+		LeaseInventory = $leaseInventory -join "`n"
+	}
+}
+
+function Assert-WorkflowMutationSnapshotEqual {
+	param(
+		[Parameter(Mandatory = $true)]$Before,
+		[Parameter(Mandatory = $true)]$After,
+		[Parameter(Mandatory = $true)][string]$Label
+	)
+	Assert-True ($After.Branch -ceq $Before.Branch) "$Label must preserve the current branch"
+	Assert-True ($After.FeatureInventory -ceq $Before.FeatureInventory) "$Label must preserve every feature directory and artifact byte"
+	Assert-True ($After.LeaseInventory -ceq $Before.LeaseInventory) "$Label must preserve the complete feature lease inventory"
+}
+
 function Invoke-Workflow {
 	param(
 		[Parameter(Mandatory = $true)][string[]]$Arguments,
@@ -384,6 +427,9 @@ try {
 
 	$workflowSource = Get-Content -LiteralPath (Join-Path $testRoot "scripts\feature-workflow.ps1") -Raw
 	Assert-True (-not $workflowSource.Contains("CODEX_THREAD_ID")) "lifecycle command must not read Codex task identity"
+	foreach ($forbiddenLifecycleCommand in @("validate-feature-workflow.ps1", "validate-repository-layout.ps1", "ensure-rojo-server.ps1", "rojo build", "AllTestsRunner")) {
+		Assert-True (-not $workflowSource.Contains($forbiddenLifecycleCommand)) "lifecycle command must not invoke '$forbiddenLifecycleCommand'"
+	}
 	$authorizationPattern = '(?s)Only\s+an\s+explicit\s+request\s+in\s+the\s+current\s+user\s+message\s+authorizes\s+this\s+lifecycle\s+transition\.'
 	foreach ($skillName in @("feature-start", "feature-continue", "feature-pause", "feature-finish")) {
 		$skillDirectory = Join-Path $testRoot ".agents\skills\$skillName"
@@ -393,9 +439,17 @@ try {
 		Assert-True ([regex]::IsMatch($skillContent, $authorizationPattern)) "$skillName must require an explicit current user request"
 		Assert-True ([regex]::IsMatch($metadataContent, '(?m)^\s*allow_implicit_invocation:\s*false\s*$')) "$skillName must reject implicit invocation"
 	}
-	foreach ($forbiddenFinishCommand in @("validate-feature-workflow.ps1", "validate-repository-layout.ps1", "ensure-rojo-server.ps1", "rojo build", "AllTestsRunner")) {
-		Assert-True (-not $workflowSource.Contains($forbiddenFinishCommand)) "Finish must not invoke '$forbiddenFinishCommand'"
-	}
+	$continueSkillContract = Get-Content -LiteralPath (Join-Path $testRoot ".agents\skills\feature-continue\SKILL.md") -Raw
+	Assert-True ($continueSkillContract.Contains("## Continue-only context boundary")) "Continue must expose its context boundary"
+	Assert-True ($continueSkillContract.Contains("Continue-only context: read only feature.json and handoff.md as feature-specific recovery context.")) "Continue must use only manifest and handoff recovery context"
+	Assert-True ($continueSkillContract.Contains("## Continue-only terminal fence")) "Continue must expose its terminal fence"
+	Assert-True ($continueSkillContract.Contains("Continue-only terminal fence: after the recovery report, end the turn without executing the recorded next step.")) "Continue must end its turn before executing next step"
+	Assert-True ($continueSkillContract.Contains("Continue-only forbidden work: do not implement, review, audit, run a pipeline, edit source, run tests or validators, run Rojo or Studio, or create or use subagents.")) "Continue must forbid work and delegation"
+	$pauseSkillContract = Get-Content -LiteralPath (Join-Path $testRoot ".agents\skills\feature-pause\SKILL.md") -Raw
+	Assert-True ($pauseSkillContract.Contains("## Pause-only factual checkpoint boundary")) "Pause must expose its factual checkpoint boundary"
+	Assert-True ($pauseSkillContract.Contains("Pause-only factual checkpoint: use only facts already known before Pause; do not create new verification evidence, run new work or checks, or create or use subagents.")) "Pause must remain factual-only and non-delegated"
+	Assert-True ($pauseSkillContract.Contains("Pause-only post-command boundary: after successful Pause, report the command result without new reads or checks.")) "Pause must not perform post-command reads or checks"
+	Assert-True (-not $pauseSkillContract.Contains('Verify that the manifest is `in_progress/paused`') -and -not $pauseSkillContract.Contains("the worklog and handoff contain every checkpoint section")) "Pause must not retain obsolete post-command artifact verification"
 
 	Invoke-Workflow -Arguments @(
 		"-Action", "Start",
@@ -422,6 +476,25 @@ try {
 	Assert-True ($first.activity -ceq "active") "new feature must be active"
 	Assert-True ($null -eq $first.PSObject.Properties["activeSessionId"] -and $null -eq $first.PSObject.Properties["sessions"]) "manifest must not store session history"
 
+	$originalFirstSlug = [string]$first.slug
+	$first.slug = "resolver-slug"
+	Write-TestUtf8 -Path $firstPath -Content (($first | ConvertTo-Json -Depth 20) + "`n")
+	$namedResolverBefore = Get-WorkflowMutationSnapshot
+	$namedResolverCases = @(
+		[PSCustomObject]@{ Name = "full ID"; Feature = "TF-0001" },
+		[PSCustomObject]@{ Name = "slug"; Feature = "resolver-slug" },
+		[PSCustomObject]@{ Name = "title"; Feature = "Adopt Existing" },
+		[PSCustomObject]@{ Name = "folder"; Feature = "existing-folder" }
+	)
+	foreach ($namedResolverCase in $namedResolverCases) {
+		$output = @(Invoke-Workflow -Arguments @("-Action", "Context", "-Feature", $namedResolverCase.Feature) -ExpectedExitCode 0)
+		$diagnostic = ConvertTo-TestDiagnosticLogicalText -Text ($output -join "`n")
+		Assert-True ($diagnostic.Contains("Feature: TF-0001 Adopt Existing")) "$($namedResolverCase.Name) must resolve the existing canonical record"
+	}
+	Assert-WorkflowMutationSnapshotEqual -Before $namedResolverBefore -After (Get-WorkflowMutationSnapshot) -Label "combined named resolver"
+	$first.slug = $originalFirstSlug
+	Write-TestUtf8 -Path $firstPath -Content (($first | ConvertTo-Json -Depth 20) + "`n")
+
 	$leaseFiles = @(Get-ChildItem -LiteralPath (Join-Path $testRoot ".git\feature-workflow\locks") -Recurse -File -Filter "lease.json")
 	Assert-True ($leaseFiles.Count -eq 1) "Start must create one feature-scoped lease"
 	$lease = Get-Content -LiteralPath $leaseFiles[0].FullName -Raw | ConvertFrom-Json
@@ -446,9 +519,25 @@ try {
 		"-Slug", "second-feature"
 	) -ExpectedExitCode 1 | Out-Null
 
-	Invoke-Workflow -Arguments @("-Action", "Continue", "-Feature", "TF-0001") -ExpectedExitCode 0 | Out-Null
+	$continueOutput = @(Invoke-Workflow -Arguments @("-Action", "Continue", "-Feature", "0001") -ExpectedExitCode 0)
 	$first = Get-Content -LiteralPath $firstPath -Raw | ConvertFrom-Json
-	Assert-True ($first.activity -ceq "active") "continue must reactivate paused work without task ownership"
+	Assert-True ($first.activity -ceq "active") "unique numeric suffix Continue must reactivate paused work without task ownership"
+	Assert-True (($continueOutput -join "`n").Contains("Manifest:") -and ($continueOutput -join "`n").Contains("Handoff:")) "Continue output must advertise only its baseline artifact paths"
+	Assert-True (-not ($continueOutput -join "`n").Contains("Worklog:") -and -not ($continueOutput -join "`n").Contains("Git range:")) "Continue output must not advertise full worklog or Git recovery"
+	$numericZeroCases = @(
+		[PSCustomObject]@{ Action = "Context"; Arguments = @("-Action", "Context", "-Feature", "9999") },
+		[PSCustomObject]@{ Action = "Start"; Arguments = @("-Action", "Start", "-Feature", "9999", "-Title", "Forbidden Numeric Start") },
+		[PSCustomObject]@{ Action = "Continue"; Arguments = @("-Action", "Continue", "-Feature", "9999") },
+		[PSCustomObject]@{ Action = "Pause"; Arguments = @("-Action", "Pause", "-Feature", "9999", "-Summary", "Forbidden", "-Decisions", "Forbidden", "-VerificationSummary", "Forbidden", "-NextStep", "Forbidden") },
+		[PSCustomObject]@{ Action = "Finish"; Arguments = @("-Action", "Finish", "-Feature", "9999", "-Summary", "Forbidden", "-Decisions", "Forbidden", "-VerificationSummary", "Forbidden") }
+	)
+	foreach ($numericZeroCase in $numericZeroCases) {
+		$before = Get-WorkflowMutationSnapshot
+		$output = @(Invoke-Workflow -Arguments $numericZeroCase.Arguments -ExpectedExitCode 1)
+		$diagnostic = ConvertTo-TestDiagnosticLogicalText -Text ($output -join "`n")
+		Assert-True ($diagnostic.Contains("Feature suffix '9999' has no visible canonical ID. Use a full feature ID or a valid feature name.")) "zero-match $($numericZeroCase.Action) must report the numeric resolver diagnostic"
+		Assert-WorkflowMutationSnapshotEqual -Before $before -After (Get-WorkflowMutationSnapshot) -Label "zero-match $($numericZeroCase.Action)"
+	}
 
 	$first.blockers = @("missing evidence")
 	Write-TestUtf8 -Path $firstPath -Content (($first | ConvertTo-Json -Depth 20) + "`n")
@@ -758,6 +847,37 @@ try {
 	Invoke-FeatureValidator -ExpectedExitCode 1 -TestName "missing user authorization gate" | Out-Null
 	Write-TestUtf8 -Path $finishSkillPath -Content $finishSkillContent
 
+	$continueSkillPath = Join-Path $testRoot ".agents\skills\feature-continue\SKILL.md"
+	$continueSkillContent = Get-Content -LiteralPath $continueSkillPath -Raw
+	foreach ($removedContract in @(
+		"## Continue-only context boundary",
+		"Continue-only context: read only feature.json and handoff.md as feature-specific recovery context.",
+		"## Continue-only terminal fence",
+		"Continue-only terminal fence: after the recovery report, end the turn without executing the recorded next step.",
+		"Continue-only forbidden work: do not implement, review, audit, run a pipeline, edit source, run tests or validators, run Rojo or Studio, or create or use subagents."
+	)) {
+		Write-TestUtf8 -Path $continueSkillPath -Content ($continueSkillContent.Replace($removedContract, "Removed Continue contract"))
+		Invoke-FeatureValidator -ExpectedExitCode 1 -TestName "missing Continue-only contract" | Out-Null
+		Write-TestUtf8 -Path $continueSkillPath -Content $continueSkillContent
+	}
+	$pauseSkillPath = Join-Path $testRoot ".agents\skills\feature-pause\SKILL.md"
+	$pauseSkillContent = Get-Content -LiteralPath $pauseSkillPath -Raw
+	foreach ($removedContract in @(
+		"## Pause-only factual checkpoint boundary",
+		"Pause-only factual checkpoint: use only facts already known before Pause; do not create new verification evidence, run new work or checks, or create or use subagents.",
+		"Pause-only post-command boundary: after successful Pause, report the command result without new reads or checks."
+	)) {
+		Write-TestUtf8 -Path $pauseSkillPath -Content ($pauseSkillContent.Replace($removedContract, "Removed Pause contract"))
+		Invoke-FeatureValidator -ExpectedExitCode 1 -TestName "missing Pause-only contract" | Out-Null
+		Write-TestUtf8 -Path $pauseSkillPath -Content $pauseSkillContent
+	}
+	Write-TestUtf8 -Path $continueSkillPath -Content ($continueSkillContent + "`nReconstruct context in this bounded order:`n")
+	Invoke-FeatureValidator -ExpectedExitCode 1 -TestName "obsolete Continue heavy-context wording" | Out-Null
+	Write-TestUtf8 -Path $continueSkillPath -Content $continueSkillContent
+	Write-TestUtf8 -Path $pauseSkillPath -Content ($pauseSkillContent + "`n" + 'Verify that the manifest is `in_progress/paused` and the worklog and handoff contain every checkpoint section.' + "`n")
+	Invoke-FeatureValidator -ExpectedExitCode 1 -TestName "obsolete Pause post-command verification wording" | Out-Null
+	Write-TestUtf8 -Path $pauseSkillPath -Content $pauseSkillContent
+
 	$finishMetadataPath = Join-Path $testRoot ".agents\skills\feature-finish\agents\openai.yaml"
 	$finishMetadataContent = Get-Content -LiteralPath $finishMetadataPath -Raw
 	Write-TestUtf8 -Path $finishMetadataPath -Content ($finishMetadataContent.Replace("allow_implicit_invocation: false", "allow_implicit_invocation: true"))
@@ -1013,6 +1133,50 @@ try {
 	) -ExpectedExitCode 0 | Out-Null
 	$projectFeature = Get-Content -LiteralPath $projectFeaturePath -Raw | ConvertFrom-Json
 	Assert-True ($projectFeature.activity -ceq "paused") "project Pause must create an in-progress paused checkpoint"
+
+	$templateNumericFixture = Get-Content -LiteralPath $firstPath -Raw | ConvertFrom-Json
+	$templateNumericFixture.id = "TF-0099"
+	Write-TestUtf8 -Path $firstPath -Content (($templateNumericFixture | ConvertTo-Json -Depth 20) + "`n")
+	$uniqueProjectOutput = @(Invoke-Workflow -Arguments @("-Action", "Continue", "-Feature", "0001") -ExpectedExitCode 0)
+	$projectFeature = Get-Content -LiteralPath $projectFeaturePath -Raw | ConvertFrom-Json
+	Assert-True ($projectFeature.activity -ceq "active") "unique project suffix in a derived repository must pass the writable Continue gate"
+	Assert-True (($uniqueProjectOutput -join "`n").Contains("Continuing F-0001")) "unique project suffix must resolve to the canonical F-0001 record"
+	Invoke-Workflow -Arguments @(
+		"-Action", "Pause",
+		"-Feature", "F-0001",
+		"-Summary", "Unique project suffix resolution was exercised before this checkpoint.",
+		"-Decisions", "Numeric resolution remains independent from namespace writability.",
+		"-VerificationSummary", "The derived writable Continue action succeeded for the unique F-0001 suffix.",
+		"-NextStep", "Exercise foreign and ambiguous numeric suffix gates."
+	) -ExpectedExitCode 0 | Out-Null
+	$templateNumericFixture.id = "TF-0001"
+	Write-TestUtf8 -Path $firstPath -Content (($templateNumericFixture | ConvertTo-Json -Depth 20) + "`n")
+
+	$foreignNumericBefore = Get-WorkflowMutationSnapshot
+	$foreignNumericOutput = @(Invoke-Workflow -Arguments @(
+		"-Action", "Start",
+		"-Feature", "0002",
+		"-ReopenReason", "Forbidden foreign numeric mutation fixture.",
+		"-AdoptChanges"
+	) -ExpectedExitCode 1)
+	$foreignNumericDiagnostic = ConvertTo-TestDiagnosticLogicalText -Text ($foreignNumericOutput -join "`n")
+	Assert-True ($foreignNumericDiagnostic.Contains("Feature 'TF-0002' belongs to the 'template' namespace.")) "unique template suffix in a derived repository must resolve before the foreign writable gate fails"
+	Assert-WorkflowMutationSnapshotEqual -Before $foreignNumericBefore -After (Get-WorkflowMutationSnapshot) -Label "foreign unique template suffix"
+
+	$numericAmbiguousCases = @(
+		[PSCustomObject]@{ Action = "Context"; Arguments = @("-Action", "Context", "-Feature", "0001") },
+		[PSCustomObject]@{ Action = "Start"; Arguments = @("-Action", "Start", "-Feature", "0001", "-Title", "Forbidden Ambiguous Start") },
+		[PSCustomObject]@{ Action = "Continue"; Arguments = @("-Action", "Continue", "-Feature", "0001") },
+		[PSCustomObject]@{ Action = "Pause"; Arguments = @("-Action", "Pause", "-Feature", "0001", "-Summary", "Forbidden", "-Decisions", "Forbidden", "-VerificationSummary", "Forbidden", "-NextStep", "Forbidden") },
+		[PSCustomObject]@{ Action = "Finish"; Arguments = @("-Action", "Finish", "-Feature", "0001", "-Summary", "Forbidden", "-Decisions", "Forbidden", "-VerificationSummary", "Forbidden") }
+	)
+	foreach ($numericAmbiguousCase in $numericAmbiguousCases) {
+		$before = Get-WorkflowMutationSnapshot
+		$output = @(Invoke-Workflow -Arguments $numericAmbiguousCase.Arguments -ExpectedExitCode 1)
+		$diagnostic = ConvertTo-TestDiagnosticLogicalText -Text ($output -join "`n")
+		Assert-True ($diagnostic.Contains("Feature suffix '0001' is ambiguous: F-0001, TF-0001. Use a full feature ID.")) "ambiguous $($numericAmbiguousCase.Action) must list candidates in stable ordinal order"
+		Assert-WorkflowMutationSnapshotEqual -Before $before -After (Get-WorkflowMutationSnapshot) -Label "ambiguous $($numericAmbiguousCase.Action)"
+	}
 	Invoke-TestGit -Arguments @("switch", "--quiet", "unrelated-project-work") | Out-Null
 	Invoke-Workflow -Arguments @("-Action", "Continue", "-Feature", "F-0001") -ExpectedExitCode 1 | Out-Null
 	Invoke-TestGit -Arguments @("switch", "--quiet", $projectBranch) | Out-Null

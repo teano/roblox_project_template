@@ -178,6 +178,16 @@ wording is ambiguous, keep the current feature state unchanged and ask the
 user; in particular, a bare request to stop the current response is not an
 implicit `$feature-pause`.
 
+A Continue-only request authorizes only `in_progress/paused ->
+in_progress/active`, writer-lease recovery, owning-dashboard synchronization,
+and a basic overview from the complete `feature.json` and `handoff.md`. The
+recorded next step is informational. After reporting it, end the turn without
+implementation, review, audit, pipelines, source edits, tests, validators,
+Rojo preflight/build, Studio operations, or subagents. A later explicit work
+request loads only the context required by its own process. Pause similarly
+records only facts already known before invocation; it does not create new
+verification evidence, run new work or checks, or use a subagent.
+
 Template feature state lives only under `docs/Features/template/`; a derived
 game creates and owns its separate state under `docs/Features/project/`.
 Each namespace has its own generated `README.md`, while

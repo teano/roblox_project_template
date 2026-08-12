@@ -6,9 +6,14 @@ Apply when starting, continuing, pausing, finishing, indexing, or validating
 feature work, and when changing files under `docs/Features/`, `.agents/skills/`,
 or the feature-workflow scripts.
 
-Required context: `architecture.md`, `architecture-decisions.md`, `testing.md`,
-`docs/adr/README.md`, template/ADR-0037, and every subsystem rule selected by
-the feature's affected paths and architectural concerns.
+For a Continue-only or Pause-only transition, required context is this rule
+and the general repository instructions routed by the lifecycle skill. Do not
+load `architecture.md`, `architecture-decisions.md`, `testing.md`, subsystem
+rules/docs, Accepted ADRs, source, tests, or product artifacts only because of
+that transition. Changes to feature-workflow behavior and separately requested
+work still require `architecture.md`, `architecture-decisions.md`,
+`testing.md`, `docs/adr/README.md`, current template/ADR-0044, and every rule
+selected by their affected paths and architectural concerns.
 
 ## Canonical state
 
@@ -169,15 +174,26 @@ feature is paused, never marked ready to release a branch reservation.
 
 - Lifecycle commands MUST NOT read or accept Codex task IDs, session IDs,
   agent IDs, host IDs, usernames, or equivalent ownership tokens.
-- Continue context is loaded in this order: manifest, `handoff.md`, approved
-  PRD and specification when present, complete `worklog.md`, Git changes from
-  `baseCommit`, matched rules/current documentation/ADRs.
+- Continue-only feature context consists exactly of the complete
+  `feature.json` and complete `handoff.md`. Do not load PRD, specification,
+  development plan, complete `worklog.md`, Git status/diff/history, controller
+  state, source, tests, subsystem rules/docs, or Accepted ADR as recovery
+  context.
 - Do not load raw transcripts as workflow context. If the durable artifacts
-  omit an important decision, record the gap as a blocker and repair the
-  worklog with user-grounded information before implementation continues.
-- Before editing after continue, report the resolved feature ID, state, branch,
-  base commit, completed work, important prior decisions, remaining work,
-  blockers, and next confirmed step.
+  omit an important decision, report the missing detail without compensating
+  through heavy context during Continue. A separately requested process owns
+  any repair or deeper context load.
+- Report the resolved namespace, feature ID/title, manifest state, branch,
+  base commit, broad completed/current state, prior decisions, blockers, and
+  recorded next step available from those two files. The next step is
+  informational, not authorization.
+- After the recovery report, Continue-only MUST end the turn without executing
+  the recorded next step. It MUST NOT implement, review, audit, run a pipeline,
+  edit source, run tests or validators, run Rojo preflight/build or Studio, or
+  create or use subagents.
+- A separately and explicitly requested process lazily loads only the PRD,
+  specification, plan, controller state, worklog, Git, source, rules, docs,
+  ADRs, and evidence that its own contract requires.
 
 ## Command gates
 
@@ -206,7 +222,8 @@ feature is paused, never marked ready to release a branch reservation.
 - Require `in_progress/paused`, the recorded branch, an ancestor `baseCommit`,
   and no conflicting feature lease.
 - Acquire the feature-scoped lease, set activity to `active`, synchronize the
-  owning dashboard, and reconstruct portable context before source edits.
+  owning dashboard, read only `feature.json` and `handoff.md`, report the basic
+  recovery overview, and end the turn.
 
 ### Pause
 
@@ -215,6 +232,9 @@ feature is paused, never marked ready to release a branch reservation.
 - Require `in_progress/active` on the recorded branch.
 - Require a self-contained summary, important decisions/discussions, factual
   verification state, and one next confirmed step.
+- Construct the checkpoint only from facts known before Pause. Do not inspect
+  Git, source, controller state, tests, or other context merely to enrich it;
+  do not create verification evidence, run work/checks, or use a subagent.
 - Update `handoff.md` and append `worklog.md`, set activity to `paused`, release
   the feature-scoped lease, and retain `in_progress` so the branch remains
   reserved.

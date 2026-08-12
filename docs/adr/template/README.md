@@ -44,13 +44,14 @@ Repositories derived from the template receive these records from their
 | [ADR-0034](0034-resolve-feature-task-identity-without-hooks.md) | Resolve feature task identity without repository hooks | Superseded by ADR-0036 |
 | [ADR-0035](0035-server-owned-statistics-snapshots.md) | Collect statistics in server-owned bounded snapshots | Accepted |
 | [ADR-0036](0036-use-agent-neutral-feature-worklogs-and-canonical-branches.md) | Use agent-neutral feature worklogs and canonical branches | Superseded by ADR-0037 |
-| [ADR-0037](0037-reserve-feature-state-transitions-for-users.md) | Reserve feature state transitions for users | Accepted |
+| [ADR-0037](0037-reserve-feature-state-transitions-for-users.md) | Reserve feature state transitions for users | Superseded by ADR-0044 |
 | [ADR-0038](0038-use-validated-local-audio-startup-configuration.md) | Use validated local audio startup configuration | Superseded by ADR-0041 |
 | [ADR-0039](0039-allow-deterministic-audio-only-asset-key-first-wins.md) | Allow deterministic audio-only AssetKey first-wins | Accepted |
 | [ADR-0040](0040-own-audio-graph-and-acoustic-policy-at-bootstrap.md) | Own the audio graph and acoustic policy at bootstrap | Accepted |
 | [ADR-0041](0041-protect-audio-startup-and-keep-disabled-transport-handlers.md) | Protect audio startup and keep disabled transport handlers | Accepted |
 | [ADR-0042](0042-bind-studio-audio-qa-through-existing-bootstraps.md) | Bind Studio Audio QA through existing bootstraps | Accepted |
 | [ADR-0043](0043-fixed-spatial-anchor-composition.md) | Use one fixed SpatialAnchor composition | Accepted |
+| [ADR-0044](0044-bound-feature-lifecycle-work.md) | Bound feature lifecycle work and recover context lazily | Accepted |
 
 ## Ownership and numbering
 
