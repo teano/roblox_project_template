@@ -1,55 +1,53 @@
 {
-  "active_architect_id": "sfx-spec-architect-v2",
+  "active_architect_id": "tf-0008-architect-r2-a",
   "active_wave": null,
   "architects": [
     {
       "cycles_completed": 2,
       "ended_at": null,
       "handoff_reason": null,
-      "id": "sfx-spec-architect-v2",
-      "started_at": "2026-08-10T19:28:55+00:00"
+      "id": "tf-0008-architect-r2-a",
+      "started_at": "2026-08-11T19:56:50+00:00"
     }
   ],
-  "created_at": "2026-08-10T19:28:55+00:00",
-  "feature": "sfx-system",
+  "created_at": "2026-08-11T19:56:50+00:00",
+  "feature": "deterministic-feature-dashboard-validation",
   "hold": null,
   "hold_history": [],
   "prd": {
-    "path": "docs/Features/template/sfx-system/product-requirements.md",
-    "revision": "4",
-    "sha256": "9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde"
+    "path": "docs/Features/template/deterministic-feature-dashboard-validation/product-requirements.md",
+    "revision": "2",
+    "sha256": "ec6edd8462d5fed2c4f97909eb3bdcd20ce2ef99fe382e5f12d5d48b12b3258a"
   },
   "ready": {
-    "architect_id": "sfx-spec-architect-v2",
-    "confirmed_at": "2026-08-10T20:14:18+00:00",
-    "prd_sha256": "9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde",
-    "proofreader_id": "sfx-spec-proofreader-02",
-    "spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459"
+    "architect_id": "tf-0008-architect-r2-a",
+    "confirmed_at": "2026-08-11T20:23:10+00:00",
+    "prd_sha256": "ec6edd8462d5fed2c4f97909eb3bdcd20ce2ef99fe382e5f12d5d48b12b3258a",
+    "proofreader_id": "tf-0008-proofreader-r2-02",
+    "spec_sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2"
   },
   "schema_version": 1,
   "specification": {
-    "path": "docs/Features/template/sfx-system/technical-specification.md",
-    "sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+    "path": "docs/Features/template/deterministic-feature-dashboard-validation/technical-specification.md",
+    "sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2",
     "status": "approved",
     "trace_errors": []
   },
   "status": "spec_ready",
   "total_cycles_completed": 2,
-  "updated_at": "2026-08-10T20:14:18+00:00",
+  "updated_at": "2026-08-11T20:23:10+00:00",
   "waves": [
     {
-      "architect_id": "sfx-spec-architect-v2",
-      "architect_response": "Resolved PF-001 in approved specification revision 12 by completing the canonical evidence mappings for PRD-AC-001, PRD-AC-014, PRD-AC-018, PRD-AC-032, PRD-AC-052, and PRD-AC-066; registered every new case identity in existing evidence profiles without changing product scope, ownership, or public contracts.",
-      "completed_at": "2026-08-10T20:05:22+00:00",
+      "architect_id": "tf-0008-architect-r2-a",
+      "architect_response": "Wave 1 was clean with complete 42-ID coverage and zero findings/questions; the same Architect changed only frontmatter status from draft to approved so a fresh final Proofreader can review the exact readiness candidate.",
+      "completed_at": "2026-08-11T20:16:34+00:00",
       "number": 1,
       "outcome": "revised",
       "proofread": {
-        "coverage_complete": false,
+        "coverage_complete": true,
         "critical": 0,
-        "finding_ids": [
-          "PF-001"
-        ],
-        "major": 1,
+        "finding_ids": [],
+        "major": 0,
         "minor": 0,
         "minors_engineer_resolvable": true,
         "question_ids": [],
@@ -60,30 +58,27 @@
           "public_contract": 0,
           "scope": 0
         },
-        "recorded_at": "2026-08-10T19:55:44+00:00",
-        "report_path": ".agentic-pipeline/reports/sfx-spec-proofreader-01.md"
+        "recorded_at": "2026-08-11T20:15:19+00:00",
+        "report_path": ".agentic-pipeline/reports/tf0008-spec-r2-proofreader-01.md"
       },
-      "proofreader_id": "sfx-spec-proofreader-01",
-      "result_spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
-      "spec_sha256": "bb90ce9dcc0aca7efbc797f58f133061427a5022c4003c4af1cd1bda185503d6",
-      "started_at": "2026-08-10T19:44:00+00:00",
+      "proofreader_id": "tf-0008-proofreader-r2-01",
+      "result_spec_sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2",
+      "spec_sha256": "bc012b6c59049804317b5afc7d6799afd6c7078c152785dec5995bc5ab1eb600",
+      "started_at": "2026-08-11T20:09:26+00:00",
       "user_decision": null
     },
     {
-      "architect_confirmation": "PASS: Architect confirms unchanged approved specification revision 12 at SHA256 88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459 against approved PRD SHA256 9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde; trace and 50/9/79 coverage are exact; PF-002 and PF-003 are engineer-resolvable without product, scope, boundary, ownership, or public-contract decisions.",
-      "architect_id": "sfx-spec-architect-v2",
-      "completed_at": "2026-08-10T20:14:18+00:00",
+      "architect_confirmation": "Architect tf-0008-architect-r2-a confirms the unchanged approved specification SHA ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2 exactly traces approved PRD revision 2 SHA ec6edd8462d5fed2c4f97909eb3bdcd20ce2ef99fe382e5f12d5d48b12b3258a; all 42 PRD IDs are covered by stable 17 SPEC-REQ and 18 SPEC-TEST definitions; Windows 10 remains solely best-effort/nonblocking; zero unresolved findings or questions; no post-proofreader edits detected.",
+      "architect_id": "tf-0008-architect-r2-a",
+      "completed_at": "2026-08-11T20:23:10+00:00",
       "number": 2,
       "outcome": "spec_ready",
       "proofread": {
         "coverage_complete": true,
         "critical": 0,
-        "finding_ids": [
-          "PF-002",
-          "PF-003"
-        ],
+        "finding_ids": [],
         "major": 0,
-        "minor": 2,
+        "minor": 0,
         "minors_engineer_resolvable": true,
         "question_ids": [],
         "questions": {
@@ -93,13 +88,13 @@
           "public_contract": 0,
           "scope": 0
         },
-        "recorded_at": "2026-08-10T20:11:51+00:00",
-        "report_path": ".agentic-pipeline/reports/sfx-spec-proofreader-02.md"
+        "recorded_at": "2026-08-11T20:21:35+00:00",
+        "report_path": ".agentic-pipeline/reports/tf0008-spec-r2-proofreader-02.md"
       },
-      "proofreader_id": "sfx-spec-proofreader-02",
-      "result_spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
-      "spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
-      "started_at": "2026-08-10T20:05:38+00:00"
+      "proofreader_id": "tf-0008-proofreader-r2-02",
+      "result_spec_sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2",
+      "spec_sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2",
+      "started_at": "2026-08-11T20:16:34+00:00"
     }
   ]
 }

@@ -1,10 +1,183 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 $script:SchemaVersion = 2
 $script:FeatureRootRelative = "docs/Features"
 $script:FeatureNamespaceRoles = @("template", "project")
 $script:IndexBegin = "<!-- feature-index:begin -->"
 $script:IndexEnd = "<!-- feature-index:end -->"
+
+function Read-StrictUtf8Text {
+	param([Parameter(Mandatory = $true)][string]$Path)
+	$bytes = [IO.File]::ReadAllBytes($Path)
+	return [Text.UTF8Encoding]::new($false, $true).GetString($bytes)
+}
+
+function Test-ByteArrayEqual {
+	param(
+		[Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Left,
+		[Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Right
+	)
+	if ($Left.Length -ne $Right.Length) { return $false }
+	for ($index = 0; $index -lt $Left.Length; $index++) {
+		if ($Left[$index] -ne $Right[$index]) { return $false }
+	}
+	return $true
+}
+
+function Write-AtomicBytes {
+	param(
+		[Parameter(Mandatory = $true)][string]$Path,
+		[Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Bytes
+	)
+
+	$directory = Split-Path -Parent $Path
+	if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+		New-Item -ItemType Directory -Path $directory -Force | Out-Null
+	}
+	$tempPath = Join-Path $directory (".{0}.{1}.tmp" -f (Split-Path -Leaf $Path), [Guid]::NewGuid().ToString("N"))
+	try {
+		[IO.File]::WriteAllBytes($tempPath, $Bytes)
+		Move-Item -LiteralPath $tempPath -Destination $Path -Force
+	} finally {
+		if (Test-Path -LiteralPath $tempPath) {
+			Remove-Item -LiteralPath $tempPath -Force
+		}
+	}
+}
+
+function ConvertTo-FeatureDashboardBytes {
+	param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$CanonicalText)
+	return [Text.UTF8Encoding]::new($false, $true).GetBytes($CanonicalText)
+}
+
+function Write-FeatureDashboard {
+	param(
+		[Parameter(Mandatory = $true)][string]$Path,
+		[Parameter(Mandatory = $true)][AllowEmptyString()][string]$CanonicalText
+	)
+
+	$bytes = ConvertTo-FeatureDashboardBytes -CanonicalText $CanonicalText
+	if (Test-Path -LiteralPath $Path -PathType Leaf) {
+		$currentBytes = [IO.File]::ReadAllBytes($Path)
+		if (Test-ByteArrayEqual -Left $currentBytes -Right $bytes) {
+			return $false
+		}
+	}
+	Write-AtomicBytes -Path $Path -Bytes $bytes
+	return $true
+}
+
+function Assert-ValidJsonSurrogateEscapes {
+	param(
+		[Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text,
+		[Parameter(Mandatory = $true)][string]$Path
+	)
+
+	$inString = $false
+	for ($index = 0; $index -lt $Text.Length; $index++) {
+		$character = $Text[$index]
+		if (-not $inString) {
+			if ($character -eq [char]'"') { $inString = $true }
+			continue
+		}
+		if ($character -eq [char]'"') {
+			$inString = $false
+			continue
+		}
+		if ($character -ne [char]'\') { continue }
+		if ($index + 1 -ge $Text.Length) { continue }
+		$escapeType = $Text[$index + 1]
+		if ($escapeType -ne [char]'u') {
+			$index++
+			continue
+		}
+		if ($index + 5 -ge $Text.Length) { continue }
+		$hex = $Text.Substring($index + 2, 4)
+		if ($hex -notmatch '^[0-9A-Fa-f]{4}$') { continue }
+		$codeUnit = [Convert]::ToInt32($hex, 16)
+		if ($codeUnit -ge 0xD800 -and $codeUnit -le 0xDBFF) {
+			$hasLowEscape = (
+				$index + 11 -lt $Text.Length -and
+				$Text[$index + 6] -eq [char]'\' -and
+				$Text[$index + 7] -eq [char]'u'
+			)
+			if ($hasLowEscape) {
+				$lowHex = $Text.Substring($index + 8, 4)
+				$hasLowEscape = $lowHex -match '^[0-9A-Fa-f]{4}$'
+			}
+			if ($hasLowEscape) {
+				$lowUnit = [Convert]::ToInt32($lowHex, 16)
+				$hasLowEscape = $lowUnit -ge 0xDC00 -and $lowUnit -le 0xDFFF
+			}
+			if (-not $hasLowEscape) {
+				throw "Feature manifest '$Path' category=manifest cause=invalid-surrogate-escape."
+			}
+			$index += 11
+			continue
+		}
+		if ($codeUnit -ge 0xDC00 -and $codeUnit -le 0xDFFF) {
+			throw "Feature manifest '$Path' category=manifest cause=invalid-surrogate-escape."
+		}
+		$index += 5
+	}
+}
+
+function ConvertFrom-FeatureJsonText {
+	param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+	$command = Get-Command ConvertFrom-Json -ErrorAction Stop
+	if ($command.Parameters.ContainsKey("DateKind")) {
+		return ($Text | ConvertFrom-Json -DateKind String -ErrorAction Stop)
+	}
+	return ($Text | ConvertFrom-Json -ErrorAction Stop)
+}
+
+function ConvertFrom-FeatureTimestamp {
+	param(
+		[AllowNull()][object]$Value,
+		[Parameter(Mandatory = $true)][string]$Property,
+		[Parameter(Mandatory = $true)][string]$Path,
+		[switch]$AllowNull
+	)
+
+	if ($null -eq $Value) {
+		if ($AllowNull) { return $null }
+		throw "$Path has invalid $Property; an RFC 3339 instant is required."
+	}
+	$text = [string]$Value
+	if ([string]::IsNullOrWhiteSpace($text)) {
+		throw "$Path has invalid $Property; an RFC 3339 instant is required."
+	}
+	$pattern = '^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$'
+	if ($text -notmatch $pattern) {
+		throw "$Path has invalid $Property; expected an RFC 3339 instant with an explicit zone."
+	}
+	$parseText = if ($text.EndsWith("z", [StringComparison]::Ordinal)) {
+		$text.Substring(0, $text.Length - 1) + "Z"
+	} else {
+		$text
+	}
+	$parsed = [DateTimeOffset]::MinValue
+	$valid = [DateTimeOffset]::TryParse(
+		$parseText,
+		[Globalization.CultureInfo]::InvariantCulture,
+		[Globalization.DateTimeStyles]::None,
+		[ref]$parsed
+	)
+	if (-not $valid) {
+		throw "$Path has invalid $Property; expected a valid RFC 3339 instant."
+	}
+	return $parsed
+}
+
+function ConvertTo-FeatureUtcDateText {
+	param(
+		[Parameter(Mandatory = $true)][object]$Value,
+		[Parameter(Mandatory = $true)][string]$Property,
+		[Parameter(Mandatory = $true)][string]$Path
+	)
+	$parsed = ConvertFrom-FeatureTimestamp -Value $Value -Property $Property -Path $Path
+	return $parsed.ToUniversalTime().ToString("yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture)
+}
 
 function Get-FeatureRepositoryRoot {
 	$root = (& git -C $PSScriptRoot rev-parse --show-toplevel 2>$null)
@@ -38,19 +211,8 @@ function Write-Utf8NoBom {
 		[Parameter(Mandatory = $true)][AllowEmptyString()][string]$Content
 	)
 
-	$directory = Split-Path -Parent $Path
-	if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
-		New-Item -ItemType Directory -Path $directory -Force | Out-Null
-	}
-	$tempPath = Join-Path $directory (".{0}.{1}.tmp" -f (Split-Path -Leaf $Path), [Guid]::NewGuid().ToString("N"))
-	try {
-		[IO.File]::WriteAllText($tempPath, $Content, [Text.UTF8Encoding]::new($false))
-		Move-Item -LiteralPath $tempPath -Destination $Path -Force
-	} finally {
-		if (Test-Path -LiteralPath $tempPath) {
-			Remove-Item -LiteralPath $tempPath -Force
-		}
-	}
+	$bytes = [Text.UTF8Encoding]::new($false).GetBytes($Content)
+	Write-AtomicBytes -Path $Path -Bytes $bytes
 }
 
 function Get-FeatureNamespaceRoot {
@@ -76,11 +238,54 @@ function Get-FeatureNamespaceRoles {
 	return @($roles)
 }
 
-function Get-FeatureManifests {
-	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+function Get-FeatureManifestFailureMessage {
+	param(
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$RepositoryRole,
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$NamespaceRole,
+		[Parameter(Mandatory = $true)][string]$Path,
+		[Parameter(Mandatory = $true)][string]$Cause,
+		[string]$Detail
+	)
 
+	$prefix = "Feature manifest validation failed: namespace=$NamespaceRole category=manifest cause=$Cause path='$Path'."
+	$recovery = if ($RepositoryRole -eq "project" -and $NamespaceRole -eq "template") {
+		"This derived repository does not own this template manifest; restore or update it from approved upstream content."
+	} else {
+		$scope = if ($NamespaceRole -eq "template") { "Template" } else { "Project" }
+		"Fix this owning $NamespaceRole manifest, then run scripts/sync-feature-index.ps1 -Scope $scope for the owning namespace."
+	}
+	if ([string]::IsNullOrWhiteSpace($Detail)) {
+		return "$prefix $recovery"
+	}
+	return "$prefix $recovery Detail: $Detail"
+}
+
+function Add-FeatureManifestValidationError {
+	param(
+		[Parameter(Mandatory = $true)][AllowEmptyCollection()][Collections.Generic.List[string]]$Errors,
+		[Parameter(Mandatory = $true)]$Record,
+		[Parameter(Mandatory = $true)][ValidateSet("schema", "timestamp", "artifact")][string]$Cause,
+		[Parameter(Mandatory = $true)][string]$Detail,
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$RepositoryRole
+	)
+
+	$Errors.Add((Get-FeatureManifestFailureMessage `
+		-RepositoryRole $RepositoryRole `
+		-NamespaceRole $Record.Namespace `
+		-Path $Record.Path `
+		-Cause $Cause `
+		-Detail $Detail))
+}
+
+function Get-FeatureManifestRecords {
+	param(
+		[Parameter(Mandatory = $true)][string]$RepositoryRoot,
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string[]]$NamespaceRoles
+	)
+
+	$repositoryRole = Get-RepositoryRole -RepositoryRoot $RepositoryRoot
 	return @(
-		foreach ($namespaceRole in $script:FeatureNamespaceRoles) {
+		foreach ($namespaceRole in $NamespaceRoles) {
 			$namespaceRoot = Get-FeatureNamespaceRoot `
 				-RepositoryRoot $RepositoryRoot `
 				-NamespaceRole $namespaceRole
@@ -91,7 +296,44 @@ function Get-FeatureManifests {
 				ForEach-Object {
 					$manifestPath = Join-Path $_.FullName "feature.json"
 					if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-						$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+						try {
+							$manifestText = Read-StrictUtf8Text -Path $manifestPath
+						} catch {
+							throw (Get-FeatureManifestFailureMessage `
+								-RepositoryRole $repositoryRole `
+								-NamespaceRole $namespaceRole `
+								-Path $manifestPath `
+								-Cause "encoding" `
+								-Detail $_.Exception.Message)
+						}
+						try {
+							Assert-ValidJsonSurrogateEscapes -Text $manifestText -Path $manifestPath
+						} catch {
+							throw (Get-FeatureManifestFailureMessage `
+								-RepositoryRole $repositoryRole `
+								-NamespaceRole $namespaceRole `
+								-Path $manifestPath `
+								-Cause "invalid-surrogate-escape" `
+								-Detail $_.Exception.Message)
+						}
+						try {
+							$manifest = ConvertFrom-FeatureJsonText -Text $manifestText
+						} catch {
+							throw (Get-FeatureManifestFailureMessage `
+								-RepositoryRole $repositoryRole `
+								-NamespaceRole $namespaceRole `
+								-Path $manifestPath `
+								-Cause "json" `
+								-Detail $_.Exception.Message)
+						}
+						if ($null -eq $manifest -or $manifest -isnot [PSCustomObject]) {
+							throw (Get-FeatureManifestFailureMessage `
+								-RepositoryRole $repositoryRole `
+								-NamespaceRole $namespaceRole `
+								-Path $manifestPath `
+								-Cause "schema" `
+								-Detail "The manifest root must be a JSON object.")
+						}
 						[PSCustomObject]@{
 							Namespace = $namespaceRole
 							NamespaceRoot = $namespaceRoot
@@ -103,6 +345,15 @@ function Get-FeatureManifests {
 					}
 				}
 		}
+	)
+}
+
+function Get-FeatureManifests {
+	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+	return @(
+		Get-FeatureManifestRecords `
+			-RepositoryRoot $RepositoryRoot `
+			-NamespaceRoles $script:FeatureNamespaceRoles
 	)
 }
 
@@ -509,11 +760,18 @@ $(if ([string]::IsNullOrWhiteSpace($NextStep)) { "None." } else { $NextStep })
 	Write-Utf8NoBom -Path $path -Content ($content.TrimEnd() + [Environment]::NewLine + $entry.TrimEnd() + [Environment]::NewLine)
 }
 
-function Test-FeatureManifestSet {
-	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+function Test-FeatureManifestSetForNamespaces {
+	param(
+		[Parameter(Mandatory = $true)][string]$RepositoryRoot,
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string[]]$NamespaceRoles
+	)
 
 	$errors = [Collections.Generic.List[string]]::new()
-	$records = @(Get-FeatureManifests -RepositoryRoot $RepositoryRoot)
+	$records = @(
+		Get-FeatureManifestRecords `
+			-RepositoryRoot $RepositoryRoot `
+			-NamespaceRoles $NamespaceRoles
+	)
 	$repositoryRole = Get-RepositoryRole -RepositoryRoot $RepositoryRoot
 	$featureRoot = Join-Path $RepositoryRoot $script:FeatureRootRelative
 	$templateRoot = Get-FeatureNamespaceRoot -RepositoryRoot $RepositoryRoot -NamespaceRole "template"
@@ -556,89 +814,100 @@ function Test-FeatureManifestSet {
 		$missingProperties = @($requiredProperties | Where-Object { $_ -notin $actualProperties })
 		$unexpectedProperties = @($actualProperties | Where-Object { $_ -notin $requiredProperties })
 		foreach ($property in $missingProperties) {
-			$errors.Add("$label is missing required property '$property'.")
+			Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label is missing required property '$property'." -RepositoryRole $repositoryRole
 		}
 		foreach ($property in $unexpectedProperties) {
-			$errors.Add("$label contains unsupported property '$property'.")
+			Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label contains unsupported property '$property'." -RepositoryRole $repositoryRole
 		}
 		if ($missingProperties.Count -gt 0) { continue }
-		if ($m.schemaVersion -ne $script:SchemaVersion) { $errors.Add("$label has unsupported schemaVersion.") }
+		if ($m.schemaVersion -ne $script:SchemaVersion) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label has unsupported schemaVersion." -RepositoryRole $repositoryRole }
 		$expectedPrefix = if ($record.Namespace -eq "template") { "TF" } else { "F" }
 		if (-not ([string]$m.id -match ("^{0}-\d{{4}}$" -f $expectedPrefix))) {
-			$errors.Add("$label must use the $expectedPrefix prefix for the '$($record.Namespace)' namespace.")
+			Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label must use the $expectedPrefix prefix for the '$($record.Namespace)' namespace." -RepositoryRole $repositoryRole
 		}
 		foreach ($deprecatedProperty in @("activeSessionId", "sessions", "threadId", "hostId")) {
 			if ($null -ne $m.PSObject.Properties[$deprecatedProperty]) {
-				$errors.Add("$label contains deprecated agent/session field '$deprecatedProperty'.")
+				Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label contains deprecated agent/session field '$deprecatedProperty'." -RepositoryRole $repositoryRole
 			}
 		}
-		if ([string]::IsNullOrWhiteSpace([string]$m.title)) { $errors.Add("$label has empty title.") }
-		if (-not ([string]$m.slug -match '^[a-z0-9]+(?:-[a-z0-9]+)*$')) { $errors.Add("$label has invalid slug.") }
-		if ([string]$m.status -notin @("planned", "in_progress", "ready")) { $errors.Add("$label has invalid status.") }
-		if ([string]$m.activity -notin @("none", "active", "paused")) { $errors.Add("$label has invalid activity.") }
+		if ([string]::IsNullOrWhiteSpace([string]$m.title)) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label has empty title." -RepositoryRole $repositoryRole }
+		if (-not ([string]$m.slug -match '^[a-z0-9]+(?:-[a-z0-9]+)*$')) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label has invalid slug." -RepositoryRole $repositoryRole }
+		if ([string]$m.status -notin @("planned", "in_progress", "ready")) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label has invalid status." -RepositoryRole $repositoryRole }
+		if ([string]$m.activity -notin @("none", "active", "paused")) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "$label has invalid activity." -RepositoryRole $repositoryRole }
 		foreach ($dateProperty in @("startedAt", "completedAt", "updatedAt")) {
 			$value = $m.$dateProperty
-			if ($null -eq $value -and $dateProperty -ne "updatedAt") { continue }
-			$parsedDate = [DateTimeOffset]::MinValue
-			if (-not [DateTimeOffset]::TryParse([string]$value, [ref]$parsedDate)) {
-				$errors.Add("$label has invalid $dateProperty.")
+			try {
+				ConvertFrom-FeatureTimestamp `
+					-Value $value `
+					-Property $dateProperty `
+					-Path $label `
+					-AllowNull:($dateProperty -ne "updatedAt") | Out-Null
+			} catch {
+				Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "timestamp" -Detail $_.Exception.Message -RepositoryRole $repositoryRole
 			}
 		}
-		if ($ids.ContainsKey([string]$m.id)) { $errors.Add("Duplicate feature id '$($m.id)'.") } else { $ids[[string]$m.id] = $true }
+		if ($ids.ContainsKey([string]$m.id)) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Duplicate feature id '$($m.id)'." -RepositoryRole $repositoryRole } else { $ids[[string]$m.id] = $true }
 		$slugKey = "$($record.Namespace)/$($m.slug)"
-		if ($slugs.ContainsKey($slugKey)) { $errors.Add("Duplicate feature slug '$slugKey'.") } else { $slugs[$slugKey] = $true }
+		if ($slugs.ContainsKey($slugKey)) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Duplicate feature slug '$slugKey'." -RepositoryRole $repositoryRole } else { $slugs[$slugKey] = $true }
 
 		if ($m.status -eq "planned") {
-			if ($m.activity -ne "none") { $errors.Add("Planned feature '$($m.id)' must have activity none.") }
+			if ($m.activity -ne "none") { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Planned feature '$($m.id)' must have activity none." -RepositoryRole $repositoryRole }
 		}
 		if ($m.status -eq "in_progress") {
-			if ($m.activity -notin @("active", "paused")) { $errors.Add("In-progress feature '$($m.id)' must be active or paused.") }
-			if ([string]::IsNullOrWhiteSpace([string]$m.branch)) { $errors.Add("In-progress feature '$($m.id)' needs a branch.") }
-			if (-not ([string]$m.baseCommit -match '^[0-9a-f]{40}$')) { $errors.Add("In-progress feature '$($m.id)' needs a full base commit.") }
+			if ($m.activity -notin @("active", "paused")) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "In-progress feature '$($m.id)' must be active or paused." -RepositoryRole $repositoryRole }
+			if ([string]::IsNullOrWhiteSpace([string]$m.branch)) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "In-progress feature '$($m.id)' needs a branch." -RepositoryRole $repositoryRole }
+			if (-not ([string]$m.baseCommit -match '^[0-9a-f]{40}$')) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "In-progress feature '$($m.id)' needs a full base commit." -RepositoryRole $repositoryRole }
 			$branchKey = [string]$m.branch
-			if ($branches.ContainsKey($branchKey)) { $errors.Add("Branch '$branchKey' has more than one in-progress feature.") } else { $branches[$branchKey] = [string]$m.id }
+			if ($branches.ContainsKey($branchKey)) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Branch '$branchKey' has more than one in-progress feature." -RepositoryRole $repositoryRole } else { $branches[$branchKey] = [string]$m.id }
 		}
 		if ($m.status -eq "ready") {
-			if ($m.activity -ne "none") { $errors.Add("Ready feature '$($m.id)' must have activity none.") }
-			if (@($m.blockers).Count -ne 0) { $errors.Add("Ready feature '$($m.id)' cannot have blockers.") }
-			if ([string]::IsNullOrWhiteSpace([string]$m.completedAt)) { $errors.Add("Ready feature '$($m.id)' needs completedAt.") }
+			if ($m.activity -ne "none") { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Ready feature '$($m.id)' must have activity none." -RepositoryRole $repositoryRole }
+			if (@($m.blockers).Count -ne 0) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Ready feature '$($m.id)' cannot have blockers." -RepositoryRole $repositoryRole }
+			if ([string]::IsNullOrWhiteSpace([string]$m.completedAt)) { Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Ready feature '$($m.id)' needs completedAt." -RepositoryRole $repositoryRole }
 		}
 
 		if ($null -ne $m.verification) {
 			$verificationProperties = @($m.verification.PSObject.Properties.Name)
 			foreach ($property in @("completedAt", "head", "summary")) {
 				if ($property -notin $verificationProperties) {
-					$errors.Add("Feature '$($m.id)' verification is missing '$property'.")
+					Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Feature '$($m.id)' verification is missing '$property'." -RepositoryRole $repositoryRole
 				}
 			}
 			foreach ($property in $verificationProperties | Where-Object { $_ -notin @("completedAt", "head", "summary") }) {
-				$errors.Add("Feature '$($m.id)' verification contains unsupported property '$property'.")
+				Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Feature '$($m.id)' verification contains unsupported property '$property'." -RepositoryRole $repositoryRole
 			}
 		}
 		foreach ($recovery in @($m.recoveryLog)) {
 			$recoveryProperties = @($recovery.PSObject.Properties.Name)
 			foreach ($property in @("at", "reason", "previousStatus")) {
 				if ($property -notin $recoveryProperties) {
-					$errors.Add("Feature '$($m.id)' recovery history is missing '$property'.")
+					Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Feature '$($m.id)' recovery history is missing '$property'." -RepositoryRole $repositoryRole
 				}
 			}
 			foreach ($property in $recoveryProperties | Where-Object { $_ -notin @("at", "reason", "previousStatus") }) {
-				$errors.Add("Feature '$($m.id)' recovery history contains unsupported property '$property'.")
+				Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "schema" -Detail "Feature '$($m.id)' recovery history contains unsupported property '$property'." -RepositoryRole $repositoryRole
 			}
 		}
 		foreach ($artifactName in @("handoff.md", "worklog.md")) {
 			$artifactPath = Join-Path $record.Directory $artifactName
 			if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
-				$errors.Add("Feature '$($m.id)' is missing $artifactName.")
+				Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "artifact" -Detail "Feature '$($m.id)' is missing $artifactName." -RepositoryRole $repositoryRole
 				continue
 			}
 			$artifactContent = Get-Content -LiteralPath $artifactPath -Raw
 			if ([regex]::IsMatch($artifactContent, '(?mi)^-\s*(?:session|thread|task|agent)(?:\s+id)?\s*:')) {
-				$errors.Add("Feature '$($m.id)' $artifactName contains deprecated agent/session metadata.")
+				Add-FeatureManifestValidationError -Errors $errors -Record $record -Cause "artifact" -Detail "Feature '$($m.id)' $artifactName contains deprecated agent/session metadata." -RepositoryRole $repositoryRole
 			}
 		}
 	}
 	return [PSCustomObject]@{ Ok = ($errors.Count -eq 0); Errors = @($errors); Records = $records }
+}
+
+function Test-FeatureManifestSet {
+	param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+	return Test-FeatureManifestSetForNamespaces `
+		-RepositoryRoot $RepositoryRoot `
+		-NamespaceRoles $script:FeatureNamespaceRoles
 }
 
 function Escape-MarkdownCell {
@@ -674,12 +943,70 @@ function Get-FeatureIndexBlock {
 		$worklog = "[Открыть](./$($record.Folder)/worklog.md)"
 		$blockers = if (@($m.blockers).Count -eq 0) { "—" } else { Escape-MarkdownCell (@($m.blockers) -join "; ") }
 		$title = Escape-MarkdownCell $m.title
-		$updated = if ([string]::IsNullOrWhiteSpace([string]$m.updatedAt)) { "—" } else { ([DateTimeOffset]::Parse([string]$m.updatedAt)).ToString("yyyy-MM-dd") }
+		$updated = ConvertTo-FeatureUtcDateText -Value $m.updatedAt -Property "updatedAt" -Path $record.Path
 		$lines.Add("| $($m.id) | [$title](./$($record.Folder)/) | $status | $activity | $branch | $base | $worklog | $blockers | $updated |")
 	}
 	$lines.Add("")
 	$lines.Add($script:IndexEnd)
-	return ($lines -join [Environment]::NewLine)
+	return ($lines -join "`n")
+}
+
+function ConvertTo-CanonicalFeatureDashboardText {
+	param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+	return ([regex]::Replace($Text, '[\r\n]+\z', '') + "`n")
+}
+
+function Get-FeatureDashboardText {
+	param(
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$NamespaceRole,
+		[Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Records
+	)
+
+	$title = if ($NamespaceRole -eq "template") { "Фичи шаблона" } else { "Фичи проекта" }
+	$manifestPattern = "docs/Features/$NamespaceRole/*/feature.json"
+	$lines = [Collections.Generic.List[string]]::new()
+	$lines.Add("# $title")
+	$lines.Add("")
+	$lines.Add("Этот dashboard генерируется из")
+	$lines.Add("``$manifestPattern``. Манифесты —")
+	$lines.Add("единственный источник состояния; generated-блок не редактируется вручную.")
+	$lines.Add("")
+	$lines.Add((Get-FeatureIndexBlock -Records $Records))
+	return ConvertTo-CanonicalFeatureDashboardText -Text ($lines -join "`n")
+}
+
+function Normalize-FeatureDashboardText {
+	param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+	return $Text.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
+function Get-FeatureDashboardDriftCategory {
+	param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+	$beginMatches = [regex]::Matches($Text, [regex]::Escape($script:IndexBegin))
+	$endMatches = [regex]::Matches($Text, [regex]::Escape($script:IndexEnd))
+	if (
+		$beginMatches.Count -ne 1 -or
+		$endMatches.Count -ne 1 -or
+		$beginMatches[0].Index -ge $endMatches[0].Index
+	) {
+		return "markers"
+	}
+	return "content"
+}
+
+function Get-FeatureDashboardFailureMessage {
+	param(
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$RepositoryRole,
+		[Parameter(Mandatory = $true)][ValidateSet("template", "project")][string]$NamespaceRole,
+		[Parameter(Mandatory = $true)][ValidateSet("missing", "markers", "encoding", "content", "manifest")][string]$Category,
+		[Parameter(Mandatory = $true)][string]$Path
+	)
+	$prefix = "Feature dashboard validation failed: namespace=$NamespaceRole category=$Category path='$Path'."
+	if ($RepositoryRole -eq "project" -and $NamespaceRole -eq "template") {
+		return "$prefix This derived repository does not own the template dashboard; restore or update it from approved upstream content."
+	}
+	$scope = if ($NamespaceRole -eq "template") { "Template" } else { "Project" }
+	return "$prefix Run scripts/sync-feature-index.ps1 -Scope $scope for the owning namespace."
 }
 
 function Sync-FeatureIndex {
@@ -699,41 +1026,45 @@ function Sync-FeatureIndex {
 		throw "The reusable template must not create a project feature namespace."
 	}
 
-	$validation = Test-FeatureManifestSet -RepositoryRoot $RepositoryRoot
+	$validation = if (
+		-not $Check -and
+		$repositoryRole -eq "project" -and
+		$NamespaceRole -eq "project"
+	) {
+		Test-FeatureManifestSetForNamespaces `
+			-RepositoryRoot $RepositoryRoot `
+			-NamespaceRoles @("project")
+	} else {
+		Test-FeatureManifestSet -RepositoryRoot $RepositoryRoot
+	}
 	if (-not $validation.Ok) {
-		throw "Feature manifest validation failed:`n$($validation.Errors -join [Environment]::NewLine)"
+		throw "Feature manifest validation failed: category=manifest.`n$($validation.Errors -join [Environment]::NewLine)"
 	}
 	$featureRoot = Get-FeatureNamespaceRoot -RepositoryRoot $RepositoryRoot -NamespaceRole $NamespaceRole
 	$indexPath = Join-Path $featureRoot "README.md"
 	$namespaceRecords = @($validation.Records | Where-Object { $_.Namespace -eq $NamespaceRole })
-	$generated = Get-FeatureIndexBlock -Records $namespaceRecords
-	if (Test-Path -LiteralPath $indexPath -PathType Leaf) {
-		$current = Get-Content -LiteralPath $indexPath -Raw
-		$pattern = '(?s)' + [regex]::Escape($script:IndexBegin) + '.*?' + [regex]::Escape($script:IndexEnd)
-		if ([regex]::IsMatch($current, $pattern)) {
-			$desired = [regex]::Replace($current, $pattern, [Text.RegularExpressions.MatchEvaluator]{ param($match) $generated })
-		} else {
-			$desired = $current.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine + $generated + [Environment]::NewLine
-		}
-	} else {
-		$manifestPattern = "docs/Features/$NamespaceRole/*/feature.json"
-		$title = if ($NamespaceRole -eq "template") { "Фичи шаблона" } else { "Фичи проекта" }
-		$desired = @"
-# $title
-
-Этот dashboard генерируется из $manifestPattern. Манифесты —
-единственный источник состояния; generated-блок не редактируется вручную.
-
-$generated
-"@.TrimEnd() + [Environment]::NewLine
-	}
+	$desired = Get-FeatureDashboardText -NamespaceRole $NamespaceRole -Records $namespaceRecords
 	if ($Check) {
-		if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf) -or $current -cne $desired) {
-			throw "The '$NamespaceRole' feature dashboard is out of sync. Run scripts/sync-feature-index.ps1 for its owning namespace."
+		# Validate the expected output through the same strict encoder without
+		# granting Check mode access to the filesystem writer.
+		$null = ConvertTo-FeatureDashboardBytes -CanonicalText $desired
+		if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
+			throw (Get-FeatureDashboardFailureMessage -RepositoryRole $repositoryRole -NamespaceRole $NamespaceRole -Category "missing" -Path $indexPath)
+		}
+		try {
+			$current = Read-StrictUtf8Text -Path $indexPath
+		} catch {
+			throw ((Get-FeatureDashboardFailureMessage -RepositoryRole $repositoryRole -NamespaceRole $NamespaceRole -Category "encoding" -Path $indexPath) + " $($_.Exception.Message)")
+		}
+		$currentLogical = Normalize-FeatureDashboardText -Text $current
+		$desiredLogical = Normalize-FeatureDashboardText -Text $desired
+		if (-not $currentLogical.Equals($desiredLogical, [StringComparison]::Ordinal)) {
+			$category = Get-FeatureDashboardDriftCategory -Text $current
+			throw (Get-FeatureDashboardFailureMessage -RepositoryRole $repositoryRole -NamespaceRole $NamespaceRole -Category $category -Path $indexPath)
 		}
 		return $indexPath
 	}
-	Write-Utf8NoBom -Path $indexPath -Content $desired
+	Write-FeatureDashboard -Path $indexPath -CanonicalText $desired | Out-Null
 	return $indexPath
 }
 

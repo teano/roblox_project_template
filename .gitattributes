@@ -1,2 +1,4 @@
 # Roblox place files are binary: never text-diff or auto-merge them.
 *.rbxl binary
+docs/Features/template/README.md text eol=lf
+docs/Features/project/README.md text eol=lf

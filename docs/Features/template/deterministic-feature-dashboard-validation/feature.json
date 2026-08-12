@@ -1,0 +1,29 @@
+{
+    "schemaVersion":  2,
+    "id":  "TF-0008",
+    "slug":  "deterministic-feature-dashboard-validation",
+    "title":  "Deterministic Feature Dashboard Validation",
+    "status":  "ready",
+    "activity":  "none",
+    "branch":  "template-feature/tf-0008-deterministic-feature-dashboard-validation",
+    "baseCommit":  "765fd71b755f2f0878a0c9c8761b887600590cdf",
+    "startedAt":  "2026-08-11T13:03:12.7309279+00:00",
+    "completedAt":  "2026-08-12T13:53:54.7254450+00:00",
+    "updatedAt":  "2026-08-12T13:53:54.7254450+00:00",
+    "blockers":  [
+
+                 ],
+    "artifacts":  [
+                      "product-requirements.md",
+                      "technical-specification.md",
+                      "development-plan.md"
+                  ],
+    "verification":  {
+                         "completedAt":  "2026-08-12T13:53:54.7254450+00:00",
+                         "head":  "765fd71b755f2f0878a0c9c8761b887600590cdf",
+                         "summary":  "Ранее выполнено и в Finish не перезапускалось: обязательный Rojo preflight PASS; scripts/tests/feature-workflow.tests.ps1 отдельно под Windows PowerShell 5.1 и PowerShell 7.x — exit 0, AUTO-TF0008-SPEC-TEST-001..018 PASS, общий canonical SHA-256 8d540766923b8cd7fa70217cd981802dd89951412a6c92563118b34fe9cffc0b; validate-feature-workflow.ps1, sync-feature-index.ps1 -Check -Scope All и validate-repository-layout.ps1 под обоими hosts — exit 0; git diff --check — exit 0 с информационными checkout EOL warnings; временный Rojo build — exit 0, 1461474 bytes, SHA-256 f78fcdaa7470fc1425d1d84b671a2790168bf96511a09d7b0dceb50450ff2b7a, output удалён. Coverage: PRD-AC 17/17 mapped, mandatory automated 18/18 passed, manual 0, gaps 0. Independent review/targeted closure и QA завершились PASS; controller run_ready вернул ready=true и reasons=[]. Studio Play не запускался по SPEC-TEST-017; отдельный Windows 10 runner не запускался и является optional nonblocking."
+                     },
+    "recoveryLog":  [
+
+                    ]
+}

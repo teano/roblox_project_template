@@ -1,0 +1,534 @@
+{
+  "schema_version": 9,
+  "contract_version": "2026-08-11-role-artifacts-coverage-docs-v2",
+  "project_root": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template",
+  "feature": "deterministic-feature-dashboard-validation",
+  "slice_id": "SLICE-001",
+  "development_plan_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\docs\\Features\\template\\deterministic-feature-dashboard-validation\\development-plan.md",
+  "development_plan_sha256": "18ffde85ff63067c7f695a7bb3299dccf3b367f470976fe8521d8cee19046f94",
+  "development_mode": "single_owner",
+  "plan_contracts": {
+    "context_budget": {
+      "max_authority_files": 14,
+      "max_evidence_files": 16,
+      "max_total_files": 30,
+      "max_payload_bytes": 420000,
+      "max_estimated_tokens": 105000
+    },
+    "context_metric_scope": "capsule_plus_referenced_files",
+    "coverage_strategy": {
+      "manifest_path": "tests/deterministic-feature-dashboard-validation/verification/coverage-schema-2.json",
+      "automated_identity_namespace": "AUTO-TF0008-*",
+      "manual_identity_namespace": "MANUAL-TF0008-*",
+      "mandatory_rule": "каждое PRD-AC-001..017 отображается на явно зарегистрированные AUTO-TF0008-SPEC-TEST-001..018; manual identities отсутствуют",
+      "automation_feasibility": "все acceptance criteria детерминированы и автоматизируются; Windows 10/11 являются отдельными release-runner cells, а не субъективным manual evidence",
+      "capability_prerequisites": "git-local-autocrlf-matrix,powershell-7,rojo-build,windows-10-release-runner,windows-11-release-runner,windows-powershell-5-1",
+      "gates": "plan-before-engineering, finalize-after-code-freeze, qa-updated"
+    },
+    "documentation_strategy": {
+      "normative_pre_review": ".agents/rules/feature-workflow.md, docs/TestCoverage.md",
+      "derived_post_qa": "not_required | policy=SPEC-TEST-017",
+      "source_rule": "только active DEC IDs, approved PRD/spec IDs и точное verified evidence"
+    },
+    "slices": {
+      "SLICE-001": {
+        "context_budget": {
+          "max_authority_files": 12,
+          "max_evidence_files": 13,
+          "max_total_files": 25,
+          "max_payload_bytes": 360000,
+          "max_estimated_tokens": 90000
+        },
+        "context_metric_scope": "capsule_plus_referenced_files",
+        "coverage": {
+          "acceptance_ids": "PRD-AC-001,PRD-AC-002,PRD-AC-003,PRD-AC-004,PRD-AC-005,PRD-AC-006,PRD-AC-007,PRD-AC-008,PRD-AC-009,PRD-AC-010,PRD-AC-011,PRD-AC-012,PRD-AC-013,PRD-AC-014,PRD-AC-015,PRD-AC-016,PRD-AC-017",
+          "automated_identity_namespace": "AUTO-TF0008-*",
+          "manual_identity_namespace": "MANUAL-TF0008-*",
+          "mandatory_identity_ids": "AUTO-TF0008-SPEC-TEST-001,AUTO-TF0008-SPEC-TEST-002,AUTO-TF0008-SPEC-TEST-003,AUTO-TF0008-SPEC-TEST-004,AUTO-TF0008-SPEC-TEST-005,AUTO-TF0008-SPEC-TEST-006,AUTO-TF0008-SPEC-TEST-007,AUTO-TF0008-SPEC-TEST-008,AUTO-TF0008-SPEC-TEST-009,AUTO-TF0008-SPEC-TEST-010,AUTO-TF0008-SPEC-TEST-011,AUTO-TF0008-SPEC-TEST-012,AUTO-TF0008-SPEC-TEST-013,AUTO-TF0008-SPEC-TEST-014,AUTO-TF0008-SPEC-TEST-015,AUTO-TF0008-SPEC-TEST-016,AUTO-TF0008-SPEC-TEST-017,AUTO-TF0008-SPEC-TEST-018; mandatory manual identities=none",
+          "automation_feasibility": "all approved acceptance is deterministic and automated; OS evidence comes from separate Windows 10/11 release runners and Studio/manual sets remain empty",
+          "capability_prerequisites": "git-local-autocrlf-matrix,powershell-7,rojo-build,windows-10-release-runner,windows-11-release-runner,windows-powershell-5-1",
+          "planned_manifest": "tests/deterministic-feature-dashboard-validation/verification/SLICE-001-coverage-planned.json",
+          "finalized_manifest": "tests/deterministic-feature-dashboard-validation/verification/SLICE-001-coverage-finalized.json",
+          "amendment_authorities": "active DEC-*, normalized finding IDs, or controller-approved scope rebaseline only"
+        },
+        "documentation": {
+          "normative_pre_review_paths": ".agents/rules/feature-workflow.md,docs/TestCoverage.md",
+          "derived_post_qa_paths": "not_required | policy=SPEC-TEST-017",
+          "decision_ids": "none",
+          "evidence_sources": "exact AUTO-TF0008-SPEC-TEST-001..018 results, controller coverage state, Review finding IDs, QA evidence IDs, host/OS/Git metadata and repository gate exit codes"
+        }
+      }
+    }
+  },
+  "ordered_slices": [
+    "SLICE-001"
+  ],
+  "active_slice": "SLICE-001",
+  "slices": {
+    "SLICE-001": {
+      "id": "SLICE-001",
+      "dependencies": [],
+      "status": "active",
+      "base_revision": "33949ac0dd67470e24bf4004f6a70ef04f4d6b885c57e9007063a10b4bd2db71",
+      "base_product_revision": "a0a86a4f8ac4e463f480a879095690b79acb6da431fdea8f78d85575633201e7",
+      "base_support_revision": "2245dd0e0a3f5f0cdb3f2b4b56b2de25f1faa42c809158971e59ddc5ceed3d73",
+      "base_evidence_revision": "2245dd0e0a3f5f0cdb3f2b4b56b2de25f1faa42c809158971e59ddc5ceed3d73",
+      "result_revision": null,
+      "result_product_revision": null,
+      "result_support_revision": null,
+      "result_evidence_revision": null,
+      "owner_id": null,
+      "remediation_returns_by_owner": {},
+      "handoff_manifests": [],
+      "requirement_ids": [
+        "PRD-REQ-001",
+        "PRD-REQ-002",
+        "PRD-REQ-003",
+        "PRD-REQ-004",
+        "PRD-REQ-005",
+        "PRD-REQ-006",
+        "PRD-REQ-007",
+        "PRD-REQ-008",
+        "PRD-REQ-009",
+        "PRD-REQ-010",
+        "PRD-REQ-011",
+        "PRD-REQ-012",
+        "PRD-REQ-013",
+        "PRD-REQ-014",
+        "PRD-REQ-015",
+        "PRD-REQ-016",
+        "PRD-REQ-017"
+      ],
+      "scope_contract": {
+        "acceptance_ids": [
+          "PRD-AC-001",
+          "PRD-AC-002",
+          "PRD-AC-003",
+          "PRD-AC-004",
+          "PRD-AC-005",
+          "PRD-AC-006",
+          "PRD-AC-007",
+          "PRD-AC-008",
+          "PRD-AC-009",
+          "PRD-AC-010",
+          "PRD-AC-011",
+          "PRD-AC-012",
+          "PRD-AC-013",
+          "PRD-AC-014",
+          "PRD-AC-015",
+          "PRD-AC-016",
+          "PRD-AC-017"
+        ],
+        "editable_paths": [
+          "scripts/FeatureWorkflow.psm1",
+          "scripts/tests/feature-workflow.tests.ps1",
+          ".gitattributes",
+          ".agents/rules/feature-workflow.md",
+          "docs/TestCoverage.md",
+          "docs/Features/template/README.md"
+        ],
+        "shared_touchpoints": [
+          {
+            "id": "TP-001",
+            "path": "scripts/FeatureWorkflow.psm1",
+            "symbols": [
+              "Get-FeatureManifests",
+              "Test-FeatureManifestSet",
+              "Get-FeatureIndexBlock",
+              "Sync-FeatureIndex",
+              "Write-Utf8NoBom",
+              "new internal loader/date/renderer/normalizer/dashboard-byte helpers"
+            ],
+            "allowed_change": "strict input, invariant UTC date, canonical full-file render, line-separator-only Check, atomic dashboard bytes and ownership diagnostics",
+            "forbidden_change": "exported signatures, schema, lifecycle, lease, branch, namespace ownership"
+          },
+          {
+            "id": "TP-002",
+            "path": "scripts/tests/feature-workflow.tests.ps1",
+            "symbols": [
+              "current-host resolver",
+              "isolated fixture helpers",
+              "SPEC-TEST-001..018"
+            ],
+            "allowed_change": "exact deterministic regressions while retaining all lifecycle assertions",
+            "forbidden_change": "weakened assertions, working feature lease, network, Studio, alternate host fallback"
+          },
+          {
+            "id": "TP-003",
+            "path": ".gitattributes",
+            "symbols": [
+              "docs/Features/template/README.md",
+              "docs/Features/project/README.md"
+            ],
+            "allowed_change": "exact text eol=lf rules for the two dashboard paths",
+            "forbidden_change": "global text policy or unrelated attributes"
+          },
+          {
+            "id": "TP-004",
+            "path": ".agents/rules/feature-workflow.md",
+            "symbols": [
+              "canonical dashboard and verification contract"
+            ],
+            "allowed_change": "document approved deterministic encoding,date,check behavior",
+            "forbidden_change": "lifecycle authority, namespace ownership, completion gates"
+          },
+          {
+            "id": "TP-005",
+            "path": "docs/TestCoverage.md",
+            "symbols": [
+              "feature-workflow coverage section"
+            ],
+            "allowed_change": "document exact dual-host/dashboard regression coverage",
+            "forbidden_change": "unrelated runtime release gates"
+          },
+          {
+            "id": "TP-006",
+            "path": "docs/Features/template/README.md",
+            "symbols": [
+              "entire generated dashboard"
+            ],
+            "allowed_change": "owning generator output only",
+            "forbidden_change": "hand edit or foreign/project namespace creation"
+          }
+        ],
+        "excluded_components": [
+          "agentic-pipeline-state",
+          "TF-0008-authority-and-lifecycle",
+          "project-feature-namespace",
+          "Roblox-runtime-and-scene",
+          "public-feature-entrypoints",
+          "unrelated-documentation"
+        ],
+        "excluded_paths": [
+          ".agentic-pipeline/**",
+          "docs/Features/template/deterministic-feature-dashboard-validation/product-requirements.md",
+          "docs/Features/template/deterministic-feature-dashboard-validation/technical-specification.md",
+          "docs/Features/template/deterministic-feature-dashboard-validation/development-plan.md",
+          "docs/Features/template/deterministic-feature-dashboard-validation/decision-ledger.jsonl",
+          "docs/Features/template/deterministic-feature-dashboard-validation/feature.json",
+          "docs/Features/template/deterministic-feature-dashboard-validation/handoff.md",
+          "docs/Features/template/deterministic-feature-dashboard-validation/worklog.md",
+          "docs/FeatureDevelopmentForBeginners.md",
+          "docs/Features/project/**",
+          "src/**",
+          "place.rbxl"
+        ],
+        "max_product_files": 5,
+        "max_product_lines_changed": 700,
+        "verification_scope": "dual-host feature-workflow suite; en-US/ru-RU and LF/CRLF/CR/mixed fixtures; core.autocrlf false/true; owning/foreign full-file checks; workflow/layout validators; git diff check; temporary Rojo build; Windows 10/11 release cells",
+        "scope_baseline_revision": "765fd71b755f2f0878a0c9c8761b887600590cdf"
+      },
+      "scope_churn": {
+        "passes": 0,
+        "product_files_changed": 0,
+        "product_lines_changed": 0,
+        "unique_product_files": [],
+        "touchpoint_ids": []
+      },
+      "scope_history": [],
+      "scope_pre_edit_check": null,
+      "full_convergence_waves": 0,
+      "max_full_convergence_waves": 2,
+      "research": {
+        "status": "pending",
+        "base_revision": "33949ac0dd67470e24bf4004f6a70ef04f4d6b885c57e9007063a10b4bd2db71",
+        "bundles": [],
+        "reason": null,
+        "completed_at": null
+      },
+      "sealed_at": null
+    }
+  },
+  "owner_by_slice": {},
+  "integration_owner": null,
+  "handoff_manifests": [],
+  "remediation_queue": [],
+  "active_remediation_batch": null,
+  "execution_stage": "implementation",
+  "scope_guard": {
+    "status": "pending",
+    "hold": null,
+    "history": [],
+    "scope_churn": {
+      "passes": 0,
+      "product_files_changed": 0,
+      "product_lines_changed": 0,
+      "unique_product_files": [],
+      "touchpoint_ids": []
+    },
+    "rebaseline_history": []
+  },
+  "finding_triage": null,
+  "requirements_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\docs\\Features\\template\\deterministic-feature-dashboard-validation\\product-requirements.md",
+  "requirements_revision": "1",
+  "requirements_sha256": "d4d27516cfe2524fbd1a7e095319157c4bc705e115b996124f5f603228bf91a3",
+  "spec_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\docs\\Features\\template\\deterministic-feature-dashboard-validation\\technical-specification.md",
+  "spec_sha256": "98866b92f0d7e6084073722c0203c9e6b80c5cbfa2cf8d5fecb66fb4591fa3b9",
+  "tests_path": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\deterministic-feature-dashboard-validation",
+  "phase": "preflight",
+  "revision_base_revision": "765fd71b755f2f0878a0c9c8761b887600590cdf",
+  "revision_inventory": {
+    "product": [
+      "docs/Features/template/deterministic-feature-dashboard-validation/decision-ledger.jsonl",
+      "docs/Features/template/deterministic-feature-dashboard-validation/development-plan.md",
+      "docs/Features/template/deterministic-feature-dashboard-validation/product-requirements.md",
+      "docs/Features/template/deterministic-feature-dashboard-validation/technical-specification.md"
+    ],
+    "support": [],
+    "evidence": []
+  },
+  "revision": "33949ac0dd67470e24bf4004f6a70ef04f4d6b885c57e9007063a10b4bd2db71",
+  "product_revision": "a0a86a4f8ac4e463f480a879095690b79acb6da431fdea8f78d85575633201e7",
+  "support_revision": "2245dd0e0a3f5f0cdb3f2b4b56b2de25f1faa42c809158971e59ddc5ceed3d73",
+  "evidence_revision": "2245dd0e0a3f5f0cdb3f2b4b56b2de25f1faa42c809158971e59ddc5ceed3d73",
+  "implementation_state": {
+    "status": "pending",
+    "revision": null,
+    "coverage_manifest": null
+  },
+  "feature_verification_state": {
+    "status": "pending",
+    "product_revision": null,
+    "support_revision": null,
+    "evidence_revision": null
+  },
+  "active_write_lease": null,
+  "write_lease_history": [],
+  "lease_snapshots": {},
+  "decision_ledger": {
+    "path": "docs/Features/template/deterministic-feature-dashboard-validation/decision-ledger.jsonl",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "entry_count": 0,
+    "active_decision_ids": [],
+    "superseded_decision_ids": []
+  },
+  "user_authorities": [],
+  "coverage": {
+    "SLICE-001": {
+      "planned_manifest": null,
+      "finalized_manifest": null,
+      "state": {
+        "status": "pending",
+        "ac_mapped": false,
+        "identities_registered": "pending",
+        "mandatory_registration": "pending",
+        "automated": "pending",
+        "manual": "pending",
+        "implementation_eligible": false,
+        "feature_verification_eligible": false,
+        "readiness_class": null,
+        "gaps": []
+      }
+    }
+  },
+  "documentation": {
+    "normative": {
+      "status": "pending",
+      "product_revision": null,
+      "paths": [],
+      "decision_ids": [],
+      "report_path": null,
+      "report_sha256": null
+    },
+    "derived": {
+      "status": "pending",
+      "support_revision": null,
+      "paths": [],
+      "source_evidence_ids": [],
+      "report_path": null,
+      "report_sha256": null,
+      "closure_review_id": "pending"
+    }
+  },
+  "context_capsules": [],
+  "handoffs": [],
+  "decision_recording": null,
+  "coverage_manifest": null,
+  "last_engineer_run_id": null,
+  "last_engineer_outcome": null,
+  "machine_checks": {
+    "status": "pending",
+    "revision": null,
+    "report": null,
+    "product_revision": null,
+    "support_revision": null,
+    "evidence_revision": null
+  },
+  "engineer_clean": null,
+  "engineering_owner_id": null,
+  "engineer_runs": [],
+  "required_convergence_audits": 3,
+  "max_convergence_waves": 2,
+  "convergence": {
+    "status": "pending",
+    "wave": 0,
+    "required": 3,
+    "revision": null,
+    "product_revision": null,
+    "support_revision": null,
+    "evidence_revision": null,
+    "runs": [],
+    "decision": null,
+    "decision_report": null,
+    "slice_ids": [],
+    "trigger": "initial_implementation"
+  },
+  "required_reviews": 2,
+  "review": {
+    "status": "pending",
+    "revision": null,
+    "product_revision": null,
+    "support_revision": null,
+    "evidence_revision": null,
+    "required": 2,
+    "runs": [],
+    "recovery_run": null,
+    "decision": null,
+    "decision_report": null,
+    "decision_reason": null
+  },
+  "review_runs": [],
+  "component_review_credits": [],
+  "product_revalidation": null,
+  "closure_review": null,
+  "qa": {
+    "status": "pending",
+    "revision": null,
+    "product_revision": null,
+    "support_revision": null,
+    "evidence_revision": null,
+    "run_id": null,
+    "worker_id": null,
+    "report": null,
+    "pending_scenarios": [],
+    "reason": null,
+    "capability_probe_id": null,
+    "minimum_resume_actions": {}
+  },
+  "qa_capability": {
+    "status": "pending",
+    "revision": null,
+    "probe_id": null,
+    "capabilities": {},
+    "minimum_resume_actions": {},
+    "report": null,
+    "probes": []
+  },
+  "qa_runs": [],
+  "gates": [],
+  "preflight": {
+    "status": "capability_blocked",
+    "resource_budget_check": "pass",
+    "capabilities": {
+      "config-credentials": "not_required",
+      "git-local-autocrlf-matrix": "available",
+      "logging-screenshots": "not_required",
+      "persistence-datastore": "not_required",
+      "powershell-7": "available",
+      "publication-place-topology": "not_required",
+      "rojo-build": "available",
+      "single-play": "not_required",
+      "studio-editor-sync": "not_required",
+      "test-server-two-clients": "not_required",
+      "window-control-path": "not_required",
+      "windows-10-release-runner": "blocked_environment",
+      "windows-11-release-runner": "available",
+      "windows-powershell-5-1": "available"
+    },
+    "minimum_resume_actions": {
+      "windows-10-release-runner": {
+        "owner": "technical_director",
+        "user_input_required": false,
+        "action": "Provision or connect an independent Windows 10 release runner for the approved dual-host, locale, Git EOL, repository-gate, and canonical SHA matrix; Windows 11 evidence cannot substitute."
+      }
+    },
+    "proof_version": 1,
+    "required_capability_ids": [
+      "config-credentials",
+      "git-local-autocrlf-matrix",
+      "logging-screenshots",
+      "persistence-datastore",
+      "powershell-7",
+      "publication-place-topology",
+      "rojo-build",
+      "single-play",
+      "studio-editor-sync",
+      "test-server-two-clients",
+      "window-control-path",
+      "windows-10-release-runner",
+      "windows-11-release-runner",
+      "windows-powershell-5-1"
+    ],
+    "required_capability_digest": "49b3510772bcf5e4c9471b12a3e2a112117f1c77089e722c70555a18d7e33d66",
+    "resume_contract_complete": true,
+    "migration_resume_phase": null,
+    "runs": [
+      {
+        "run_id": "preflight-tf0008-runtime-01",
+        "resource_budget_check": "pass",
+        "capabilities": {
+          "config-credentials": "not_required",
+          "git-local-autocrlf-matrix": "available",
+          "logging-screenshots": "not_required",
+          "persistence-datastore": "not_required",
+          "powershell-7": "available",
+          "publication-place-topology": "not_required",
+          "rojo-build": "available",
+          "single-play": "not_required",
+          "studio-editor-sync": "not_required",
+          "test-server-two-clients": "not_required",
+          "window-control-path": "not_required",
+          "windows-10-release-runner": "blocked_environment",
+          "windows-11-release-runner": "available",
+          "windows-powershell-5-1": "available"
+        },
+        "proof_version": 1,
+        "required_capability_ids": [
+          "config-credentials",
+          "git-local-autocrlf-matrix",
+          "logging-screenshots",
+          "persistence-datastore",
+          "powershell-7",
+          "publication-place-topology",
+          "rojo-build",
+          "single-play",
+          "studio-editor-sync",
+          "test-server-two-clients",
+          "window-control-path",
+          "windows-10-release-runner",
+          "windows-11-release-runner",
+          "windows-powershell-5-1"
+        ],
+        "required_capability_digest": "49b3510772bcf5e4c9471b12a3e2a112117f1c77089e722c70555a18d7e33d66",
+        "resume_contract_complete": true,
+        "report": "D:\\MyData\\Projects\\Roblox\\My\\roblox_project_template\\tests\\deterministic-feature-dashboard-validation\\preflight\\preflight-tf0008-runtime-01.md",
+        "report_sha256": "30b2e726acb915ae11cc5544c49aedfb9cf7597e05df8f20f17756f23a8b24ae",
+        "recorded_at": "2026-08-11T19:30:22+00:00"
+      }
+    ]
+  },
+  "preflight_migration_hold": null,
+  "preflight_migration_history": [],
+  "worker_budget": {
+    "status": "running",
+    "completed_workers": 0,
+    "worker_ids": [],
+    "max_workers": 14,
+    "full_review_waves": 0,
+    "max_full_review_waves": 2,
+    "records": [],
+    "reason": null,
+    "checkpoint_causes": [],
+    "authorizations": []
+  },
+  "iteration_control": {
+    "consecutive_product_changes": 0,
+    "max_consecutive_product_changes": 2,
+    "status": "running",
+    "reason": null,
+    "authorizations": []
+  },
+  "recovery": null,
+  "created_at": "2026-08-11T19:28:34+00:00",
+  "updated_at": "2026-08-11T19:30:22+00:00"
+}

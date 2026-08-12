@@ -1,0 +1,105 @@
+{
+  "active_architect_id": "sfx-spec-architect-v2",
+  "active_wave": null,
+  "architects": [
+    {
+      "cycles_completed": 2,
+      "ended_at": null,
+      "handoff_reason": null,
+      "id": "sfx-spec-architect-v2",
+      "started_at": "2026-08-10T19:28:55+00:00"
+    }
+  ],
+  "created_at": "2026-08-10T19:28:55+00:00",
+  "feature": "sfx-system",
+  "hold": null,
+  "hold_history": [],
+  "prd": {
+    "path": "docs/Features/template/sfx-system/product-requirements.md",
+    "revision": "4",
+    "sha256": "9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde"
+  },
+  "ready": {
+    "architect_id": "sfx-spec-architect-v2",
+    "confirmed_at": "2026-08-10T20:14:18+00:00",
+    "prd_sha256": "9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde",
+    "proofreader_id": "sfx-spec-proofreader-02",
+    "spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459"
+  },
+  "schema_version": 1,
+  "specification": {
+    "path": "docs/Features/template/sfx-system/technical-specification.md",
+    "sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+    "status": "approved",
+    "trace_errors": []
+  },
+  "status": "spec_ready",
+  "total_cycles_completed": 2,
+  "updated_at": "2026-08-10T20:14:18+00:00",
+  "waves": [
+    {
+      "architect_id": "sfx-spec-architect-v2",
+      "architect_response": "Resolved PF-001 in approved specification revision 12 by completing the canonical evidence mappings for PRD-AC-001, PRD-AC-014, PRD-AC-018, PRD-AC-032, PRD-AC-052, and PRD-AC-066; registered every new case identity in existing evidence profiles without changing product scope, ownership, or public contracts.",
+      "completed_at": "2026-08-10T20:05:22+00:00",
+      "number": 1,
+      "outcome": "revised",
+      "proofread": {
+        "coverage_complete": false,
+        "critical": 0,
+        "finding_ids": [
+          "PF-001"
+        ],
+        "major": 1,
+        "minor": 0,
+        "minors_engineer_resolvable": true,
+        "question_ids": [],
+        "questions": {
+          "boundary": 0,
+          "ownership": 0,
+          "product": 0,
+          "public_contract": 0,
+          "scope": 0
+        },
+        "recorded_at": "2026-08-10T19:55:44+00:00",
+        "report_path": ".agentic-pipeline/reports/sfx-spec-proofreader-01.md"
+      },
+      "proofreader_id": "sfx-spec-proofreader-01",
+      "result_spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+      "spec_sha256": "bb90ce9dcc0aca7efbc797f58f133061427a5022c4003c4af1cd1bda185503d6",
+      "started_at": "2026-08-10T19:44:00+00:00",
+      "user_decision": null
+    },
+    {
+      "architect_confirmation": "PASS: Architect confirms unchanged approved specification revision 12 at SHA256 88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459 against approved PRD SHA256 9b46904c64242100c6aa61377cf5b9d0d79720a1a30865ffec13b2965c9c3dde; trace and 50/9/79 coverage are exact; PF-002 and PF-003 are engineer-resolvable without product, scope, boundary, ownership, or public-contract decisions.",
+      "architect_id": "sfx-spec-architect-v2",
+      "completed_at": "2026-08-10T20:14:18+00:00",
+      "number": 2,
+      "outcome": "spec_ready",
+      "proofread": {
+        "coverage_complete": true,
+        "critical": 0,
+        "finding_ids": [
+          "PF-002",
+          "PF-003"
+        ],
+        "major": 0,
+        "minor": 2,
+        "minors_engineer_resolvable": true,
+        "question_ids": [],
+        "questions": {
+          "boundary": 0,
+          "ownership": 0,
+          "product": 0,
+          "public_contract": 0,
+          "scope": 0
+        },
+        "recorded_at": "2026-08-10T20:11:51+00:00",
+        "report_path": ".agentic-pipeline/reports/sfx-spec-proofreader-02.md"
+      },
+      "proofreader_id": "sfx-spec-proofreader-02",
+      "result_spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+      "spec_sha256": "88d83641dae9b45ac06ef266ce635b2d374218d5a639d25c2454abc66076d459",
+      "started_at": "2026-08-10T20:05:38+00:00"
+    }
+  ]
+}

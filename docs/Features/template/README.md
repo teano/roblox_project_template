@@ -6,7 +6,7 @@
 
 <!-- feature-index:begin -->
 
-Всего: 7 | Готово: 7 | В работе: 0 | В плане: 0 | С блокерами: 0
+Всего: 8 | Готово: 8 | В работе: 0 | В плане: 0 | С блокерами: 0
 
 | ID | Фича | Состояние | Активность | Ветка | Базовый commit | Worklog | Блокеры | Обновлено |
 |---|---|---|---|---|---|---|---|---|
@@ -17,5 +17,6 @@
 | TF-0005 | [SFX System](./sfx-system/) | 🟩 Готова | — | `template-feature/tf-0005-sfx-system` | `14d4cf84` | [Открыть](./sfx-system/worklog.md) | — | 2026-08-11 |
 | TF-0006 | [CSV-конвертер плагин](./csv-converter-plugin/) | 🟩 Готова | — | `feature/tf-0006-csv-to-luau` | `15bc56c6` | [Открыть](./csv-converter-plugin/worklog.md) | — | 2026-08-06 |
 | TF-0007 | [Agent-Agnostic Feature Workflow](./agent-agnostic-feature-workflow/) | 🟩 Готова | — | `template-feature/tf-0007-agent-agnostic-feature-workflow` | `ab149070` | [Открыть](./agent-agnostic-feature-workflow/worklog.md) | — | 2026-08-06 |
+| TF-0008 | [Deterministic Feature Dashboard Validation](./deterministic-feature-dashboard-validation/) | 🟩 Готова | — | `template-feature/tf-0008-deterministic-feature-dashboard-validation` | `765fd71b` | [Открыть](./deterministic-feature-dashboard-validation/worklog.md) | — | 2026-08-12 |
 
 <!-- feature-index:end -->
