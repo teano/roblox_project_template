@@ -15,6 +15,48 @@ Git-теги описывают версии самого шаблона. Они
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-08-12
+
+### Added
+
+- Добавлено пошаговое руководство для пользователей без опыта разработки:
+  установка GameDev и Specification pipelines, явный feature lifecycle,
+  утверждение требований и плана, запуск реализации, пауза, восстановление и
+  завершение фичи.
+- Добавлена обязательная матрица из 18 автоматизированных проверок feature
+  dashboard на Windows 11, Windows PowerShell 5.1 и PowerShell 7, включая
+  `ru-RU`, LF/CRLF, strict UTF-8, суррогаты, UTC timestamps, derived ownership
+  и release gates.
+
+### Changed
+
+- Feature dashboards теперь целиком генерируются в каноническом UTF-8/LF виде
+  с детерминированными timestamps и атомарной записью, поэтому одинаковые
+  manifests дают одинаковые байты на поддерживаемых PowerShell hosts и при
+  разных Git EOL-настройках.
+- Project-only synchronization читает и валидирует только project manifests;
+  all-namespace `-Check` остаётся строго read-only и различает content,
+  encoding и missing drift без перезаписи унаследованных template-файлов.
+
+### Fixed
+
+- Ошибки strict UTF-8, JSON, суррогатов, schema и timestamps теперь сохраняют
+  namespace фактически неисправного manifest, путь, стабильную причину и
+  корректную owning либо upstream recovery-подсказку.
+- Исключена ошибочная маркировка project manifest failures как template и
+  зависимость project sync от повреждённых унаследованных template manifests.
+
+### Verification
+
+- Полные suites на Windows PowerShell 5.1 и PowerShell 7 прошли все
+  `AUTO-TF0008-SPEC-TEST-001..018` с единым canonical SHA-256
+  `8d540766923b8cd7fa70217cd981802dd89951412a6c92563118b34fe9cffc0b`.
+- Пройдены feature/dashboard/layout validators на обоих hosts,
+  `git diff --check` и Rojo build; runtime/DataModel не менялись, поэтому
+  Studio Play не требовался.
+- Breaking migration отсутствует. Derived-проекты сохраняют ownership своих
+  dashboards и получают fail-closed диагностику для foreign template drift.
+
 ## [0.18.0] - 2026-08-11
 
 ### Added
@@ -323,7 +365,8 @@ Git-теги описывают версии самого шаблона. Они
 - Добавлены Rojo project mapping, канонические agent rules, ADR и первые
   системные и production integration tests.
 
-[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/teano/roblox_project_template/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/teano/roblox_project_template/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/teano/roblox_project_template/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/teano/roblox_project_template/compare/v0.15.0...v0.16.0
