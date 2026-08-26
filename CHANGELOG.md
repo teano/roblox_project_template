@@ -15,6 +15,58 @@ Git-теги описывают версии самого шаблона. Они
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-08-26
+
+### Added
+
+- Добавлена production-ready клиентская UI System с единственным persistent
+  `UiRoot`, безопасной проекцией экрана и раздельными `HudHost`, `ToastHost` и
+  `WindowHost`.
+- Добавлены строгие UI actions, identity registry, синхронное ownership
+  bubbling и ограниченный root event stream без передачи `Instance`, функций,
+  циклов или текста `TextBox`.
+- Добавлены конфигурируемые data-only окна, production loader/compiler,
+  preload, generation-safe pooling и детерминированная multi-window навигация
+  с lifecycle, recovery и post-yield revalidation.
+- Добавлены repository-owned local release fixture, `$window-authoring` и
+  derived-project initialization contracts для безопасного создания
+  проектных окон без второго bootstrap, loader или config route.
+
+### Changed
+
+- Клиентский initialization manifest теперь явно создаёт и запускает
+  `UiSystem` через существующий initialization runner; respawn не пересоздаёт
+  UI root.
+- Project initialization, template-update policy и repository-layout
+  validation учитывают канонический project-owned window config и data-only
+  authoring boundary.
+- Aggregate Studio suite расширен focused UI runner, а документация и
+  TestCoverage фиксируют runtime, cleanup, authoring и conditional cloud-smoke
+  контракты.
+
+### Fixed
+
+- Window lifecycle повторно проверяет owner, generation и deadline после
+  yield, поэтому устаревшая операция не может опубликовать или закрыть окно
+  после смены владельца, уничтожения navigator или истечения срока.
+- Recursive cleanup сохраняет исходную lifecycle-ошибку, пытается освободить
+  все принадлежащие ресурсы и не оставляет input sink или fixture Instances.
+
+### Verification
+
+- Fresh canonical Studio Play: `UiSystemTestRunner` прошёл `17/17`, включая
+  executable post-yield Open/Close regression и локальный loader/config
+  fixture; `AllTestsRunner` прошёл `397/397` в 15 suites.
+- Xbox One checklist подтвердил pointer blocking/activation, keyboard и
+  virtual-controller gamepad navigation, safe-area behavior, respawn
+  persistence и обязательный cleanup.
+- Пройдены TS-STATIC-001 с positive/negative diagnostics и cleanup,
+  repository-layout и feature-workflow validators, а также временный Rojo
+  build. Подтверждено `AllowInsertFreeAssets=false`.
+- Breaking migration отсутствует. Cloud smoke не запускался без отдельно
+  одобренного external fixture и по утверждённому контракту не является
+  обязательным локальным release gate.
+
 ## [0.20.0] - 2026-08-12
 
 ### Added
@@ -414,7 +466,8 @@ Git-теги описывают версии самого шаблона. Они
 - Добавлены Rojo project mapping, канонические agent rules, ADR и первые
   системные и production integration tests.
 
-[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/teano/roblox_project_template/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/teano/roblox_project_template/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/teano/roblox_project_template/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/teano/roblox_project_template/compare/v0.17.0...v0.18.0
