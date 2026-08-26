@@ -1,0 +1,30 @@
+{
+    "schemaVersion":  2,
+    "id":  "TF-0010",
+    "slug":  "ui-system",
+    "title":  "UI System",
+    "status":  "ready",
+    "activity":  "none",
+    "branch":  "template-feature/tf-0010-ui-system",
+    "baseCommit":  "e98557f334625e70e6984f2cde85eb3c9c3c3708",
+    "startedAt":  "2026-08-13T08:08:01.3576601+00:00",
+    "completedAt":  "2026-08-26T04:52:42.8490445+00:00",
+    "updatedAt":  "2026-08-26T04:52:42.8490445+00:00",
+    "blockers":  [
+
+                 ],
+    "artifacts":  [
+                      "product-requirements.md",
+                      "technical-specification.md",
+                      "development-plan.md",
+                      "decision-ledger.jsonl"
+                  ],
+    "verification":  {
+                         "completedAt":  "2026-08-26T04:52:42.8490445+00:00",
+                         "head":  "e98557f334625e70e6984f2cde85eb3c9c3c3708",
+                         "summary":  "До Finish фактически выполнено: runtime controller ready generation 228, terminal result production_ready_candidate, open gates/questions отсутствуют, exact ready replay byte-noop; final independent Review и QA PASS. Fresh canonical Studio Play: UiSystemTestRunner 17/17 PASS, включая executable post-yield Open/Close regression и local TS-TEST-016; AllTestsRunner 397/397 PASS across 15 suites. Xbox One checklist подтвердил pointer blocking/activation, keyboard and connected virtual-controller gamepad navigation, safe-area behavior, respawn persistence и mandatory Finish cleanup. TS-STATIC-001 зафиксировал expected positive/negative diagnostics, затем все три temporary fixtures удалены и ordinary-tree reanalysis показал zero introduced diagnostics. Read-only exact-place observation подтвердила AllowInsertFreeAssets=false. Controller-owned repository-layout validation, feature-workflow validation и temporary Rojo build PASS. Cloud smoke не запускался из-за отсутствия approved external fixture/AssetId и по утверждённому контракту не является failure. Сам feature-finish не запускал тесты, validators, build или Studio."
+                     },
+    "recoveryLog":  [
+
+                    ]
+}

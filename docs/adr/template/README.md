@@ -52,6 +52,7 @@ Repositories derived from the template receive these records from their
 | [ADR-0042](0042-bind-studio-audio-qa-through-existing-bootstraps.md) | Bind Studio Audio QA through existing bootstraps | Accepted |
 | [ADR-0043](0043-fixed-spatial-anchor-composition.md) | Use one fixed SpatialAnchor composition | Accepted |
 | [ADR-0044](0044-bound-feature-lifecycle-work.md) | Bound feature lifecycle work and recover context lazily | Accepted |
+| [ADR-0045](0045-client-ui-system-boundaries.md) | Keep client UI ownership behind one manifest-composed root | Accepted |
 
 ## Ownership and numbering
 

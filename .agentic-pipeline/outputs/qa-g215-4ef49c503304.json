@@ -1,0 +1,11 @@
+{
+  "outcome": "pass",
+  "checks": [
+    "Fresh canonical Studio Play matched PlaceId 91045933836846 and GameId 10596427617; UiSystemTestRunner passed 17/17, including the executable TS-TEST-009 post-yield owner/generation/deadline regression and TS-TEST-016 local fixture test.",
+    "Fresh client fixture execution used the checked-in definition through production WindowConfigCompiler and WindowAssetLoader with the clone-only backend: Loads=1, Preloads=1, InputSink changed All to None, and mandatory Finish removed the active session, fixture ScreenGui, selection, loader/cache ownership, and left all three production hosts empty.",
+    "TS-STATIC-001 durable evidence records analyzer version 0.735.0.7351131, all three exact temporary paths, full SHA-256 values, marked lines, raw positive/negative diagnostics, deletion, and ordinary-tree zero introduced diagnostics; filesystem and exact Edit DataModel inspection independently confirmed all three temporary fixtures absent while the persistent model/setup remain present.",
+    "Persistent local release inputs match the documented hashes: WindowAssetFixture.model.json 12D6BF6668661717C3A1DA072F84FCF8E796DC9E7A2B84E3B7DA61D80F107D5A, setup 84C89F0394B4017C092892D1C4E95B5A7C932B299E2F7EC97ED5BA4D597BA27B, and definition C07D94A3C3B662700638FDFCA310811D5524F26F8CDEDD25E7093C40556153BD; the model contains only data UI instances and no Lua source container.",
+    "The unchanged-candidate TS-TEST-012 record is internally consistent across UiSystem, TestCoverage, handoff, and worklog: focused 17/17 plus aggregate 397/397, Xbox One pointer/keyboard/gamepad/safe-area/respawn observations, and mandatory Finish cleanup. Current docs explicitly supersede older 15/15 and mandatory-cloud claims.",
+    "The separate exact-place evidence records Allow Loading Third Party Assets disabled (AllowInsertFreeAssets=false) with matching nonzero PlaceId/GameId, UTC 2026-08-25T05:33:26.033Z, and actor ui-engineering-g203. No approved external fixture or AssetId exists, so cloud smoke is truthfully recorded as conditional and not run rather than fabricated."
+  ]
+}

@@ -166,6 +166,14 @@ otherwise mandatory Rojo preflight.
     in the repository worklog.
 13. Read `template-updates.md` so future upstream merges preserve documented
     project decisions.
+14. Create the exact project-owned UI authoring source
+    `src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau` as a
+    strict UTF-8 `--!strict` ModuleScript returning a duplicate-preserving
+    sequence. An empty initialized sequence is exactly
+    `return table.freeze({})`. Record the path in initialization evidence as a
+    newly created project-owned file, not as template divergence. Do not create
+    an alternate config/registry/manifest or an empty optional
+    `DerivedUiActionIds.luau`.
 
 ## Required verification
 
@@ -176,6 +184,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-feature-workflow.ps1
 rojo build default.project.json --output $env:TEMP\project-validation.rbxlx
 ```
+
+Repository validation must pass after the exact derived UI config is created
+and before later implementation or build work begins.
 
 Run `scripts/ensure-rojo-server.ps1` and confirm through Rojo's `/api/rojo`
 metadata that the repository directory name owns the default endpoint. Run it

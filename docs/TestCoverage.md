@@ -38,6 +38,7 @@ clean server/client bootstrap succeeds.
 | Collaborative Audio Studio QA (TF-0005 gate) | all public Audio capabilities and `PRD-AC-001..079` mapped to deterministic or collaborative evidence; exact live playback uses CartoonBubble, OldCarEngine, and PrayerRiver through production bootstrap services; public preload evidence uses exactly `AudioCatalog.Preload.v1` and exposes only counts plus failure `ContentId`/`Status` | wrong/missing exact catalog pair, asset ID, descriptor path/SoundId, unknown bridge request, bare human boolean, objective observation, or required operator statement cannot pass; `Bridge.Invoke` rejects unsafe caller data before transport; raw Bindable evidence proves cycles are engine-rejected, while Roblox strips metatable/frozen state, normalizes coroutines and mixed/sparse keys, copies tables, and does not execute `__iter`; every representable unsafe raw argument and every unsafe handler result rejects before handler dispatch; non-Studio and unavailable topology/backend stay closed/blocked | exact frozen client/server whitelists, side-local placement/schema, actual service-closure binding, raw and wrapped bidirectional deep-copy isolation, cleanup, exact CueId refs, accepted server one-shots without fake handles, explicit rejoin Start, exact `Studio-E2E-AUDIO-05` anchor, exact three-live-asset and 16-scenario identity, report precedence; lexer-aware repository validation independently enforces the formatting-tolerant post-success Studio-only require/install path, exact QA inventory, absence of executable remote structures, and no `.server`/`.client` Lua/Luau source in Tests/QA roots | `AudioManualQaTestRunner`, `scripts/validate-repository-layout.ps1`, plus [AudioManualQA.md](AudioManualQA.md) |
 | Experience Config catalog | atomic decode, projection, refresh | missing/unknown/unsafe values, invalid refresh, mandatory Statistics identifier mismatch, impossible dedupe capacity | min/max values, NaN/infinity, oversized projection, accepted Wallet GUID and practical dedupe boundaries | `ConfigCatalogTestRunner` |
 | Side-local signals | connect, once, wait, disconnect, destroy | listener throws and owner destruction | yielding listeners, nested dispatch, nil arguments | `SystemTestRunner` |
+| UI root, authoring, semantic controllers, and window stack | persistent safe-area root/hosts, canonical data-only authoring shape, frozen definition identity, allowlisted data-only load/preload cache, destroy/pool lifecycle, Active-owned add/close/replacement, final-stack visibility, Pause/Resume lifecycle, navigation focus/baselines, all Background policies, blocker tokens, generation handles, command success | malformed/duplicate config or root, executable asset, missing derived config, reserved template project namespace, preload/factory/protected-cast/initialize failure, invalid Background/default or replacement nomination, non-Active mutation, destroy/pooled cleanup failure, duplicate window, stale handle | exact strict UTF-8 derived sequence and skill/template files, eager failure and timeout retry, one unsettled physical attempt, off-tree construction/Initialize, paused valid handles, lower-prefix preservation, pool generation reuse and contaminated-record destruction, transition deadline/quarantine, dynamic navigation attach/detach atomicity, non-blocking root listeners | `UiSystemTestRunner`, `scripts/validate-repository-layout.ps1`, `ResourceManagementTestRunner`, `ContentPreloaderTestRunner`, `SystemTestRunner` |
 | Initialization manifests | dependency order, idempotence, catalog composition | missing dependency, duplicate/malformed/out-of-order commands | concurrent callers, sticky failure, non-cancelling watchdog | `SystemTestRunner` |
 | Wallet and base provider rules | initial value and persisted reload | unknown currency, invalid amounts/balances, retained-close public mutation | zero no-op, safe-integer, NaN/fractional limits, normal Loaded admission, real Statistics preparation failure, rejected retained add/spend/no-op without signals/queue, and retry capture/order | `SystemTestRunner`, `StatisticsTestRunner`, `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
 | Statistics snapshots | built-in/custom lifecycle, formulas, both Wallet currencies, Teleport continuation, projected reads | malformed metadata/operations, malformed retention candidates, non-finite and overflow results, invalid lifecycle, rejected Wallet facts, mismatch, private-field and client-mutation rejection | omitted/allow-only/allow-all-except filters, retention 0/N and cross-generation newest-only reconciliation/persistence, exact rollback restart, accepted and failed Teleport source preservation with final facts, atomic byte failure, mandatory Wallet GUID identifier boundary, aggregate dedupe capacity, dedupe across every eligible built-in snapshot, common client fact/read rate policy, no per-operation storage writes, positive-cooldown rapid-close save coalescing, close capture, diagnostic classes/redaction, copy isolation | `StatisticsTestRunner`, `TeleportModuleTestRunner`, `ConfigCatalogTestRunner`, `SystemTestRunner`, `ProductionIntegrationTestRunner` |
@@ -112,12 +113,13 @@ require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 6. `ResourceManagementTestRunner`
 7. `AssetRegistryTestRunner`
 8. `ContentPreloaderTestRunner`
-9. `ConfigCatalogTestRunner`
-10. `StatisticsTestRunner`
-11. `TeleportModuleTestRunner`
-12. `SystemTestRunner`
-13. `ProductionIntegrationTestRunner`
-14. `ProductionReadinessTestRunner`
+9. `UiSystemTestRunner`
+10. `ConfigCatalogTestRunner`
+11. `StatisticsTestRunner`
+12. `TeleportModuleTestRunner`
+13. `SystemTestRunner`
+14. `ProductionIntegrationTestRunner`
+15. `ProductionReadinessTestRunner`
 
 `AllTestsRunner` registers `AudioCatalogTestRunner`, `AudioPlaybackTestRunner`,
 and `AudioIntegrationTestRunner` before `AudioManualQaTestRunner` and the broad
@@ -141,6 +143,51 @@ run:
 rojo build default.project.json --output $env:TEMP\roblox-template-validation.rbxlx
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-layout.ps1
 ```
+
+`TS-TEST-014` combines the focused runtime data-only authoring fixture with
+repository checks for the canonical model, both authoring skills, template
+absence of `src/ReplicatedStorage/Project/`, and exact initialized-derived
+config ownership. `TS-TEST-016` uses the checked-in data-only fixture, fixed
+test definition, production `WindowConfigCompiler`, and production
+`WindowAssetLoader` with an injected clone-only local backend. Read-only
+`AllowInsertFreeAssets=false` evidence remains a separate exact-place gate.
+The production cloud path remains available, but its smoke is conditional on
+an already-approved external fixture/AssetId and otherwise is recorded as not
+run.
+
+For the current SLICE-004 candidate, the latest focused `UiSystemTestRunner`
+result was 17 passed and 0 failed and `AllTestsRunner` reported 397 passed,
+0 failed across 15 suites in the canonical template place
+(`PlaceId=91045933836846`, `GameId=10596427617`). One fresh Xbox One Play
+proved pointer activation and blocking, keyboard navigation/activation,
+Studio Virtual Controller gamepad navigation, CoreUISafeInsets projection,
+respawn persistence, empty production hosts, and complete fixture/focus/cache
+cleanup. `TS-STATIC-001` used Studio Script Analysis version
+`0.735.0.7351131` with `Display only current script`: the positive fixture
+`src/ReplicatedStorage/Client/UI/TestFixtures/StaticAnalysis/TypedNavigationPositiveFixture.luau`
+(SHA-256 `7a29b2dad69540bf00a6246bb1f1bd247ca7c7a70e86d954c2342f5e5a853a0d`,
+marked lines 7/8) had zero diagnostics; the Add-negative fixture
+`src/ReplicatedStorage/Client/UI/TestFixtures/StaticAnalysis/TypedNavigationAddNegativeFixture.luau`
+(SHA-256 `a072327e7ffb7905d783d6fa4c0b2f606c67e36f070700077eee28179eb345ca`,
+marked line 6) had exactly raw `Type Error: (6,54) Expected this to be 'nil',
+but got 'string'`; the replacement-negative fixture
+`src/ReplicatedStorage/Client/UI/TestFixtures/StaticAnalysis/TypedNavigationReplacementNegativeFixture.luau`
+(SHA-256 `9eef92c3578ecca0514550acae19ebd99ef7f92394f1adcf8493e65d2e47f26d`,
+marked line 6) had exactly raw `Type Error: (6,62) Expected this to be 'nil',
+but got '{ TS_STATIC_001_REPLACEMENT_MISMATCH: boolean }'`. All three paths
+were deleted from disk and the synchronized Edit DataModel. Ordinary-tree
+reanalysis of `ReplicatedStorage.Client.UI.Config.WindowTypes` had zero
+current-script diagnostics; the overall Studio warning count fell from 10493
+to the unrelated pre-existing 10491, proving zero fixture/current-UI
+diagnostics introduced or retained. Read-only
+Experience Settings inspection showed “Allow Loading Third Party Assets” off.
+The passing focused suite also executed the deterministic `TS-TEST-009`
+post-yield Open/Close partitions for expired deadlines and navigator
+destruction, so the owner/generation/deadline fix has executable Studio Play
+evidence rather than static-only evidence. Controller-owned repository-layout
+validation, feature-workflow validation, and the temporary Rojo build all
+returned zero on the latest candidate completes. This evidence claims no
+publish, deployment, attachment, cloud load, or settings mutation.
 
 Then start one additional clean Play session without manually requiring test
 modules. Verify the server and client bootstraps complete and the client

@@ -18,6 +18,7 @@ local suites = {
 	{ Name = "ResourceManagementTestRunner", Runner = require(Tests.ResourceManagementTestRunner) },
 	{ Name = "AssetRegistryTestRunner", Runner = require(Tests.AssetRegistryTestRunner) },
 	{ Name = "ContentPreloaderTestRunner", Runner = require(Tests.ContentPreloaderTestRunner) },
+	{ Name = "UiSystemTestRunner", Runner = require(Tests.UiSystemTestRunner) },
 	{ Name = "ConfigCatalogTestRunner", Runner = require(Tests.ConfigCatalogTestRunner) },
 	{ Name = "StatisticsTestRunner", Runner = require(Tests.StatisticsTestRunner) },
 	{ Name = "TeleportModuleTestRunner", Runner = require(Tests.TeleportModuleTestRunner) },

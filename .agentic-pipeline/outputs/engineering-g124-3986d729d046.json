@@ -1,0 +1,4 @@
+{
+  "outcome": "pass",
+  "summary": "Cleanup failure now takes precedence over a simultaneous Close hook failure for direct close and replacement recovery. Added deterministic regressions for both paths while preserving committed removal, candidate disposal, and lower-window resume behavior."
+}

@@ -1,0 +1,10 @@
+{
+  "outcome": "fail",
+  "findings": [
+    {
+      "text": "UiSystem stores dependencies.Wait but does not pass it to WindowNavigator.new; instead it passes Wait to WindowAssetLoader, whose dependency contract does not consume it. Therefore the public UiSystem construction path silently falls back to RBXScriptSignal:Wait in WindowNavigator even when a deterministic Clock/Spawn/Delay/Wait scheduler is injected. The TS-TEST-009 fixture constructs WindowNavigator directly, so it does not observe this composition defect. Forward self._wait to WindowNavigator (and keep loader dependencies honest) so the absolute-deadline seam is exercised through the production composition path.",
+      "severity": "P1",
+      "kind": "requirements"
+    }
+  ]
+}

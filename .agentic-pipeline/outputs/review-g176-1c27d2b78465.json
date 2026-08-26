@@ -1,0 +1,10 @@
+{
+  "outcome": "fail",
+  "findings": [
+    {
+      "text": "The approved typed public contract is not implemented at the SLICE-002 boundary: src/ReplicatedStorage/Client/UI/Config/WindowTypes.luau exports WindowConstructionContext with Navigator: any and Elements: any, WindowConfig with any-valued definitions, and WindowDefinition.CreateView consumes that weakened context. The specification requires the public typed surface to contain no any and defines these as WindowNavigatorPort, UiElementContext, and opaque ErasedWindowDefinition associations. As written, a concrete window definition or typed caller receives no static protection for the navigation/element capabilities it is allowed to use, so TS-STATIC-001 cannot establish the required typed API contract. Replace the exported any fields with the canonical narrow types while keeping runtime values and ownership unchanged.",
+      "severity": "major",
+      "kind": "requirement"
+    }
+  ]
+}

@@ -45,6 +45,7 @@ affects save-provider and communication contracts.
 | Server or client Players modules, player/character lifecycle | `architecture.md`, `players.md`, `testing.md` |
 | Wallet, Version, GameData, a save provider, or an authority change | `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
 | `ReplicatedFirst/Loading.client.luau` | `architecture.md`, `initialization.md`, `testing.md` |
+| `src/ReplicatedStorage/Client/UI/**`, `src/ReplicatedStorage/Project/Client/UI/**`, `.agents/templates/window-authoring/**`, `.agents/skills/window-authoring/**`, `UiSystem`, `UiRoot`, UI controllers/actions/events, HUD/toast hosts, window authoring, or window navigation | `ui.md`, `architecture.md`, `initialization.md`, `players.md`, `signals.md`, `communication.md`, `testing.md`; also `project-initialization.md` and `template-updates.md` for the derived authoring boundary |
 | `default.project.json`, Rojo mappings, `.model.json`, executable script placement | `rojo-project.md`, `architecture.md`, `testing.md` |
 | `place.rbxl`, Studio-authored scene data, or hybrid source ownership | `rojo-project.md`, `architecture.md`, `testing.md` |
 | Rojo server process, port ownership, project connection, or Studio preflight | `rojo-project.md`, `architecture.md`, `testing.md` |
@@ -83,6 +84,9 @@ affects save-provider and communication contracts.
   waiting, and destruction.
 - `teleport.md`: server-authoritative session continuity, per-player attempts,
   trusted arrival origin, client projection, and safe presentation.
+- `ui.md`: client UI root/host ownership, controller identity and cleanup,
+  semantic bubbling, window boundaries, data-only authoring, and exact derived
+  configuration constraints.
 - `feature-workflow.md`: owned feature namespaces, canonical feature branches,
   generated dashboards, feature-scoped writer exclusion, portable worklog
   context, user-authorized state transitions, and completion gates.

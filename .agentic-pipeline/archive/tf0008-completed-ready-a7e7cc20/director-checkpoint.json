@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "feature": "deterministic-feature-dashboard-validation",
+  "phase": "ready",
+  "next_action": {
+    "action": "run_ready",
+    "owner": "technical_director",
+    "user_input_required": false
+  },
+  "user_input_required": false,
+  "revisions": {
+    "revision": "61abaa72e0ba1c741dd415f9cdf461564d02f2b76510e6f86acd61b97c931fbe",
+    "product_revision": "2afa86133d4d97b6db4ad41baadbcbaa4515a57359b229ff45b054abd62223d7",
+    "support_revision": "2245dd0e0a3f5f0cdb3f2b4b56b2de25f1faa42c809158971e59ddc5ceed3d73",
+    "evidence_revision": "b11cbcb10f9c9d5c7b388ac33ea898732d3d883f396129e98251fa11bfe26288"
+  },
+  "active_slice": "SLICE-001",
+  "active_write_lease": null,
+  "active_remediation_batch": null,
+  "latest_capsule": {
+    "capsule_id": "CAP-0019",
+    "path": "tests/deterministic-feature-dashboard-validation/verification/tf0008-final-review-integration-02-capsule.json",
+    "sha256": "20fb5a519ca48f0f0bc2a9254c540b15cc7959f0ba3e05f2c1640fe3cf73ab36",
+    "capsule_sha256": "0d0df8334de77df589ba4c0f8b540d25590d52f844165b2a8f424a7a02a94357",
+    "role": "reviewer",
+    "phase": "review",
+    "worker_id": "tf0008-final-review-integration-02"
+  },
+  "latest_handoff": {
+    "handoff_id": "HANDOFF-0005",
+    "path": "tests/deterministic-feature-dashboard-validation/verification/controller/HANDOFF-0005.json",
+    "sha256": "dce05834521f08bbbea32a9aca60d7dc2231594c3ae6d672084f59b99272d684",
+    "handoff_sha256": "f6ff177d55cad2b6f74727e6b5b1f7c1ea551bc7eba8076fea1550162772f73c"
+  },
+  "iteration_control": {
+    "consecutive_product_changes": 1,
+    "max_consecutive_product_changes": 2,
+    "status": "running",
+    "reason": "Director checkpoint: the second consecutive product identity change is the controller-accepted remediation for the exact frozen TF0008-CONV-001..004 batch; independent feature coverage is finalized 18/18 with no findings or gates, so proceed to the controller-required convergence revalidation.",
+    "authorizations": [
+      {
+        "reason": "Director checkpoint: the second consecutive product identity change is the controller-accepted remediation for the exact frozen TF0008-CONV-001..004 batch; independent feature coverage is finalized 18/18 with no findings or gates, so proceed to the controller-required convergence revalidation.",
+        "phase": "convergence_hold",
+        "recorded_at": "2026-08-12T09:11:28+00:00"
+      }
+    ],
+    "resume_phase": null
+  },
+  "worker_budget": {
+    "status": "running",
+    "max_workers": 16,
+    "full_review_waves": 1,
+    "max_full_review_waves": 2,
+    "checkpoint_causes": []
+  },
+  "state_sha256": "a7e7cc20e82df85015ebdd7ee7c00e5cf959326ef73a566297d63db528b2c0a6",
+  "findings_sha256": "45ac7f7394b41dc03880af2b880bf70f9c4e0055ec7b0a1ca921d6be010e3e85",
+  "generated_at": "2026-08-12T12:56:25+00:00"
+}

@@ -1,0 +1,15 @@
+{
+  "outcome": "fail",
+  "findings": [
+    {
+      "text": ".agents/skills/window-authoring/SKILL.md:47-62 creates only the canonical definition and then says to use BaseWindowView, but it never instructs the author to create the repo-owned concrete BaseWindowView implementation or bind that view's ViewModel, semantic events, optional lifecycle transitions, and asynchronous navigation behavior. PRD-REQ-062/PRD-REQ-100 and technical specification section 4.7 require the authoring skill itself to explain those concrete-window steps; following the current skill can therefore stop at a definition with no usable project window implementation. Add a bounded owner-specific concrete-view authoring step that uses the inherited UI contracts and states how the definition's CreateView/TryCastView/InitializeView bind to it.",
+      "severity": "P1",
+      "kind": "requirement"
+    },
+    {
+      "text": ".agents/skills/window-authoring/SKILL.md:36-39 permits BlockObjectRef to target any full-screen transparent GuiObject inside the root, but technical specification section 4.7 requires that InputSink to be above interactive content. The canonical seed places Content at ZIndex 1, so an author following the current instruction can place the sink at or below Content and produce a window whose effective blocking token does not practically cover its controls. Require the sink's full-root geometry and display/Z placement above all interactive content while keeping it inside the same root.",
+      "severity": "P1",
+      "kind": "requirement"
+    }
+  ]
+}

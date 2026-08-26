@@ -1,0 +1,6 @@
+{
+  "outcome": "pass",
+  "checks": [
+    "Source and authority inspection confirms SLICE-001: UiSystem and UiRootController atomically expose one persistent safe-area UiRoot with ordered empty HUD, toast, and window hosts; the identity, bubbling, catalog, serializer, cleanup, and read-only non-blocking event contracts are implemented and composed through the existing client manifest without an automatic window or second bootstrap."
+  ]
+}

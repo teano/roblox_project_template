@@ -1,47 +1,557 @@
 {
-  "active_architect_id": "tf-0008-architect-r2-a",
+  "acceptance": {
+    "accepted_at": "2026-08-25T02:30:11+00:00",
+    "accepted_by": "tf0010-ui-spec-architect-local-fixture-20260825",
+    "prd_path": "docs/Features/template/ui-system/product-requirements.md",
+    "prd_revision": "3",
+    "prd_sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995",
+    "recovery_token": null,
+    "specification_path": "docs/Features/template/ui-system/technical-specification.md",
+    "specification_revision": 9,
+    "specification_sha256": "e644d22ca63856f2ef361252a53edee5f80999f2637b65a04663ff3e667d84cf"
+  },
+  "active_architect_id": "tf0010-ui-spec-architect-local-fixture-20260825",
   "active_wave": null,
   "architects": [
     {
-      "cycles_completed": 2,
+      "cycles_completed": 3,
       "ended_at": null,
       "handoff_reason": null,
-      "id": "tf-0008-architect-r2-a",
-      "started_at": "2026-08-11T19:56:50+00:00"
+      "id": "tf0010-ui-spec-architect-local-fixture-20260825",
+      "started_at": "2026-08-25T00:17:09+00:00"
     }
   ],
-  "created_at": "2026-08-11T19:56:50+00:00",
-  "feature": "deterministic-feature-dashboard-validation",
+  "created_at": "2026-08-21T07:50:06+00:00",
+  "feature": "ui-system",
+  "history": [
+    {
+      "draft_sha256": "2e4c5c0c815ba7ca51350075910bf093be241fe28a80157af4fc5a051daad930",
+      "event": "in_progress_prd_revision_opened",
+      "in_progress_disposition": "superseded_by_prd_revision",
+      "new_architect_id": "tf0010-ui-spec-architect-r3-a",
+      "new_prd": {
+        "approved_at": "2026-08-21T10:10:53.2835529Z",
+        "path": "docs/Features/template/ui-system/product-requirements.md",
+        "revision": "3",
+        "sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995",
+        "validation_sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995"
+      },
+      "next_revision": 2,
+      "opened_at": "2026-08-21T10:53:35+00:00",
+      "prior_acceptance": {
+        "accepted_at": "2026-08-21T08:17:30+00:00",
+        "accepted_by": "tf0010-ui-spec-architect-a",
+        "prd_path": "docs/Features/template/ui-system/product-requirements.md",
+        "prd_revision": "2",
+        "prd_sha256": "00cb15f2555555bc37ecf7e4406576faee5ddb84c9cd74567b02a70be78b076a",
+        "recovery_token": null,
+        "specification_path": "docs/Features/template/ui-system/technical-specification.md",
+        "specification_revision": 1,
+        "specification_sha256": "e432626ca99a604e59f893457ad270fe0e988ae45947cb209a421d2d49d6d129"
+      },
+      "prior_active_wave": {
+        "architect_id": "tf0010-ui-spec-architect-a",
+        "number": 1,
+        "proofread": {
+          "coverage_complete": false,
+          "critical": 0,
+          "finding_ids": [
+            "F-001",
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012"
+          ],
+          "major": 12,
+          "minor": 0,
+          "minors_engineer_resolvable": true,
+          "question_ids": [
+            "F-001",
+            "F-002",
+            "F-003",
+            "F-004",
+            "F-005",
+            "F-006",
+            "F-007",
+            "F-008",
+            "F-009",
+            "F-010",
+            "F-011",
+            "F-012"
+          ],
+          "questions": {
+            "boundary": 2,
+            "ownership": 3,
+            "product": 0,
+            "public_contract": 7,
+            "scope": 0
+          },
+          "recorded_at": "2026-08-21T08:39:55+00:00",
+          "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-proofreader-01.md"
+        },
+        "proofreader_id": "tf0010-ui-spec-proofreader-01",
+        "spec_sha256": "e432626ca99a604e59f893457ad270fe0e988ae45947cb209a421d2d49d6d129",
+        "started_at": "2026-08-21T08:27:32+00:00"
+      },
+      "prior_architects": [
+        {
+          "cycles_completed": 0,
+          "ended_at": null,
+          "handoff_reason": null,
+          "id": "tf0010-ui-spec-architect-a",
+          "started_at": "2026-08-21T07:50:06+00:00"
+        }
+      ],
+      "prior_hold": null,
+      "prior_hold_history": [],
+      "prior_prd": {
+        "path": "docs/Features/template/ui-system/product-requirements.md",
+        "revision": "2",
+        "sha256": "00cb15f2555555bc37ecf7e4406576faee5ddb84c9cd74567b02a70be78b076a"
+      },
+      "prior_ready": null,
+      "prior_revision": 1,
+      "prior_spec_sha256": "e432626ca99a604e59f893457ad270fe0e988ae45947cb209a421d2d49d6d129",
+      "prior_specification": {
+        "path": "docs/Features/template/ui-system/technical-specification.md",
+        "sha256": "e432626ca99a604e59f893457ad270fe0e988ae45947cb209a421d2d49d6d129",
+        "status": "draft",
+        "trace_errors": []
+      },
+      "prior_status": "reviewing",
+      "prior_total_cycles_completed": 0,
+      "prior_waves": [],
+      "reason": "PRD revision 3 replaces the unnecessary runtime WindowConfig mutation-error contract with an immutable no-mutation API contract; supersede unfinished PRD r2 wave 1 and reconverge the UI specification under the user-confirmed minimal existing-API, no-scope-expansion constraints.",
+      "revision_kind": "prd_revision",
+      "specification_path": "docs/Features/template/ui-system/technical-specification.md"
+    },
+    {
+      "draft_sha256": "c45e111ef4d003da2b981fa4c9a82c9c866f2d0b071ba3b24e1040bcfd72d397",
+      "event": "ready_specification_revision_opened",
+      "new_architect_id": "tf0010-ui-spec-architect-local-fixture-20260825",
+      "new_prd": {
+        "approved_at": "2026-08-21T10:10:53.2835529Z",
+        "path": "docs/Features/template/ui-system/product-requirements.md",
+        "revision": "3",
+        "sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995",
+        "validation_sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995"
+      },
+      "next_revision": 9,
+      "opened_at": "2026-08-25T00:17:09+00:00",
+      "prior_architects": [
+        {
+          "cycles_completed": 5,
+          "ended_at": "2026-08-21T13:32:46+00:00",
+          "handoff_reason": "The prior Architect completed the bounded maximum of five revision cycles. Rotate to a fresh Architect solely to independently own/confirm the already accepted approved revision 7 candidate and permit a fresh clean proofread wave; no specification edit, PRD change, source/runtime action, or scope expansion is authorized by this handoff.",
+          "id": "tf0010-ui-spec-architect-r3-a",
+          "started_at": "2026-08-21T10:53:35+00:00"
+        },
+        {
+          "cycles_completed": 2,
+          "ended_at": null,
+          "handoff_reason": null,
+          "id": "tf0010-ui-spec-architect-r3-b",
+          "started_at": "2026-08-21T13:32:46+00:00"
+        }
+      ],
+      "prior_hold_history": [
+        {
+          "architect_id": "tf0010-ui-spec-architect-r3-a",
+          "attempted_proofreader_id": "tf0010-ui-spec-proofreader-r3-06",
+          "cycles_completed": 5,
+          "entered_at": "2026-08-21T13:32:16+00:00",
+          "next_actions": [
+            "handoff-architect",
+            "user-gate"
+          ],
+          "reason": "architect_cycle_limit"
+        },
+        {
+          "architect_id": "tf0010-ui-spec-architect-r3-a",
+          "attempted_proofreader_id": "tf0010-ui-spec-proofreader-r3-06",
+          "cycles_completed": 5,
+          "decision_note": "The prior Architect completed the bounded maximum of five revision cycles. Rotate to a fresh Architect solely to independently own/confirm the already accepted approved revision 7 candidate and permit a fresh clean proofread wave; no specification edit, PRD change, source/runtime action, or scope expansion is authorized by this handoff.",
+          "entered_at": "2026-08-21T13:32:16+00:00",
+          "new_architect_id": "tf0010-ui-spec-architect-r3-b",
+          "next_actions": [
+            "handoff-architect",
+            "user-gate"
+          ],
+          "reason": "architect_cycle_limit",
+          "resolved_at": "2026-08-21T13:32:46+00:00",
+          "resolved_by": "handoff-architect"
+        }
+      ],
+      "prior_prd": {
+        "approved_at": "2026-08-21T10:10:53.2835529Z",
+        "path": "docs/Features/template/ui-system/product-requirements.md",
+        "revision": "3",
+        "sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995",
+        "validation_sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995"
+      },
+      "prior_ready": {
+        "architect_id": "tf0010-ui-spec-architect-r3-b",
+        "confirmed_at": "2026-08-21T14:24:49+00:00",
+        "prd_sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995",
+        "proofreader_id": "tf0010-ui-spec-proofreader-r3-08",
+        "spec_sha256": "05bca4cc21bb5e2f80a425a74dc80ab9c0a3a5fd320ed5e4ad1b2b921c5690ff"
+      },
+      "prior_ready_sha256": "05bca4cc21bb5e2f80a425a74dc80ab9c0a3a5fd320ed5e4ad1b2b921c5690ff",
+      "prior_revision": 8,
+      "prior_specification": {
+        "path": "docs/Features/template/ui-system/technical-specification.md",
+        "sha256": "05bca4cc21bb5e2f80a425a74dc80ab9c0a3a5fd320ed5e4ad1b2b921c5690ff",
+        "status": "approved",
+        "trace_errors": []
+      },
+      "prior_total_cycles_completed": 7,
+      "prior_waves": [
+        {
+          "architect_id": "tf0010-ui-spec-architect-r3-a",
+          "architect_response": "Resolved F-R3-001..004 in one minimal existing-API pass: explicit UiCloseResult NoOp branch; off-tree prepared candidates until atomic WindowHost/stack/Active commit; consistent blocker/navigation/navigator ownership split; corrected AC-002/016/022/023 mappings and representative fixtures. Specification advanced to approved revision 3; no scope expansion or neighboring-system changes.",
+          "completed_at": "2026-08-21T11:45:09+00:00",
+          "number": 1,
+          "outcome": "revised",
+          "proofread": {
+            "coverage_complete": false,
+            "critical": 0,
+            "finding_ids": [
+              "F-R3-001",
+              "F-R3-002",
+              "F-R3-003",
+              "F-R3-004"
+            ],
+            "major": 4,
+            "minor": 0,
+            "minors_engineer_resolvable": true,
+            "question_ids": [],
+            "questions": {
+              "boundary": 0,
+              "ownership": 0,
+              "product": 0,
+              "public_contract": 0,
+              "scope": 0
+            },
+            "recorded_at": "2026-08-21T11:32:45+00:00",
+            "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-r3-proofreader-01.md"
+          },
+          "proofreader_id": "tf0010-ui-spec-proofreader-r3-01",
+          "result_spec_sha256": "9802b1595fe7d74a4b4295385c4283997712f9e2db10df8ef00812e8fa96d1f0",
+          "spec_sha256": "f65af520d93816306d0d4b55ba2c04de47729beb5b77ffe55d2691f0bd4d550d",
+          "started_at": "2026-08-21T11:19:07+00:00",
+          "user_decision": null
+        },
+        {
+          "architect_id": "tf0010-ui-spec-architect-r3-a",
+          "architect_response": "Resolved F-R3-02-001 in one minimal UI-internal pass: added one per-generation WindowElementBinding at BaseWindowView for atomic identity/event/navigation bind-unbind, exposed only read-only CanEmitAction authority, synchronized dynamic navigation membership and deterministic focus restoration, and extended only TS-TEST-006/007/013. Specification advanced to approved revision 4; no neighboring-system API or scope expansion.",
+          "completed_at": "2026-08-21T12:15:18+00:00",
+          "number": 2,
+          "outcome": "revised",
+          "proofread": {
+            "coverage_complete": false,
+            "critical": 0,
+            "finding_ids": [
+              "F-R3-02-001"
+            ],
+            "major": 1,
+            "minor": 0,
+            "minors_engineer_resolvable": true,
+            "question_ids": [],
+            "questions": {
+              "boundary": 0,
+              "ownership": 0,
+              "product": 0,
+              "public_contract": 0,
+              "scope": 0
+            },
+            "recorded_at": "2026-08-21T12:02:21+00:00",
+            "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-r3-proofreader-02.md"
+          },
+          "proofreader_id": "tf0010-ui-spec-proofreader-r3-02",
+          "result_spec_sha256": "e11732d8a40242ff5c6ad058e308e1364145f032d9fd7e0d87fefa9d130c3ffe",
+          "spec_sha256": "9802b1595fe7d74a4b4295385c4283997712f9e2db10df8ef00812e8fa96d1f0",
+          "started_at": "2026-08-21T11:45:23+00:00",
+          "user_decision": null
+        },
+        {
+          "architect_id": "tf0010-ui-spec-architect-r3-a",
+          "architect_response": "Resolved wave-3 F-001/F-002/F-003 in one minimal pass: exposed a generation-safe self-release manual input-block handle on BaseWindowView over the existing WindowInputBlocker; added only a nominated-default overload to the existing atomic AddNestedUiElement transaction for 0-to-nonzero navigation; and made UiInitializationCommand unwrap UiVoidResult into a stable runner-visible error while UiSystem remains result-only. Specification advanced to approved revision 5; no new service, neighboring API change, or scope expansion.",
+          "completed_at": "2026-08-21T12:42:22+00:00",
+          "number": 3,
+          "outcome": "revised",
+          "proofread": {
+            "coverage_complete": true,
+            "critical": 0,
+            "finding_ids": [
+              "F-001",
+              "F-002",
+              "F-003"
+            ],
+            "major": 2,
+            "minor": 1,
+            "minors_engineer_resolvable": true,
+            "question_ids": [],
+            "questions": {
+              "boundary": 0,
+              "ownership": 0,
+              "product": 0,
+              "public_contract": 0,
+              "scope": 0
+            },
+            "recorded_at": "2026-08-21T12:34:31+00:00",
+            "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-r3-proofreader-03.md"
+          },
+          "proofreader_id": "tf0010-ui-spec-proofreader-r3-03",
+          "result_spec_sha256": "cfb6012d2232faeea1feaf997d7dfc8ab84317d57162c6c5bdbc971a9da3068d",
+          "spec_sha256": "e11732d8a40242ff5c6ad058e308e1364145f032d9fd7e0d87fefa9d130c3ffe",
+          "started_at": "2026-08-21T12:15:31+00:00",
+          "user_decision": null
+        },
+        {
+          "architect_id": "tf0010-ui-spec-architect-r3-a",
+          "architect_response": "Resolved F-R3-04-001..003 in one minimal pass: added only a nominated-replacement-default overload to the existing atomic RemoveNestedUiElement transaction; made absent DerivedWindowConfig an empty runtime source while initialized-derived enforcement stays in project initialization and repository validation; and named the exact future repo-local project-initialize skill artifact and convention manifest required by PRD-REQ-100. Specification advanced to approved revision 6; no runtime discriminator, new registry/service, neighboring API change, or scope expansion.",
+          "completed_at": "2026-08-21T13:06:38+00:00",
+          "number": 4,
+          "outcome": "revised",
+          "proofread": {
+            "coverage_complete": true,
+            "critical": 0,
+            "finding_ids": [
+              "F-R3-04-001",
+              "F-R3-04-002",
+              "F-R3-04-003"
+            ],
+            "major": 3,
+            "minor": 0,
+            "minors_engineer_resolvable": true,
+            "question_ids": [],
+            "questions": {
+              "boundary": 0,
+              "ownership": 0,
+              "product": 0,
+              "public_contract": 0,
+              "scope": 0
+            },
+            "recorded_at": "2026-08-21T13:00:58+00:00",
+            "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-r3-proofreader-04.md"
+          },
+          "proofreader_id": "tf0010-ui-spec-proofreader-r3-04",
+          "result_spec_sha256": "ca4a818e451b2af9f232bf0daff34a60bdbe32d2f2046c1944894bf92f4fee5f",
+          "spec_sha256": "cfb6012d2232faeea1feaf997d7dfc8ab84317d57162c6c5bdbc971a9da3068d",
+          "started_at": "2026-08-21T12:42:34+00:00",
+          "user_decision": null
+        },
+        {
+          "architect_id": "tf0010-ui-spec-architect-r3-a",
+          "architect_response": "Resolved F-R3-05-001 in the fifth and final Architect revision cycle: WindowDefinition now requires a typed InitializeView(TView, TViewModel) adapter that delegates exactly once to BaseWindowView.Initialize(unknown), making definition-to-model association statically consumable by both typed operations while universal runtime validation remains unchanged. Heterogeneous config uses only a private opaque erased type over the same canonical tables; no wrapper, second config/registry, neighboring API change, or scope expansion. Specification advanced to approved revision 7.",
+          "completed_at": "2026-08-21T13:32:02+00:00",
+          "number": 5,
+          "outcome": "revised",
+          "proofread": {
+            "coverage_complete": true,
+            "critical": 0,
+            "finding_ids": [
+              "F-R3-05-001"
+            ],
+            "major": 1,
+            "minor": 0,
+            "minors_engineer_resolvable": true,
+            "question_ids": [],
+            "questions": {
+              "boundary": 0,
+              "ownership": 0,
+              "product": 0,
+              "public_contract": 0,
+              "scope": 0
+            },
+            "recorded_at": "2026-08-21T13:24:11+00:00",
+            "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-r3-proofreader-05.md"
+          },
+          "proofreader_id": "tf0010-ui-spec-proofreader-r3-05",
+          "result_spec_sha256": "bee45379a63a1d3d262fd810866e69585e1000f32baffc4d8c1b4ea022a8d515",
+          "spec_sha256": "ca4a818e451b2af9f232bf0daff34a60bdbe32d2f2046c1944894bf92f4fee5f",
+          "started_at": "2026-08-21T13:06:50+00:00",
+          "user_decision": null
+        },
+        {
+          "architect_id": "tf0010-ui-spec-architect-r3-b",
+          "architect_response": "Resolved F-R3-07-001..003 in one minimal documentation-only pass: one canonical typed per-window definition ModuleScript supplies the same table identity to config and typed callers; TS-STATIC-001 adds Studio/project Script Analysis evidence without a new dependency and keeps TS-TEST-010 runtime-only; one private stateless UiSyncHookGuard uses a single resume plus coroutine.close to reject yielding Initialize/Clear/OnClear/Pause/Resume hooks through existing phase recovery. Specification advanced to approved revision 8; no neighboring-system API change, source/runtime action, or scope expansion.",
+          "completed_at": "2026-08-21T14:08:13+00:00",
+          "number": 6,
+          "outcome": "revised",
+          "proofread": {
+            "coverage_complete": true,
+            "critical": 0,
+            "finding_ids": [
+              "F-R3-07-001",
+              "F-R3-07-002",
+              "F-R3-07-003"
+            ],
+            "major": 3,
+            "minor": 0,
+            "minors_engineer_resolvable": true,
+            "question_ids": [],
+            "questions": {
+              "boundary": 0,
+              "ownership": 0,
+              "product": 0,
+              "public_contract": 0,
+              "scope": 0
+            },
+            "recorded_at": "2026-08-21T13:46:36+00:00",
+            "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-r3-proofreader-07.md"
+          },
+          "proofreader_id": "tf0010-ui-spec-proofreader-r3-07",
+          "result_spec_sha256": "05bca4cc21bb5e2f80a425a74dc80ab9c0a3a5fd320ed5e4ad1b2b921c5690ff",
+          "spec_sha256": "bee45379a63a1d3d262fd810866e69585e1000f32baffc4d8c1b4ea022a8d515",
+          "started_at": "2026-08-21T13:33:10+00:00",
+          "user_decision": null
+        },
+        {
+          "architect_confirmation": "Architect B confirms accepted UI System technical specification revision 8 is complete against approved PRD revision 3; independent proofreader wave 7 passed with complete exact coverage, zero Critical/Major/Minor findings, zero unresolved questions, and immutable accepted hashes. No source/runtime/Studio/Development Plan action or scope expansion occurred.",
+          "architect_id": "tf0010-ui-spec-architect-r3-b",
+          "completed_at": "2026-08-21T14:24:49+00:00",
+          "number": 7,
+          "outcome": "spec_ready",
+          "proofread": {
+            "coverage_complete": true,
+            "critical": 0,
+            "finding_ids": [],
+            "major": 0,
+            "minor": 0,
+            "minors_engineer_resolvable": true,
+            "question_ids": [],
+            "questions": {
+              "boundary": 0,
+              "ownership": 0,
+              "product": 0,
+              "public_contract": 0,
+              "scope": 0
+            },
+            "recorded_at": "2026-08-21T14:24:37+00:00",
+            "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-r3-proofreader-08.md"
+          },
+          "proofreader_id": "tf0010-ui-spec-proofreader-r3-08",
+          "result_spec_sha256": "05bca4cc21bb5e2f80a425a74dc80ab9c0a3a5fd320ed5e4ad1b2b921c5690ff",
+          "spec_sha256": "05bca4cc21bb5e2f80a425a74dc80ab9c0a3a5fd320ed5e4ad1b2b921c5690ff",
+          "started_at": "2026-08-21T14:08:56+00:00"
+        }
+      ],
+      "reason": "Replace mandatory published-place/cloud positive TS-TEST-016 release evidence with a deterministic repository-owned local data-only fixture exercising the same WindowAssetLoader and TemplateWindowConfig contract; retain production cloud AssetId capability and make cloud smoke conditional on an already-approved external fixture because this run forbids AssetId requests, publish, deploy, and cloud mutation.",
+      "recovery_authorization": {
+        "prior_spec_sha256": "05bca4cc21bb5e2f80a425a74dc80ab9c0a3a5fd320ed5e4ad1b2b921c5690ff",
+        "reason": "Replace mandatory published-place/cloud positive TS-TEST-016 release evidence with a deterministic repository-owned local data-only fixture exercising the same WindowAssetLoader and TemplateWindowConfig contract; retain production cloud AssetId capability and make cloud smoke conditional on an already-approved external fixture because this run forbids AssetId requests, publish, deploy, and cloud mutation.",
+        "runtime_state_path": ".agentic-pipeline-v2/state.json",
+        "runtime_state_sha256": "6fcd6718d72627a3b6c59cada07f2bfba3e1dfdbfbb60d5b23e2a67404f35e86",
+        "schema": 1,
+        "token": null
+      },
+      "recovery_token": null,
+      "revision_kind": "specification_only",
+      "spec_ready_disposition": "revoked_by_specification_revision",
+      "specification_only": true,
+      "specification_path": "docs/Features/template/ui-system/technical-specification.md"
+    }
+  ],
   "hold": null,
   "hold_history": [],
+  "identity_history": [
+    "tf0010-ui-spec-architect-a",
+    "tf0010-ui-spec-architect-local-fixture-20260825",
+    "tf0010-ui-spec-architect-r3-a",
+    "tf0010-ui-spec-architect-r3-b",
+    "tf0010-ui-spec-proofreader-01",
+    "tf0010-ui-spec-proofreader-local-fixture-20260825-01",
+    "tf0010-ui-spec-proofreader-local-fixture-20260825-02",
+    "tf0010-ui-spec-proofreader-local-fixture-20260825-03",
+    "tf0010-ui-spec-proofreader-r3-01",
+    "tf0010-ui-spec-proofreader-r3-02",
+    "tf0010-ui-spec-proofreader-r3-03",
+    "tf0010-ui-spec-proofreader-r3-04",
+    "tf0010-ui-spec-proofreader-r3-05",
+    "tf0010-ui-spec-proofreader-r3-06",
+    "tf0010-ui-spec-proofreader-r3-07",
+    "tf0010-ui-spec-proofreader-r3-08"
+  ],
   "prd": {
-    "path": "docs/Features/template/deterministic-feature-dashboard-validation/product-requirements.md",
-    "revision": "2",
-    "sha256": "ec6edd8462d5fed2c4f97909eb3bdcd20ce2ef99fe382e5f12d5d48b12b3258a"
+    "approved_at": "2026-08-21T10:10:53.2835529Z",
+    "path": "docs/Features/template/ui-system/product-requirements.md",
+    "revision": "3",
+    "sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995",
+    "validation_sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995"
   },
   "ready": {
-    "architect_id": "tf-0008-architect-r2-a",
-    "confirmed_at": "2026-08-11T20:23:10+00:00",
-    "prd_sha256": "ec6edd8462d5fed2c4f97909eb3bdcd20ce2ef99fe382e5f12d5d48b12b3258a",
-    "proofreader_id": "tf-0008-proofreader-r2-02",
-    "spec_sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2"
+    "architect_id": "tf0010-ui-spec-architect-local-fixture-20260825",
+    "confirmed_at": "2026-08-25T02:37:44+00:00",
+    "prd_sha256": "31f00b75820a2a917ea55c1f486a3846b7e273eb689f563601ec2093269c0995",
+    "proofreader_id": "tf0010-ui-spec-proofreader-local-fixture-20260825-03",
+    "spec_sha256": "e644d22ca63856f2ef361252a53edee5f80999f2637b65a04663ff3e667d84cf"
   },
-  "schema_version": 1,
+  "recovery_authorization": {
+    "prior_spec_sha256": "05bca4cc21bb5e2f80a425a74dc80ab9c0a3a5fd320ed5e4ad1b2b921c5690ff",
+    "reason": "Replace mandatory published-place/cloud positive TS-TEST-016 release evidence with a deterministic repository-owned local data-only fixture exercising the same WindowAssetLoader and TemplateWindowConfig contract; retain production cloud AssetId capability and make cloud smoke conditional on an already-approved external fixture because this run forbids AssetId requests, publish, deploy, and cloud mutation.",
+    "runtime_state_path": ".agentic-pipeline-v2/state.json",
+    "runtime_state_sha256": "6fcd6718d72627a3b6c59cada07f2bfba3e1dfdbfbb60d5b23e2a67404f35e86",
+    "schema": 1,
+    "token": null
+  },
+  "schema_version": 2,
   "specification": {
-    "path": "docs/Features/template/deterministic-feature-dashboard-validation/technical-specification.md",
-    "sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2",
+    "path": "docs/Features/template/ui-system/technical-specification.md",
+    "sha256": "e644d22ca63856f2ef361252a53edee5f80999f2637b65a04663ff3e667d84cf",
     "status": "approved",
     "trace_errors": []
   },
   "status": "spec_ready",
-  "total_cycles_completed": 2,
-  "updated_at": "2026-08-11T20:23:10+00:00",
+  "total_cycles_completed": 3,
+  "updated_at": "2026-08-25T02:37:44+00:00",
   "waves": [
     {
-      "architect_id": "tf-0008-architect-r2-a",
-      "architect_response": "Wave 1 was clean with complete 42-ID coverage and zero findings/questions; the same Architect changed only frontmatter status from draft to approved so a fresh final Proofreader can review the exact readiness candidate.",
-      "completed_at": "2026-08-11T20:16:34+00:00",
+      "architect_id": "tf0010-ui-spec-architect-local-fixture-20260825",
+      "architect_response": "Resolved F-001/F-002/F-003 with one canonical repository-owned local data-only fixture route shared by TS-TEST-012 and TS-TEST-016 through WindowConfigCompiler and production WindowAssetLoader; restored a separate mandatory read-only AllowInsertFreeAssets=false exact-place evidence gate; retained production cloud AssetId capability and conditional approved-fixture cloud smoke without changing unrelated behavior, ownership, or public API.",
+      "completed_at": "2026-08-25T02:22:52+00:00",
       "number": 1,
+      "outcome": "revised",
+      "proofread": {
+        "coverage_complete": true,
+        "critical": 0,
+        "finding_ids": [
+          "F-001",
+          "F-002",
+          "F-003"
+        ],
+        "major": 3,
+        "minor": 0,
+        "minors_engineer_resolvable": true,
+        "question_ids": [],
+        "questions": {
+          "boundary": 0,
+          "ownership": 0,
+          "product": 0,
+          "public_contract": 0,
+          "scope": 0
+        },
+        "recorded_at": "2026-08-25T02:15:18+00:00",
+        "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-proofreader-local-fixture-20260825-01.md"
+      },
+      "proofreader_id": "tf0010-ui-spec-proofreader-local-fixture-20260825-01",
+      "result_spec_sha256": "606bd4c362f6c71b2d24616d1d013f92b0e42c4ec8347a14c1098f836ea4327e",
+      "spec_sha256": "797047127715f57bdd5b4bb67e78ecdba2448f858193fdf710099c8d92e1eca0",
+      "started_at": "2026-08-25T02:05:41+00:00",
+      "user_decision": null
+    },
+    {
+      "architect_id": "tf0010-ui-spec-architect-local-fixture-20260825",
+      "architect_response": "After fresh proofreader wave 2 passed with zero findings, set only the Specification revision 9 frontmatter status from draft to approved as required by the public SPEC_READY gate; byte-level reconstruction proves all semantic content is unchanged.",
+      "completed_at": "2026-08-25T02:30:00+00:00",
+      "number": 2,
       "outcome": "revised",
       "proofread": {
         "coverage_complete": true,
@@ -58,20 +568,20 @@
           "public_contract": 0,
           "scope": 0
         },
-        "recorded_at": "2026-08-11T20:15:19+00:00",
-        "report_path": ".agentic-pipeline/reports/tf0008-spec-r2-proofreader-01.md"
+        "recorded_at": "2026-08-25T02:28:50+00:00",
+        "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-proofreader-local-fixture-20260825-02.md"
       },
-      "proofreader_id": "tf-0008-proofreader-r2-01",
-      "result_spec_sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2",
-      "spec_sha256": "bc012b6c59049804317b5afc7d6799afd6c7078c152785dec5995bc5ab1eb600",
-      "started_at": "2026-08-11T20:09:26+00:00",
+      "proofreader_id": "tf0010-ui-spec-proofreader-local-fixture-20260825-02",
+      "result_spec_sha256": "e644d22ca63856f2ef361252a53edee5f80999f2637b65a04663ff3e667d84cf",
+      "spec_sha256": "606bd4c362f6c71b2d24616d1d013f92b0e42c4ec8347a14c1098f836ea4327e",
+      "started_at": "2026-08-25T02:23:23+00:00",
       "user_decision": null
     },
     {
-      "architect_confirmation": "Architect tf-0008-architect-r2-a confirms the unchanged approved specification SHA ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2 exactly traces approved PRD revision 2 SHA ec6edd8462d5fed2c4f97909eb3bdcd20ce2ef99fe382e5f12d5d48b12b3258a; all 42 PRD IDs are covered by stable 17 SPEC-REQ and 18 SPEC-TEST definitions; Windows 10 remains solely best-effort/nonblocking; zero unresolved findings or questions; no post-proofreader edits detected.",
-      "architect_id": "tf-0008-architect-r2-a",
-      "completed_at": "2026-08-11T20:23:10+00:00",
-      "number": 2,
+      "architect_confirmation": "Approved Specification revision 9 is complete against approved PRD revision 3. Fresh independent proofreader wave 3 verified exact immutable approved SHA e644d22ca63856f2ef361252a53edee5f80999f2637b65a04663ff3e667d84cf, complete 175/175 PRD-REQ, 6/6 PRD-NFR, and 91/91 PRD-AC coverage, zero findings and zero unresolved questions. Required release evidence uses the exact repository-owned local fixture route through canonical WindowConfigCompiler and production WindowAssetLoader; AllowInsertFreeAssets=false is a separate mandatory read-only exact-place gate; production cloud AssetId capability remains intact and cloud smoke is conditional on prior explicit fixture approval. No product/runtime/plan mutation or scope expansion occurred.",
+      "architect_id": "tf0010-ui-spec-architect-local-fixture-20260825",
+      "completed_at": "2026-08-25T02:37:44+00:00",
+      "number": 3,
       "outcome": "spec_ready",
       "proofread": {
         "coverage_complete": true,
@@ -88,13 +598,13 @@
           "public_contract": 0,
           "scope": 0
         },
-        "recorded_at": "2026-08-11T20:21:35+00:00",
-        "report_path": ".agentic-pipeline/reports/tf0008-spec-r2-proofreader-02.md"
+        "recorded_at": "2026-08-25T02:37:32+00:00",
+        "report_path": ".agentic-pipeline/reports/tf0010-ui-spec-proofreader-local-fixture-20260825-03.md"
       },
-      "proofreader_id": "tf-0008-proofreader-r2-02",
-      "result_spec_sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2",
-      "spec_sha256": "ceececd9a8ba9c59949e3819641735852e6d383bd09ec12e4684f4e6cef0e1e2",
-      "started_at": "2026-08-11T20:16:34+00:00"
+      "proofreader_id": "tf0010-ui-spec-proofreader-local-fixture-20260825-03",
+      "result_spec_sha256": "e644d22ca63856f2ef361252a53edee5f80999f2637b65a04663ff3e667d84cf",
+      "spec_sha256": "e644d22ca63856f2ef361252a53edee5f80999f2637b65a04663ff3e667d84cf",
+      "started_at": "2026-08-25T02:30:21+00:00"
     }
   ]
 }

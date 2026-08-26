@@ -1,0 +1,4 @@
+{
+  "outcome": "pass",
+  "summary": "WindowNavigator now returns CleanupFailed whenever cleanup of a discarded prepared candidate fails across typed cast, Initialize, background configuration, and replacement old-Close recovery branches, while preserving each original failure when cleanup succeeds. Pause and Resume hook diagnostics now preserve UiSyncHookGuard's Error versus Yielded reason, and TS-TEST-008 plus focused cleanup regressions assert the observable contracts. Canonical Studio UiSystemTestRunner passed 14/14."
+}

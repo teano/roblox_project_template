@@ -1,0 +1,10 @@
+{
+  "outcome": "fail",
+  "findings": [
+    {
+      "text": "src/ReplicatedStorage/Client/UI/WindowNavigator.luau still hides a failed cleanup when the same close transition also errors: _close returns CloseFailed whenever state == \"Error\" even if _removeTop returned clean == false, and _replace likewise returns CloseFailed when closeState == \"Error\" and oldClean == false as long as candidate cleanup succeeds. TS-REQ-017 requires CleanupFailed whenever any cleanup/destroy/release step fails, so these reachable combined-failure branches expose the wrong public result and the current tests do not exercise them. Prioritize CleanupFailed whenever clean/oldClean is false and add deterministic coverage for close-error plus removed-window cleanup-error in both direct close and replacement recovery.",
+      "severity": "P1",
+      "kind": "requirement"
+    }
+  ]
+}

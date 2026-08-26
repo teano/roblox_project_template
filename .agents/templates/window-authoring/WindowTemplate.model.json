@@ -1,0 +1,33 @@
+{
+  "className": "Frame",
+  "properties": {
+    "BackgroundTransparency": 1,
+    "ClipsDescendants": false,
+    "Size": [1, 0, 1, 0]
+  },
+  "children": [
+    {
+      "name": "Background",
+      "className": "TextButton",
+      "properties": {
+        "Active": true,
+        "AutoButtonColor": false,
+        "BackgroundTransparency": 1,
+        "BorderSizePixel": 0,
+        "Size": [1, 0, 1, 0],
+        "Text": "",
+        "ZIndex": 0
+      }
+    },
+    {
+      "name": "Content",
+      "className": "Frame",
+      "properties": {
+        "BackgroundTransparency": 1,
+        "BorderSizePixel": 0,
+        "Size": [1, 0, 1, 0],
+        "ZIndex": 1
+      }
+    }
+  ]
+}

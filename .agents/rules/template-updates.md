@@ -156,6 +156,15 @@ must contain only `TF-####` records. Project-owned feature history uses
 `F-####` records and remains under `docs/Features/project/`. After the merge,
 validate both namespace dashboards without rewriting the foreign namespace.
 
+The complete `src/ReplicatedStorage/Project/` namespace is project-owned and
+reserved from the template. Every initialized derived repository preserves
+its exact
+`src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau` across
+upstream updates. If incoming `upstream/main` ever introduces any path in the
+reserved project namespace, stop before merge resolution; do not accept it,
+rename the project file, create a fallback config, or treat the collision as
+ordinary template divergence.
+
 ## Required merge report
 
 Every user-facing completion message for a template merge MUST include:

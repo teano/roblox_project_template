@@ -26,9 +26,26 @@ Assets → Pooling → Players → Communication → Teleport → TeleportValida
 Client order:
 
 ```text
-Assets → StartupContentPreload → Pooling → Players → Communication → Statistics
+Assets → StartupContentPreload → Pooling → Players → UI → Communication → Statistics
        → Teleport → Config → Save → DomainData → GlobalSave
 ```
+
+`UI` constructs no windows automatically. It atomically publishes one
+player-lifetime safe-area `UiRoot`, ordered `HudHost`, `ToastHost`, and empty
+`WindowHost`, plus the narrow host/context/event surfaces used by downstream
+client presentation. It depends explicitly on `StartupContentPreload`,
+`Pooling`, and `Players`; respawn does not rerun it. A typed initialization
+error becomes the stable runner failure `UiInitializationFailed:<Code>`, so
+later commands do not observe partial UI state. See [UiSystem.md](UiSystem.md)
+and [ADR-0045](adr/template/0045-client-ui-system-boundaries.md).
+
+Derived-project initialization creates the exact project-owned strict UTF-8
+`src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau` before
+implementation or build. Its empty frozen sequence is valid. The reusable
+template contains no `src/ReplicatedStorage/Project/` namespace, and runtime
+treats absence of the derived source as an empty sequence rather than trying
+to detect repository kind. Repository validation and the upstream merge rules,
+not bootstrap, enforce the derived ownership boundary.
 
 `Config` loads one server-owned Experience Config snapshot, decodes every
 explicit definition into an atomic immutable generation, and serves only

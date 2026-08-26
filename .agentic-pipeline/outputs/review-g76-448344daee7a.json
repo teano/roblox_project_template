@@ -1,0 +1,20 @@
+{
+  "outcome": "fail",
+  "findings": [
+    {
+      "text": "WindowNavigator:_close discards the boolean returned by _cleanupCandidate and returns Success whenever the Close hook itself succeeded (WindowNavigator.luau:401-405). A reachable BaseWindowView child/OnClear failure therefore destroys or rejects the contaminated candidate but is reported to the caller as a successful close, contrary to technical-specification section 7.3 and the current-slice TS-TEST-007/PRD-AC-013/PRD-AC-076 cleanup contract requiring CleanupFailed when Clear/destroy/release fails. Propagate the cleanup outcome and cover both destroy and pooled failed-cleanup branches.",
+      "severity": "P1",
+      "kind": "reachable-defect"
+    },
+    {
+      "text": "The canonical repo-owned definition.TryCastView is invoked without protection in WindowNavigator:_prepare (WindowNavigator.luau:226), and the same unprotected witness is retained by WindowHandle:GetView. If TryCastView raises, AddWindowTypedAsync escapes an exception after a candidate/lease has been acquired, skips candidate cleanup and operation release, and leaves subsequent window requests returning Busy; GetView can likewise throw instead of returning ViewResult. This violates the current-slice typed-error/no-public-exception and cast-failure cleanup contracts (PRD-AC-016/101 and TS-TEST-010/011). Guard the witness call, clean the candidate, release the gate, and map the failure to the specified typed result.",
+      "severity": "P1",
+      "kind": "reachable-defect"
+    },
+    {
+      "text": "The focused suite labels one happy-path function as TS-TEST-002/003/007/011 and another narrow timeout case as TS-TEST-009/010, while the current tests do not exercise the mandatory SLICE-002 eager failure/timeout and retry path, unsettled-attempt single-flight, malformed/executable prefab rejection, preload failure, canonical TryCastView failure, Initialize cleanup failure, dirty/failed pool release, Background policies, or blocked action behavior. docs/TestCoverage.md:41 nevertheless claims these negative and concurrency partitions. This is an explicit current-slice verification gap that allows the two reachable defects above to pass and makes the documented coverage inaccurate; add deterministic partitions or narrow the claims only where the approved slice contract permits.",
+      "severity": "P1",
+      "kind": "requirement-gap"
+    }
+  ]
+}

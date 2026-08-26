@@ -19,6 +19,111 @@ function Add-Failure {
 	$failures.Add($Message)
 }
 
+function Read-StrictUtf8Text {
+	param(
+		[string]$Path,
+		[string]$Label
+	)
+
+	try {
+		$bytes = [System.IO.File]::ReadAllBytes($Path)
+		$encoding = [System.Text.UTF8Encoding]::new($false, $true)
+		return $encoding.GetString($bytes)
+	} catch {
+		Add-Failure "$Label must be strict UTF-8 without replacement decoding: $Path"
+		return $null
+	}
+}
+
+function Test-WindowTemplateNode {
+	param(
+		[object]$Node,
+		[string]$LogicalPath
+	)
+
+	if ($null -eq $Node -or $null -eq $Node.PSObject.Properties["className"]) {
+		Add-Failure "Window authoring template node is missing className: $LogicalPath"
+		return
+	}
+	$className = [string]$Node.className
+	if ($className -in @("Script", "LocalScript", "ModuleScript")) {
+		Add-Failure "Window authoring template contains executable source at $LogicalPath."
+	}
+	if ($null -ne $Node.PSObject.Properties["children"]) {
+		$index = 0
+		foreach ($child in @($Node.children)) {
+			$index += 1
+			$childName = if ($null -ne $child.PSObject.Properties["name"]) {
+				[string]$child.name
+			} else {
+				"#$index"
+			}
+			Test-WindowTemplateNode -Node $child -LogicalPath "$LogicalPath/$childName"
+		}
+	}
+}
+
+function Test-DerivedWindowConfigSource {
+	param([string]$Path)
+
+	$content = Read-StrictUtf8Text -Path $Path -Label "DerivedWindowConfig"
+	if ($null -eq $content) {
+		return
+	}
+	if (-not [regex]::IsMatch($content, '\A--!strict(?:\r?\n|\z)')) {
+		Add-Failure "DerivedWindowConfig must begin with exact --!strict."
+		return
+	}
+
+	$body = [regex]::Replace($content, '\A--!strict\s*', '')
+	$body = [regex]::Replace($body, '(?m)^\s*--[^\r\n]*(?:\r?\n|\z)', '')
+	$requirePattern = 'local\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*require\(script\.Parent\.Definitions\.([A-Za-z_][A-Za-z0-9_]*)\)\s*'
+	$requires = [regex]::Matches($body, $requirePattern)
+	$declared = @{}
+	foreach ($requireMatch in $requires) {
+		$identifier = $requireMatch.Groups[1].Value
+		if ($declared.ContainsKey($identifier)) {
+			Add-Failure "DerivedWindowConfig declares duplicate local '$identifier'."
+		} else {
+			$declared[$identifier] = $requireMatch.Groups[2].Value
+		}
+	}
+	$remainder = [regex]::Replace($body, $requirePattern, '')
+	$returnMatch = [regex]::Match(
+		$remainder,
+		'\Areturn\s+table\.freeze\(\{(?<Entries>[\s\S]*?)\}\)\s*\z'
+	)
+	if (-not $returnMatch.Success) {
+		Add-Failure (
+			"DerivedWindowConfig must contain only direct sibling Definitions " +
+			"requires and one frozen duplicate-preserving returned sequence."
+		)
+		return
+	}
+
+	$entriesText = $returnMatch.Groups["Entries"].Value.Trim()
+	$entries = @()
+	if ($entriesText.Length -gt 0) {
+		if ($entriesText.EndsWith(",", [System.StringComparison]::Ordinal)) {
+			$entriesText = $entriesText.Substring(0, $entriesText.Length - 1).Trim()
+		}
+		$entries = @($entriesText.Split(',') | ForEach-Object { $_.Trim() })
+		if (@($entries | Where-Object { $_ -eq '' }).Count -gt 0) {
+			Add-Failure "DerivedWindowConfig sequence contains an empty entry."
+		}
+	}
+	foreach ($entry in $entries) {
+		if ($entry -notmatch '\A[A-Za-z_][A-Za-z0-9_]*\z' -or -not $declared.ContainsKey($entry)) {
+			Add-Failure "DerivedWindowConfig entry '$entry' is not a directly required canonical definition."
+		}
+	}
+	foreach ($identifier in $declared.Keys) {
+		if ($identifier -notin $entries) {
+			Add-Failure "DerivedWindowConfig direct require '$identifier' is not listed in the returned sequence."
+		}
+	}
+}
+
 function Get-LuauLongBracketEqualsCount {
 	param(
 		[string]$Content,
@@ -996,6 +1101,123 @@ try {
 } catch {
 	Add-Failure $_.Exception.Message
 }
+
+$windowTemplatePath = Join-Path $repositoryRoot ".agents\templates\window-authoring\WindowTemplate.model.json"
+$windowAuthoringSkillPath = Join-Path $repositoryRoot ".agents\skills\window-authoring\SKILL.md"
+$projectInitializeSkillPath = Join-Path $repositoryRoot ".agents\skills\project-initialize\SKILL.md"
+$projectInitializeMetadataPath = Join-Path $repositoryRoot ".agents\skills\project-initialize\agents\openai.yaml"
+$derivedProjectNamespace = Join-Path $repositoryRoot "src\ReplicatedStorage\Project"
+$derivedWindowConfigPath = Join-Path $derivedProjectNamespace "Client\UI\DerivedWindowConfig.luau"
+
+foreach ($requiredAuthoringPath in @(
+	$windowTemplatePath,
+	$windowAuthoringSkillPath,
+	$projectInitializeSkillPath,
+	$projectInitializeMetadataPath
+)) {
+	if (-not (Test-Path -LiteralPath $requiredAuthoringPath -PathType Leaf)) {
+		Add-Failure "Required UI authoring artifact is missing: $requiredAuthoringPath"
+	}
+}
+
+foreach ($skillMetadataPath in @($projectInitializeMetadataPath)) {
+	if (Test-Path -LiteralPath $skillMetadataPath -PathType Leaf) {
+		$skillMetadata = Read-StrictUtf8Text -Path $skillMetadataPath -Label "UI skill metadata"
+		foreach ($requiredToken in @("interface:", "display_name:", "short_description:", "default_prompt:")) {
+			if ($null -ne $skillMetadata -and -not $skillMetadata.Contains($requiredToken)) {
+				Add-Failure "UI skill metadata is missing required token '$requiredToken': $skillMetadataPath"
+			}
+		}
+	}
+}
+
+if (Test-Path -LiteralPath $windowTemplatePath -PathType Leaf) {
+	$templateContent = Read-StrictUtf8Text -Path $windowTemplatePath -Label "Window authoring template"
+	if ($null -ne $templateContent) {
+		try {
+			$templateModel = $templateContent | ConvertFrom-Json
+			if ([string]$templateModel.className -cne "Frame") {
+				Add-Failure "Window authoring template root must be one Frame."
+			}
+			$templateChildren = @($templateModel.children)
+			$contentChildren = @($templateChildren | Where-Object { $_.name -ceq "Content" })
+			if ($contentChildren.Count -ne 1 -or [string]$contentChildren[0].className -cne "Frame") {
+				Add-Failure "Window authoring template must contain one direct Frame named Content."
+			}
+			$backgroundChildren = @($templateChildren | Where-Object { $_.name -ceq "Background" })
+			if (
+				$backgroundChildren.Count -gt 1 -or
+				($backgroundChildren.Count -eq 1 -and
+				[string]$backgroundChildren[0].className -notin @("TextButton", "ImageButton"))
+			) {
+				Add-Failure "Optional direct Background must be one GuiButton."
+			}
+			$blockRefs = @($templateChildren | Where-Object { $_.name -ceq "BlockObjectRef" })
+			if (
+				$blockRefs.Count -gt 1 -or
+				($blockRefs.Count -eq 1 -and [string]$blockRefs[0].className -cne "ObjectValue")
+			) {
+				Add-Failure "Optional direct BlockObjectRef must be one ObjectValue."
+			}
+			Test-WindowTemplateNode -Node $templateModel -LogicalPath "WindowTemplate"
+		} catch {
+			Add-Failure "Window authoring template must be valid data-only model JSON: $($_.Exception.Message)"
+		}
+	}
+}
+
+if (Test-Path -LiteralPath $windowAuthoringSkillPath -PathType Leaf) {
+	$windowAuthoringSkill = Read-StrictUtf8Text -Path $windowAuthoringSkillPath -Label "window-authoring skill"
+	foreach ($requiredToken in @(
+		"WindowTemplate.model.json",
+		"AllowInsertFreeAssets=false",
+		"DerivedWindowConfig.luau",
+		"DerivedUiActionIds.luau",
+		"LuaSourceContainer",
+		"same returned table"
+	)) {
+		if ($null -ne $windowAuthoringSkill -and -not $windowAuthoringSkill.Contains($requiredToken)) {
+			Add-Failure "window-authoring skill is missing required contract token '$requiredToken'."
+		}
+	}
+}
+
+if (Test-Path -LiteralPath $projectInitializeSkillPath -PathType Leaf) {
+	$projectInitializeSkill = Read-StrictUtf8Text -Path $projectInitializeSkillPath -Label "project-initialize skill"
+	foreach ($requiredToken in @(
+		"src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau",
+		"return table.freeze({})",
+		"validate-repository-layout.ps1",
+		"project-owned path"
+	)) {
+		if ($null -ne $projectInitializeSkill -and -not $projectInitializeSkill.Contains($requiredToken)) {
+			Add-Failure "project-initialize skill is missing required UI token '$requiredToken'."
+		}
+	}
+}
+
+$derivedConfigCopies = @(
+	Get-ChildItem -LiteralPath (Join-Path $repositoryRoot "src") -Recurse -File -Filter "DerivedWindowConfig.luau" |
+		ForEach-Object { $_.FullName }
+)
+if ($isDerivedRepository) {
+	if (-not (Test-Path -LiteralPath $derivedWindowConfigPath -PathType Leaf)) {
+		Add-Failure (
+			"Initialized derived repository must contain exact project-owned " +
+			"src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau."
+		)
+	} else {
+		Test-DerivedWindowConfigSource -Path $derivedWindowConfigPath
+	}
+	foreach ($copy in $derivedConfigCopies) {
+		if (-not [string]::Equals($copy, $derivedWindowConfigPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+			Add-Failure "Alternate DerivedWindowConfig path is forbidden: $copy"
+		}
+	}
+} elseif (Test-Path -LiteralPath $derivedProjectNamespace) {
+	Add-Failure "The reusable template must not contain reserved src/ReplicatedStorage/Project/."
+}
+
 if ($isDerivedRepository) {
 	Test-AdrIndex `
 		-ScopeName "Project" `

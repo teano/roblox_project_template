@@ -1,0 +1,15 @@
+{
+  "outcome": "fail",
+  "findings": [
+    {
+      "text": "WindowNavigator propagates CleanupFailed for a new candidate whose Open failed, but not for every failed-new-candidate cleanup path required by the current slice. In _replace, when the old window Close fails, line 336 discards the boolean result of _cleanup(candidate.Candidate); if that prepared B also fails Clear/destroy/release, the public result remains CloseFailed (or the old-window result) instead of CleanupFailed. The same loss occurs in _prepare at the typed-cast, Initialize, and background failure branches, which call _cleanup and then return the earlier error regardless of cleanup outcome. This violates the approved rule that any cleanup/destroy/release failure returns CleanupFailed and leaves callers unable to distinguish a contaminated/discarded candidate cleanup failure.",
+      "severity": "high",
+      "kind": "requirements"
+    },
+    {
+      "text": "Pause/Resume yield diagnostics do not expose the approved phase reason. UiSyncHookGuard distinguishes Kind = Yielded, but WindowNavigator:_pause and _resume reduce every non-success to ui_window_hook_failed with only WindowId and Phase. TS-TEST-008 likewise stores/asserts only Name and Phase, so its separate error/yield partitions pass even though a yielded hook is observationally indistinguishable from an exception and the required bounded diagnostic Reason = Yielded is absent.",
+      "severity": "medium",
+      "kind": "test-gap"
+    }
+  ]
+}

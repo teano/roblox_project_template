@@ -1,0 +1,10 @@
+{
+  "outcome": "fail",
+  "findings": [
+    {
+      "text": "TS-TEST-013 does not prove PRD-AC-032 through the approved public UiElementContext contract. The canonical type in technical-specification.md defines DeliverToRoot(self, event), but UiElementIdentityRegistry.luau changes that sealed surface to DeliverToRoot(self, event, owner), and the new lifecycle-catalog assertion at UiSystemTestRunner.luau:192 succeeds only by supplying the undocumented owner argument. A downstream caller implemented against the approved public type receives InvalidUIElementId because owner is nil, so the slice cannot seal the advertised host/context event surface or claim public-context catalog/event-stream compatibility until production and the test use the same approved signature.",
+      "severity": "high",
+      "kind": "contract"
+    }
+  ]
+}

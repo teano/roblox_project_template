@@ -1,0 +1,10 @@
+{
+  "outcome": "fail",
+  "findings": [
+    {
+      "text": "WindowNavigator accepts a yielding Open or Close as successful without rechecking the operation owner, generation, or absolute deadline after the hook settles. runHook can return Success after the deadline, and _add/_close/_replace then immediately publish lifecycle, mutate stack/handles, or resume lower windows; Destroy can likewise clear _operation while a hook is running and the resumed caller still continues. This violates the approved requirement that every post-yield commit revalidate gate owner, generation, and deadline, and permits a real late continuation to mutate a torn-down or expired navigation operation. Add the same-generation/deadline check at each post-transition boundary and route stale/expired results through the specified timeout/recovery path.",
+      "severity": "major",
+      "kind": "defect"
+    }
+  ]
+}

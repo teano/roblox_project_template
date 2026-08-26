@@ -1,7 +1,9 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local AssetService = game:GetService("AssetService")
 local ContentProvider = game:GetService("ContentProvider")
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -24,6 +26,7 @@ local OrdinarySoundClient = require(ReplicatedStorage.Client.Audio.OrdinarySound
 local HybridOneShotClientController = require(ReplicatedStorage.Client.Audio.HybridOneShotClientController)
 local MusicClient = require(ReplicatedStorage.Client.Audio.MusicClient)
 local AudioSettingsClient = require(ReplicatedStorage.Client.Audio.AudioSettingsClient)
+local UiSystem = require(ReplicatedStorage.Client.UI.UiSystem)
 
 local Commands = script.Parent.Commands
 local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
@@ -41,6 +44,7 @@ local AudioStartupInitializationCommand = require(Commands.AudioStartupInitializ
 local AudioGraphInitializationCommand = require(Commands.AudioGraphInitializationCommand)
 local OrdinarySoundInitializationCommand = require(Commands.OrdinarySoundInitializationCommand)
 local MusicInitializationCommand = require(Commands.MusicInitializationCommand)
+local UiInitializationCommand = require(Commands.UiInitializationCommand)
 
 local replicatedAssets = ReplicatedStorage:FindFirstChild("Assets")
 assert(replicatedAssets ~= nil and replicatedAssets:IsA("Folder"), "ReplicatedStorage.Assets must be a Folder")
@@ -108,6 +112,20 @@ local hybridAudio = HybridOneShotClientController.new({
 ordinarySound:BindHybridIntentSender(hybridAudio)
 local music = MusicClient.new(poolModule, audioLogger)
 local audioSettings = AudioSettingsClient.new(audioGraph)
+local uiSystem = UiSystem.new({
+	PlayersModule = playersModule,
+	DerivedActionRoot = ReplicatedStorage,
+	DerivedWindowConfigRoot = ReplicatedStorage,
+	Pooling = poolModule,
+	ContentPreloader = contentPreloader,
+	AssetBackend = {
+		LoadAssetAsync = function(_self, assetId: number)
+			return AssetService:LoadAssetAsync(assetId)
+		end,
+	},
+	GuiService = GuiService,
+	Logger = Logger.new("UI.Client", "info"),
+})
 local sharedRoot = ReplicatedStorage:FindFirstChild("Shared")
 local configsRoot = if sharedRoot then sharedRoot:FindFirstChild("Configs") else nil
 local audioConfigRoot = if configsRoot then configsRoot:FindFirstChild("Audio") else nil
@@ -128,6 +146,7 @@ local services = {
 	OrdinarySound = ordinarySound,
 	Music = music,
 	AudioSettings = audioSettings,
+	UI = uiSystem,
 }
 
 return {
@@ -139,6 +158,7 @@ return {
 		StartupContentPreloadCommand.new(contentPreloader),
 		PoolingInitializationCommand.new(poolModule),
 		PlayersInitializationCommand.new(playersModule),
+		UiInitializationCommand.new(uiSystem),
 		CommunicationInitializationCommand.new(communication),
 		AudioGraphInitializationCommand.new(audioGraph),
 		OrdinarySoundInitializationCommand.new(ordinarySound, hybridAudio),

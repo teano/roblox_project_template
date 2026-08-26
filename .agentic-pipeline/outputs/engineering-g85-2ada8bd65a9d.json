@@ -1,0 +1,4 @@
+{
+  "outcome": "pass",
+  "summary": "Implemented the missing deterministic TS-TEST-003, TS-TEST-007, and TS-TEST-009 representative partitions. Reentrant same-window admission now returns NoOp before secondary preparation, cleanup tests prove yielded continuations are closed while siblings and blocker teardown still complete, and transition timeout coverage uses an injected clock/scheduler wait seam to prove one absolute deadline, transition blocking, pooled quarantine, never-ending lease retention, destroy cleanup, stale continuation suppression, and ordinary hook failure without wall-clock timing."
+}

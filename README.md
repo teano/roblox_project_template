@@ -54,13 +54,17 @@ Development Plan, Production Pipeline, Pause, Continue, Finish и Reopen, а
 - Сервер-авторитетные bounded Statistics snapshots для Global, Teleport
   Session, Place и проектных lifecycle с deny-by-default клиентским чтением.
 - Клиентский фасад `GameDataClient` только для чтения.
+- Клиентская UI System с одним безопасным `UiRoot`, HUD/toast/window hosts,
+  типизированными data-only cloud windows, навигацией, pooling и единым
+  семантическим потоком событий.
 - Хранилище Studio в памяти и отключённый по умолчанию smoke-тест настоящего
   DataStore.
 - Правила для агентов и ADR, сохраняющие архитектуру по мере развития шаблона.
 
 ## Что не входит в шаблон
 
-Шаблон не предоставляет конкретные игровые системы, UI, покупки, инвентарь,
+Шаблон не предоставляет конкретные игровые системы, готовые игровые HUD,
+toast/window содержимое, покупки, инвентарь,
 аналитику, реализации VFX/SFX, матчмейкинг или универсальный локатор сервисов.
 Добавляйте их как отдельные модули с явными зависимостями и командами
 инициализации; инфраструктура пула может использоваться такими модулями.
@@ -478,6 +482,8 @@ Wallet → Statistics → project providers → Version (checkpoint commit-provi
 [docs/ContentPreloading.md](docs/ContentPreloading.md).
 Контракт пулов, адаптеров, lease и очистки:
 [docs/ResourceManagement.md](docs/ResourceManagement.md).
+Контракт `UiRoot`, окон, authoring и derived-project UI source:
+[docs/UiSystem.md](docs/UiSystem.md).
 Контракт локальных сигналов, подключений и рассылки:
 [docs/Signal.md](docs/Signal.md).
 Контракт клиент-серверного транспорта, лимитов и восстановления:
@@ -518,6 +524,9 @@ docs/
 ├── Signal.md                         локальные события и lifecycle подключений
 └── UserDataMigrations.md             миграции пользовательских сохранений
 .agents/rules/                        обязательные правила изменения проекта
+.agents/templates/window-authoring/   data-only seed для cloud GUI window
+.agents/skills/window-authoring/      канонический UI authoring workflow
+.agents/skills/project-initialize/    initialization derived repository
 ```
 
 ## Добавление модуля

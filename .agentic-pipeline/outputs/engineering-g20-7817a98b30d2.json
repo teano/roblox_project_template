@@ -1,0 +1,4 @@
+{
+  "outcome": "blocked",
+  "summary": "Implemented the safe in-scope remediation for exact optional DerivedUiActionIds manifest loading, strict PlayerGui class resolution, atomic ancestor-cycle rejection, FormController field removal/re-add behavior, concrete Roblox-signal event coverage including non-blocking failing/yielding listeners and payload exclusion, failed-UI partial-service rejection, and public-contract-only assertions. Finding 6 remains incomplete because exercising the existing InitializationRunner/client-bootstrap seam requires source/API inspection outside the controller-authorized read boundary; the parent explicitly denied that inspection and instructed this assignment to block rather than guess. Controller-owned checks were not run, as required."
+}
