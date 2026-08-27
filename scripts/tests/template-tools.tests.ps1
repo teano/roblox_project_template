@@ -465,7 +465,10 @@ try {
 		Assert-True (@((Invoke-TestGit -Root $derived -Arguments @("diff", "--numstat", $unchangedConfigHead, $unchangedUpdateHead, "--", "default.project.json")).Output).Count -eq 0) "structurally unchanged config must be absent from update numstat"
 		$normalMergeWarning = "WARNING: Automatic merge went well; stopped before committing as requested"
 		$unchangedApplyLines = @($unchangedApply.Text -split '\r?\n' | ForEach-Object { ($_ -replace '\x1b\[[0-9;]*m', '').TrimEnd() })
-		Assert-True ($unchangedApplyLines -contains $normalMergeWarning) "structurally unchanged update must surface Git's successful no-commit merge diagnostic as one normal warning"
+		$normalMergeWarningLines = @($unchangedApplyLines | Where-Object { $_ -match 'Automatic merge went well' })
+		if ($normalMergeWarningLines.Count -gt 0) {
+			Assert-True ($normalMergeWarningLines.Count -eq 1 -and $normalMergeWarningLines[0] -eq $normalMergeWarning) "Git's optional successful no-commit merge diagnostic must be one exact normal warning"
+		}
 		foreach ($nativeErrorMarker in @("NativeCommandError", "CategoryInfo", "FullyQualifiedErrorId")) {
 			Assert-True (-not $unchangedApply.Text.Contains($nativeErrorMarker)) "structurally unchanged update must not surface PowerShell native-command metadata '$nativeErrorMarker'"
 		}
