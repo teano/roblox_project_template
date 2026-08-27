@@ -1,123 +1,58 @@
 # Agent rules index
 
-This file is the mandatory router for project agent rules.
+Use this file as a path-first router. Read the smallest set that covers the
+requested change; do not load every rule by default.
 
-## Selection procedure
+## Selection
 
-Before source edits:
+1. Identify the files that may change.
+2. Match their subsystem or public contract in the table below.
+3. Read every matched rule completely. For a real cross-system change, combine
+   the affected rows.
+4. Read `testing.md` when source, tests, mappings, Studio data, or repository
+   tooling behavior changes.
+5. Read `architecture-decisions.md` and relevant ADRs only when creating or
+   superseding an ADR, or when a durable ownership/public-contract decision is
+   actually changing.
 
-1. Determine whether the repository is the reusable template or a derived game.
-2. If a derived repository has no `docs/adr/project/README.md`, include
-   `project-initialization.md` before its first source change.
-3. Identify every affected path.
-4. Identify every affected architectural concern, even when its implementation lives elsewhere.
-5. Read all matching rule files completely.
-6. Always include `testing.md`.
-7. Include `architecture.md` for new modules, new commands, cross-system changes, ownership changes, or public contract changes.
-8. For those architectural changes, include `architecture-decisions.md`, read
-   `docs/adr/README.md`, and read all relevant Accepted ADRs selected from both
-   indexes routed there.
+Documentation-only edits use the rule for the behavior they describe. Local
+implementation edits that preserve architecture do not require unrelated ADRs.
 
-Path matching alone is insufficient. For example, editing `WalletModule` also
-affects save-provider and communication contracts.
+## Path and contract map
 
-## Path and concern mapping
-
-| Trigger | Required rules |
+| Trigger | Rules |
 |---|---|
-| Continue-only or Pause-only lifecycle transition under `docs/Features/template/` or `docs/Features/project/` | `feature-workflow.md`; do not load implementation, architecture, testing, subsystem, source, documentation, or ADR context only because of the lifecycle transition |
-| Starting, reopening, finishing, indexing, validating, or changing feature-workflow behavior under `docs/Features/template/`, `docs/Features/project/`, `.agents/skills/`, or `scripts/` | `feature-workflow.md`, `architecture.md`, `architecture-decisions.md`, `testing.md`, plus every affected subsystem rule |
-| Request to create or initialize a project from a target repository URL | `project-initialization.md`, then every rule required by its initialization checklist |
-| First source change in a derived repository without `docs/adr/project/README.md` | `project-initialization.md`, `architecture-decisions.md`, `rojo-project.md`, `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
-| Fetching, merging, reviewing, or resolving changes from template `upstream` | `template-updates.md`, `architecture-decisions.md`, `rojo-project.md`, `testing.md`, plus every affected subsystem rule |
-| Modifying or deleting a path that also exists in template `upstream` | `template-updates.md`, `architecture-decisions.md`, plus every affected subsystem rule |
-| New module, subsystem, service, public API, or ownership boundary | `architecture.md`, `initialization.md`, `testing.md` |
-| `AssetRegistry`, `AssetKey`, static asset lookup, asset roots, or asset folder/query contracts | `assets.md`, `architecture.md`, `initialization.md`, `rojo-project.md`, `testing.md` |
-| `ContentPreloader`, `ContentProvider`, `PreloadAsync`, preload tags/groups, startup content loading, or loading before pool warmup | `content-preloading.md`, `assets.md`, `architecture.md`, `initialization.md`, `testing.md` |
-| Audio catalog/configuration, `AudioPlayer`, `AudioEmitter`, `AudioListener`, `AudioFader`, `AudioDeviceOutput`, audio graph/routing, ordinary or Music playback, audio pools/settings/preloading, hybrid audio DTOs, `Shared/Sounds`, or `AcousticSimulationEnabled` | `audio.md`, `architecture.md`, `initialization.md`, `assets.md`, `content-preloading.md`, `resource-management.md`, `communication.md`, `save-system.md`, `domain-data.md`, `players.md`, `rojo-project.md`, `testing.md` |
-| Pool, pooling adapter, lease, reusable resource, or resource cleanup | `resource-management.md`, `architecture.md`, `testing.md` |
-| `Shared/Util/Signal.luau`, module-owned local event, `Connect`, `Once`, `Fire`, `Wait`, or signal `Destroy` | `signals.md`, `architecture.md`, `testing.md`, plus every affected subsystem rule |
-| `src/**/Initialization/**`, either bootstrap, initialization runner/types | `architecture.md`, `initialization.md`, `testing.md` |
-| `src/**/Save/**`, storage, autosave, session locks, migration, version persistence | `architecture.md`, `save-system.md`, `testing.md` |
-| Communication, RemoteEvent, RemoteFunction, DTO, protocol, serialization, rate limit, resync | `architecture.md`, `communication.md`, `testing.md` |
-| `TeleportModule`, `TeleportClient`, `TeleportService`, teleport session/attempt/envelope/destination, or teleport lifecycle DTO | `teleport.md`, `architecture.md`, `initialization.md`, `players.md`, `signals.md`, `communication.md`, `testing.md` |
-| `ConfigService`, Experience Configs, config codecs/catalogs, client config bundles or projections | `configuration.md`, `architecture.md`, `initialization.md`, `communication.md`, `testing.md` |
-| Server or client Players modules, player/character lifecycle | `architecture.md`, `players.md`, `testing.md` |
-| Wallet, Version, GameData, a save provider, or an authority change | `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
-| `ReplicatedFirst/Loading.client.luau` | `architecture.md`, `initialization.md`, `testing.md` |
-| `src/ReplicatedStorage/Client/UI/**`, `src/ReplicatedStorage/Project/Client/UI/**`, `.agents/templates/window-authoring/**`, `.agents/skills/window-authoring/**`, `UiSystem`, `UiRoot`, UI controllers/actions/events, HUD/toast hosts, window authoring, or window navigation | `ui.md`, `architecture.md`, `initialization.md`, `players.md`, `signals.md`, `communication.md`, `testing.md`; also `project-initialization.md` and `template-updates.md` for the derived authoring boundary |
-| `default.project.json`, Rojo mappings, `.model.json`, executable script placement | `rojo-project.md`, `architecture.md`, `testing.md` |
-| `place.rbxl`, Studio-authored scene data, or hybrid source ownership | `rojo-project.md`, `architecture.md`, `testing.md` |
-| Rojo server process, port ownership, project connection, or Studio preflight | `rojo-project.md`, `architecture.md`, `testing.md` |
-| Publishing or attaching a place, or recording/changing `placeId`, `gameId`, or `servePlaceIds` | `rojo-project.md`, `project-initialization.md`, `architecture-decisions.md`, `testing.md` |
-| Any test runner or test contract | `testing.md` plus the tested subsystem rule |
-| Documentation that describes runtime behavior | The corresponding subsystem rules |
-| New or changed architecture decision record | `architecture-decisions.md`, `architecture.md` plus every affected subsystem rule |
+| Create, initialize, validate, migrate, or update a derived project; remotes or upstream merge | `template-workflow.md`; add `rojo-project.md` when project or cloud identity is involved |
+| Start, pause, continue, finish, inspect, or edit an optional feature record; `docs/Features/**`, `.agents/skills/feature-*`, or `scripts/feature.ps1` | `feature-workflow.md`; add `testing.md` when executable tooling behavior changes |
+| ADR creation, supersession, indexes, or ownership | `architecture-decisions.md` |
+| New module, startup command, subsystem, ownership boundary, or public API | `architecture.md`, `initialization.md`, `testing.md` |
+| `default.project.json`, Rojo mappings, `.model.json`, executable placement, `place.rbxl`, Rojo server, Studio selection, publish/attach, PlaceId/GameId | `rojo-project.md`, `testing.md` |
+| `AssetRegistry`, `AssetKey`, asset roots, paths, tags, or catalog queries | `assets.md`; add `initialization.md`, `rojo-project.md`, or `testing.md` only when affected |
+| `ContentPreloader`, preload selection/progress/policy, or startup preload | `content-preloading.md`, `assets.md`, `initialization.md`, `testing.md` |
+| Pools, adapters, generation leases, cleanup, or resource budgets | `resource-management.md`, `testing.md` |
+| `Shared/Util/Signal.luau` or module-owned events | `signals.md`, `testing.md` |
+| `src/**/Initialization/**`, either bootstrap, manifests, or loading completion | `initialization.md`, `architecture.md`, `testing.md` |
+| Save controllers/providers, storage, locks, autosave, shutdown, migrations, snapshots | `save-system.md`, `domain-data.md`, `architecture.md`, `testing.md` |
+| Communication, remotes, DTOs, serialization, rate limits, epochs, or resync | `communication.md`, `architecture.md`, `testing.md` |
+| Experience Config catalog, codecs, bundles, projections, or refresh | `configuration.md`, `communication.md`, `testing.md` |
+| Player or character lifecycle | `players.md`, `testing.md` |
+| Wallet, Version, GameData, Statistics, another provider, or authority change | `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
+| Teleport session/attempt/envelope/destination or validation pad | `teleport.md`, `players.md`, `communication.md`, `testing.md` |
+| Audio catalog/config, playback, graph, Music, settings, pools, preload, or QA | `audio.md` plus only the actually affected dependency rules, and `testing.md` |
+| UI root/hosts, controllers, actions/events, windows, navigation, or authoring | `ui.md` plus only the actually affected dependency rules, and `testing.md` |
+| Any test runner or test contract | `testing.md` and the tested subsystem rule |
 
-## Available rule files
+## Rule catalog
 
-- `architecture.md`: dependency ownership, module boundaries, cross-system design.
-- `architecture-decisions.md`: template/project ADR ownership, indexes,
-  numbering, supersession, and reading/writing workflow.
-- `project-initialization.md`: mandatory one-time setup for a repository
-  derived from this template.
-- `template-updates.md`: upstream inspection, project divergence ADRs, place
-  preservation, conflict stopping rules, and merge reporting.
-- `initialization.md`: runner, manifests, commands, bootstraps, loading completion.
-- `save-system.md`: controllers, providers, lifecycle, rollback, storage, shutdown.
-- `communication.md`: batching, validation, priorities, sequencing, epochs, resync.
-- `configuration.md`: Experience Config authority, codecs, atomic generations,
-  client projections, bundles, and refresh policy.
-- `players.md`: centralized player and character lifecycle.
-- `domain-data.md`: Wallet, Version, GameData, provider extension and authority.
-- `testing.md`: required verification and test authoring rules.
-- `rojo-project.md`: source-of-truth and Roblox instance mapping rules.
-- `assets.md`: side-owned static asset catalogs, roots, paths, keys, queries,
-  folder rules, and startup immutability.
-- `content-preloading.md`: the single preloading entry point, catalog-backed
-  selection, named requests, progress, failure policy, and startup loading.
-- `audio.md`: local audio configuration/catalog authority, narrow AssetRegistry
-  policy, graph and acoustic ownership, playback delivery, Music, settings,
-  pooling, failure containment, authoring, and verification.
-- `resource-management.md`: pooling ownership, adapters, leases, budgets, and cleanup.
-- `signals.md`: side-local dispatch, connection lifecycle, yielding, errors,
-  waiting, and destruction.
-- `teleport.md`: server-authoritative session continuity, per-player attempts,
-  trusted arrival origin, client projection, and safe presentation.
-- `ui.md`: client UI root/host ownership, controller identity and cleanup,
-  semantic bubbling, window boundaries, data-only authoring, and exact derived
-  configuration constraints.
-- `feature-workflow.md`: owned feature namespaces, canonical feature branches,
-  generated dashboards, feature-scoped writer exclusion, portable worklog
-  context, user-authorized state transitions, and completion gates.
+- `template-workflow.md`: direct init/repair/update/validate behavior and
+  protected derived-project paths.
+- `feature-workflow.md`: user-facing feature skills, optional two-state records,
+  checkpoints, and legacy history.
+- `architecture-decisions.md`: optional durable decision records.
+- `testing.md`: proportional verification and Studio session safety.
+- `rojo-project.md`: hybrid source ownership, place identity, mappings, and
+  Studio/Rojo operation.
+- The remaining files are focused runtime subsystem contracts.
 
-## Architecture decision records
-
-`docs/adr/README.md` is the decision router. Template-owned decisions and their
-index live under `docs/adr/template/`. A derived repository creates and owns
-its separate index and decisions under `docs/adr/project/`. ADRs explain why
-durable architectural constraints exist; they do not replace agent rules or
-current system documentation.
-
-The template repository MUST NOT contain `docs/adr/project/`. Agents initialize
-that namespace only in a derived repository by following
-`project-initialization.md`.
-
-Read relevant Accepted ADRs from both namespaces when a change:
-
-- introduces or removes a subsystem;
-- changes ownership, authority, lifecycle, persistence, or synchronization;
-- reverses a previously rejected alternative;
-- changes a public contract across module boundaries.
-
-Do not require every ADR for a local implementation edit whose architecture is
-unchanged.
-
-Write a template decision only under `docs/adr/template/` and update only the
-template index. Write a game-specific decision only under `docs/adr/project/`
-and update only the project index. Never add numbered ADR entries directly to
-the router.
-
-## Ambiguous changes
-
-When no row clearly matches, read `architecture.md` and `testing.md` first. If the change introduces a new architectural category, add a focused rule file and update this index in the same change.
+When no row fits, start with `architecture.md`. Add a new focused rule only
+when the repository has gained a genuinely new architectural category.

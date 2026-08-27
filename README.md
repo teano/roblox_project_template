@@ -1,768 +1,253 @@
 # Шаблонный проект Roblox
 
-Основа для создания модульных Roblox-игр, ориентированная на использование в
-production и построенная с помощью [Rojo](https://rojo.space/). Репозиторий
-содержит переиспользуемую инфраструктуру, провайдеры Wallet и Statistics, тесты,
-архитектурную документацию, правила для агентов и записи об архитектурных
-решениях.
+Production-oriented основа для модульных Roblox-игр на
+[Rojo](https://rojo.space/). Шаблон даёт готовую инфраструктуру, тесты и
+архитектурные границы, но не навязывает тяжёлый процесс разработки.
 
-В проект намеренно не входят игровая логика, карта, HUD, VFX, SFX и сторонние
-пакеты, специфичные для конкретной игры.
-
-## Работа над игровой фичей
-
-Если вы впервые работаете с feature workflow и Agentic GameDev Pipeline,
-используйте [пошаговую инструкцию по разработке игровой фичи](docs/FeatureDevelopmentForBeginners.md).
-В ней указаны точные команды для Start, Requirements, Specification,
-Development Plan, Production Pipeline, Pause, Continue, Finish и Reopen, а
-также ссылки и инструкции по установке обоих требуемых пайплайнов.
+Обычные изменения выполняются напрямую. Краткий workflow создания и обновления
+игр: [docs/TemplateWorkflow.md](docs/TemplateWorkflow.md).
 
 ## Включённые системы
 
-- Детерминированная серверная и клиентская инициализация с явными манифестами,
-  зависимостями, фиксацией ошибок, идемпотентными результатами и 30-секундным
-  наблюдателем, который не отменяет выполняемую команду.
-- Раздельные серверный и клиентский каталоги статических ассетов с путями,
-  стабильными ключами-атрибутами, запросами по папкам, классам, тегам и
-  метаданным.
-- Экран загрузки в `ReplicatedFirst`, который закрывается только после успешного
-  завершения клиентского bootstrap и применения начального снимка данных.
-- Универсальные раздельные серверные и клиентские пулы с адаптерами для Roblox
-  Instances и кастомных объектов, generation lease, лимитами и управляемой
-  очисткой.
-- Централизованные серверная и клиентская обёртки над жизненным циклом игроков
-  и персонажей Roblox.
-- Общий side-local `Signal` для событий модулей с неблокирующей рассылкой,
-  точным lifecycle подключений и немедленным освобождением callback при
-  отключении.
-- Упорядоченная пакетная отправка RemoteEvent с валидацией, ограничениями по
-  количеству и estimated-размеру, token-bucket pacing в обоих направлениях,
-  приоритетами, номерами последовательности, отдельным сетевым cap снимка,
-  эпохами, backpressure и автоматической ресинхронизацией.
-- Серверный каталог Roblox Experience Configs с чистыми доменными codecs,
-  атомарными immutable generations, deny-by-default клиентскими bundles и
-  явными безопасными проекциями.
-- Независимые от конкретного слоя реестр и строители контроллеров сохранения.
-- Атомарное применение снимков провайдеров с полным откатом.
-- Сохранение в DataStore через `UpdateAsync` с ограниченными повторами,
-  проверкой размера сериализованных данных, блокировкой сессии, автосохранением,
-  сохранением при выходе игрока и ограниченным по времени завершением сервера.
-- Метаданные версии и пустой реестр миграций, готовый для будущих миграций между
-  реально выпущенными версиями.
-- Сервер-авторитетный Wallet с настраиваемыми валютами и компактными
-  клиентскими обновлениями.
-- Сервер-авторитетные bounded Statistics snapshots для Global, Teleport
-  Session, Place и проектных lifecycle с deny-by-default клиентским чтением.
-- Клиентский фасад `GameDataClient` только для чтения.
-- Клиентская UI System с одним безопасным `UiRoot`, HUD/toast/window hosts,
-  типизированными data-only cloud windows, навигацией, pooling и единым
-  семантическим потоком событий.
-- Хранилище Studio в памяти и отключённый по умолчанию smoke-тест настоящего
-  DataStore.
-- Правила для агентов и ADR, сохраняющие архитектуру по мере развития шаблона.
+- явные server/client initialization manifests и по одному bootstrap на сторону;
+- immutable side-owned asset catalogs и catalog-backed content preloading;
+- generation-safe object pools;
+- централизованный player/character lifecycle и side-local `Signal`;
+- bounded client/server communication, sequencing, backpressure и resync;
+- server-owned Experience Config catalog с безопасными client projections;
+- controller-based save system, DataStore storage, session locks, autosave,
+  shutdown и migrations;
+- server-authoritative Wallet и bounded Statistics snapshots;
+- server-owned Teleport session continuity;
+- локальная Audio configuration, playback/graph/Music/settings и QA tooling;
+- client UI root, HUD/toast/window hosts, navigation и data-only authoring;
+- deterministic Studio test runners и отдельный opt-in DataStore smoke test.
 
-## Что не входит в шаблон
-
-Шаблон не предоставляет конкретные игровые системы, готовые игровые HUD,
-toast/window содержимое, покупки, инвентарь,
-аналитику, реализации VFX/SFX, матчмейкинг или универсальный локатор сервисов.
-Добавляйте их как отдельные модули с явными зависимостями и командами
-инициализации; инфраструктура пула может использоваться такими модулями.
+Конкретная игровая логика, карта, содержимое HUD/windows, экономика, покупки,
+инвентарь и игровые ассеты остаются ответственностью derived project.
 
 ## Требования
 
-- Roblox Studio
-- [Rokit](https://github.com/rojo-rbx/rokit) или совместимая установка Rojo 7.7
-- Плагин Rojo для Roblox Studio
-- [CodeGraph](https://github.com/colbymchenry/codegraph) для разработки с
-  помощью Codex (не требуется игровому runtime Roblox)
-
-Установите зафиксированный набор инструментов:
+- Roblox Studio;
+- [Rokit](https://github.com/rojo-rbx/rokit) или Rojo 7.7;
+- Roblox Studio Rojo plugin;
+- CodeGraph — опционально для навигации по коду, не для runtime.
 
 ```powershell
 rokit install
 ```
 
-## Настройка CodeGraph
+CodeGraph setup описан отдельно в
+[docs/CodeGraphSetup.md](docs/CodeGraphSetup.md). Его отсутствие не блокирует
+обычную работу.
 
-Клонирование репозитория не устанавливает CodeGraph и не копирует
-сгенерированный индекс. На каждом компьютере разработчика нужно один раз
-установить CLI, подключить его к Codex и инициализировать клонированный проект.
+## Прямой workflow
 
-Установка в Windows без предварительно установленного Node.js:
+Правила для агента начинаются с [AGENTS.md](AGENTS.md), а
+[.agents/rules/index.md](.agents/rules/index.md) направляет только к реально
+затронутым subsystem rules.
 
-```powershell
-irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex
-```
+Не требуется автоматически запускать feature lifecycle, requirements,
+specification, planning pipeline, ADR workflow, Rojo или Studio перед каждой
+правкой. Проверки выбираются по фактическому риску изменения.
 
-Откройте новый терминал, чтобы команда `codegraph` стала доступна через `PATH`,
-а затем выполните:
-
-```powershell
-codegraph install --target=codex --location=global --yes
-cd путь\к\roblox_project_template
-codegraph init
-codegraph status
-```
-
-После подключения MCP-сервера перезапустите Codex или откройте новую задачу.
-Codex запускает сервис CodeGraph по необходимости; отдельно управлять фоновым
-сервисом не требуется.
-
-Установка через npm, проверка, политика хранения файлов и устранение неполадок
-описаны в [docs/CodeGraphSetup.md](docs/CodeGraphSetup.md).
-
-## Работа над фичами
-
-Точка входа — [реестры фичей](docs/Features/README.md). Общий lifecycle и
-валидаторы обслуживают два независимых namespace:
-
-- шаблон владеет `docs/Features/template/`, `TF-####` и своей генерируемой
-  таблицей;
-- derived-игра владеет `docs/Features/project/`, `F-####` и отдельной
-  генерируемой таблицей.
-
-Манифест каждой фичи остаётся единственным источником идентификатора,
-состояния, ветки, базового commit и блокеров. Полный межчатовый контекст,
-включая важные решения и обсуждения, хранится в `worklog.md` без ссылок на
-сессии и идентификаторов конкретного агента. Derived-проект видит шаблонную
-историю, но не изменяет её; обновление upstream не перегенерирует и не заменяет
-project feature set.
-
-Жизненный цикл разделён на четыре явные agent-команды:
-
-- `$feature-start <название или ID>` — начать новую запланированную фичу или
-  явно переоткрыть готовую; новая template-ветка получает имя
-  `template-feature/tf-####-<slug>`, а project-ветка —
-  `feature/t-####-<slug>`;
-- `$feature-continue <ID>` — активировать приостановленную фичу, восстановить
-  writer lease и получить базовый обзор только из `feature.json` и
-  `handoff.md`; записанный следующий шаг информационный, после отчёта turn
-  завершается без реализации, проверок, Rojo/Studio или сабагентов;
-- `$feature-pause <ID>` — сохранить checkpoint, освободить writer lease, но
-  оставить ветку зарезервированной фичей; checkpoint содержит только уже
-  известные факты и не запускает новую работу, проверки или сабагента;
-- `$feature-finish <ID>` — после завершения реализации и всех проверок обновить
-  worklog, PRD/spec, system docs, rules и ADR, затем перевести фичу в `ready`;
-  сама команда не запускает проверки.
-
-Каждый переход состояния выполняется только после отдельной явной команды
-пользователя в текущем сообщении. Агент и сабагенты не могут автоматически
-вызывать Start, Continue, Pause, Reopen или Finish по результату работы,
-проверок или аудита. Завершённая реализация остаётся в текущем состоянии, пока
-пользователь явно не запросит Finish; неоднозначная команда состояние не
-меняет.
-
-Следующий requirements/specification/planning/implementation/review/audit или
-verification process вызывается отдельным сообщением и только тогда лениво
-загружает собственный PRD/spec/worklog/Git/controller/source/rules/ADR
-контекст. Четырёхзначное сокращение ID разрешается только при одном совпадении
-среди всех видимых namespace; неоднозначность требует полного ID.
-
-В одной ветке может находиться только одна фича со статусом `in_progress`.
-Git-хуки намеренно не используются: проверки выполняются до
-`$feature-finish`, а commit и push остаются обычными пользовательскими
-операциями.
-
-## Создание проекта с обновлениями из upstream
-
-Создайте на GitHub пустой репозиторий игры без README, `.gitignore` и лицензии.
-Не используйте **Use this template**: GitHub создаст отдельную историю, которую
-потребуется специально объединять с шаблоном.
-
-Чтобы агент выполнил весь процесс самостоятельно, достаточно передать ему URL
-нового репозитория, например:
+Для долгой работы пользователь обращается к агенту обычным языком или через
+явные skills:
 
 ```text
-Инициализируй новый проект из Roblox-шаблона:
-https://github.com/OWNER/PROJECT.git
+$feature-start Inventory system
+$feature-pause TF-0012
+$feature-continue TF-0012
+$feature-finish TF-0012
 ```
 
-Согласно [обязательному правилу инициализации](.agents/rules/project-initialization.md),
-агент должен без дополнительных пошаговых указаний:
-
-1. определить локальный каталог `PROJECT` из URL;
-2. клонировать этот шаблон;
-3. переименовать remote шаблона в `upstream`;
-4. добавить переданный URL как `origin`;
-5. создать собственные project ADR index и ADR-0001;
-6. создать пустой `docs/Features/project/README.md`, не изменяя inherited
-   template feature registry;
-7. назначить Rojo connection имя каталога проекта;
-8. оставить `servePort` отсутствующим и проверить активный проект командой
-   `scripts/ensure-rojo-server.ps1`;
-9. проверить Version, DataStore, Wallet, README и `place.rbxl`;
-10. выполнить проверки, создать initialization commit и отправить его в
-   `origin/main`.
-
-Эквивалентная ручная настройка для пустого target-репозитория:
+Эквивалентны фразы «начни фичу Inventory», «поставь TF-0012 на паузу»,
+«продолжи TF-0012» и «заверши TF-0012». Агент сам вызывает backend; вручную
+запускать PowerShell не нужно. Записи имеют только состояния `open|done`:
 
 ```powershell
-$TemplateRepository = "https://github.com/teano/roblox_project_template.git"
-$ProjectRepository = "https://github.com/OWNER/PROJECT.git"
-$ProjectDirectory = [IO.Path]::GetFileNameWithoutExtension($ProjectRepository)
-
-git clone $TemplateRepository $ProjectDirectory
-Set-Location $ProjectDirectory
-git remote rename origin upstream
-git remote add origin $ProjectRepository
-git remote -v
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/feature.ps1 new -RepositoryPath $PWD.Path -Title "Feature name"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/feature.ps1 status -RepositoryPath $PWD.Path
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/feature.ps1 close -RepositoryPath $PWD.Path -Feature TF-0001
 ```
 
-После настройки и до первого push выполните проектную инициализацию из
-`.agents/rules/project-initialization.md`. Если target уже содержит только
-автоматически созданный README, агент использует одно начальное объединение с
-`--allow-unrelated-histories`; существующий проект с исходниками он не
-перезаписывает без отдельного подтверждения.
+Эти PowerShell-команды являются внутренним/CLI-интерфейсом, а не обязательным
+пользовательским ритуалом. Pause сохраняет handoff при состоянии `open`,
+Continue сразу возобновляет работу, Finish проверяет результат перед `done`.
+Feature record не владеет веткой, lease, pipeline или релизом.
 
-При последующем обновлении агент сначала проверяет наличие новой версии:
+## Создание derived project
+
+Для пустого target repository выполните check и apply. `-Check` не создаёт
+checkout, `-Apply` создаёт shared-history project:
 
 ```powershell
-git fetch upstream
-git merge-base --is-ancestor upstream/main HEAD
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init `
+  -OriginUrl https://github.com/OWNER/PROJECT.git `
+  -Destination D:\Projects\PROJECT -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init `
+  -OriginUrl https://github.com/OWNER/PROJECT.git `
+  -Destination D:\Projects\PROJECT -Apply
 ```
 
-Если команда завершается успешно, текущая ветка уже содержит актуальную версию
-шаблона: агент сообщает об этом и ничего не объединяет. Если обновление есть,
-агент показывает текущую ветку и диапазон template-коммитов, а затем спрашивает,
-куда выполнить merge:
+Init клонирует template history, настраивает game `origin` и template
+`upstream`, удаляет template cloud identity, создаёт required project-owned UI
+config и выполняет локальную проверку. Она не публикует Roblox place, не
+включает production DataStore и не commit/push без отдельного `-Push`.
+`-TemplateUrl` и exact already-fetched `-TargetRef` можно переопределить;
+prepared checkout остаётся advanced compatibility mode через
+`-RepositoryPath`.
 
-1. прямо в текущую ветку;
-2. в новую ветку, созданную от текущего `HEAD`.
+## Обновление из template upstream
 
-Во втором случае имя не выбирается произвольно. Агент использует
-`template-update/{commit_from}_{commit_to}`, где `commit_from` — первые 12
-символов merge-base текущей ветки и `upstream/main`, а `commit_to` — первые 12
-символов нового `upstream/main`. Например:
-
-```text
-template-update/65fea563d597_e12410b1c234
-```
-
-Для первого согласованного объединения несвязанных историй используется
-`template-update/initial_{commit_to}`. Если вычисленная ветка уже существует,
-агент не перезаписывает и не переиспользует её без решения пользователя.
-Работа начинается только из чистой именованной ветки; detached `HEAD` блокирует
-merge.
-
-Пользователь вправе заранее создать собственную ветку и выбрать merge прямо в
-неё. Выбор места не отменяет проверок, ADR-политики и правил разрешения
-конфликтов. Push и pull request выполняются только по отдельному указанию.
-Project ADR находятся только в `docs/adr/project/`, поэтому upstream их не
-изменяет и не обновляет их индекс. По той же границе project feature set
-находится только в `docs/Features/project/`; upstream обновляет лишь
-`docs/Features/template/`.
-
-При обновлении агент обязан следовать
-[template-updates.md](.agents/rules/template-updates.md):
-
-- при первом импорте в пустой проект `place.rbxl` принимается из шаблона как
-  есть;
-- после инициализации всегда сохраняется полная версия `place.rbxl` проекта,
-  даже если входящее изменение шаблона не вызвало Git-конфликт;
-- изменения шаблонных скриптов, сервисов, правил и документации применяются как
-  есть, если проект не менял те же файлы;
-- каждое намеренное изменение шаблонного файла в проекте должно быть описано в
-  project ADR с точным путём, baseline, инвариантом и политикой будущего merge;
-- если действующий Accepted project ADR уже описывает путь и его политика не
-  изменилась, агент переиспользует его и не создаёт новый ADR из-за очередного
-  обновления шаблона;
-- при пересечении локальной и upstream-правки агент сначала читает владеющий
-  project ADR; если безопасное долгосрочное объединение неясно, merge
-  останавливается до решения пользователя;
-- итоговое сообщение всегда перечисляет диапазон upstream-коммитов, применённые
-  изменения, сохранённые проектные файлы, использованные ADR, конфликты и
-  выполненные проверки.
-
-## Локальный запуск
-
-Сначала определите режим проекта:
-
-- **Опубликованный шаблон** использует отдельный place только для проверки
-  шаблона. Его стабильные идентификаторы записаны в `default.project.json` и
-  ADR-0023.
-- **Неопубликованный производный проект или локальный прототип** не имеет
-  облачной идентичности. Открывайте отслеживаемый `place.rbxl`; значения
-  `game.PlaceId` и `game.GameId` закономерно равны нулю.
-- **Опубликованный производный проект** всегда открывается и проверяется по
-  стабильным Place ID и Universe/Experience ID. Локальный `place.rbxl`
-  остаётся канонической Git-копией Studio-сцены, но сам по себе не является
-  облачной идентичностью.
-
-### Однократная настройка опубликованного проекта
-
-Запишите проверенные идентификаторы в project ADR и добавьте рядом с `name` в
-верхний уровень `default.project.json` следующие поля, не изменяя существующее
-`tree`:
-
-```json
-"placeId": 1234567890,
-"gameId": 9876543210,
-"servePlaceIds": [1234567890]
-```
-
-`placeId` — ID конкретного place, `gameId` — Universe/Experience ID.
-`servePlaceIds` перечисляет только разрешённые цели live sync. Для
-мультиплейс-проекта добавьте в allowlist каждый place, который действительно
-обслуживается этим Rojo-проектом. Не копируйте примерные числа.
-
-Текущий шаблон уже имеет отдельное опубликованное назначение для проверок.
-При создании производного проекта его `placeId`, `gameId` и `servePlaceIds`
-нельзя наследовать: удалите их до первого запуска Rojo или подключения Studio,
-а затем оставьте отсутствующими либо запишите собственные проверенные
-идентификаторы проекта.
-
-### Каждый запуск
-
-1. Если используете Codex, выполните настройку CodeGraph из раздела выше.
-2. Выполните Rojo-preflight, не меняя стандартный порт:
-
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-rojo-server.ps1
-   ```
-
-   Команда проверяет `/api/rojo`. Если стандартный порт обслуживает другой
-   Rojo-проект, она останавливает только этот Rojo-процесс и запускает
-   `rojo serve default.project.json` из текущего репозитория.
-3. Убедитесь, что поле `name` в `default.project.json` совпадает с именем
-   корневого каталога репозитория. Это уникальное имя Rojo-подключения,
-   отображаемое в Studio.
-4. Откройте Studio одним из способов:
-   - опубликованный проект: откройте нужный place через **My Experiences** или
-     Creator Hub;
-   - опубликованный проект из командной строки:
-
-     ```powershell
-     RobloxStudioBeta.exe --task EditPlace --placeId PLACE_ID --universeId GAME_ID
-     ```
-
-   - неопубликованный проект: откройте локальный `place.rbxl`;
-   - опубликованный проект можно открыть из локального `place.rbxl` только
-     когда `default.project.json` уже содержит правильные `placeId`, `gameId`
-     и `servePlaceIds`. Не запускайте Play и не обращайтесь к Experience
-     Config/DataStore до подключения Rojo и проверки идентичности.
-5. Подключите Studio Rojo plugin к стандартному endpoint. Для локально
-   открытого опубликованного place Rojo восстановит настроенные
-   `placeId`/`gameId`.
-6. До Play, тестов или публикации проверьте в Command Bar:
-
-   ```lua
-   print(game.PlaceId, game.GameId, game.PlaceVersion)
-   ```
-
-   Для опубликованного проекта `PlaceId` и `GameId` должны быть ненулевыми и
-   точно совпадать с project ADR и `default.project.json`. При нуле или
-   несовпадении остановитесь: не используйте `Publish to Roblox As` как
-   способ угадать или восстановить назначение.
-7. Проверьте `VersionConfig.CurrentVersion`.
-8. Выберите имя production DataStore и ограничения сохранения в
-   `StorageConfig`.
-9. Настройте стабильные идентификаторы валют в `WalletConfig`.
-10. Создайте обязательные Experience Configs `wallet_config`,
-   `global_save_config` и `statistics_config` по схемам из
-   [docs/ExperienceConfiguration.md](docs/ExperienceConfiguration.md).
-   Все три значения должны иметь нативный тип `JSON` и быть опубликованы; строка с
-   сериализованным JSON и staged-only значение не подходят.
-
-После Studio-изменений сцены сохраните или экспортируйте её именно в
-отслеживаемый `place.rbxl` и закоммитьте этот файл. Публикация в Roblox и
-сохранение Git-копии — разные явные операции: первая обновляет облачный place,
-вторая обновляет канонический бинарный источник репозитория.
-
-Официальные справки:
-
-- [Roblox Studio command-line interface](https://create.roblox.com/docs/studio/command-line-interface)
-- [Rojo project format](https://rojo.space/docs/v7/project-format/)
-
-Для проверки сборки или изучения только исходников используйте сборку Rojo:
+В нужной ветке derived project:
 
 ```powershell
-rojo build default.project.json --output $env:TEMP\roblox-template-validation.rbxlx
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 update `
+  -RepositoryPath D:\Projects\PROJECT -TargetRef refs/remotes/upstream/main -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 update `
+  -RepositoryPath D:\Projects\PROJECT -TargetRef refs/remotes/upstream/main -Apply
 ```
 
-Не заменяйте `place.rbxl` этой сгенерированной сборкой: она не содержит
-данные сцены, созданные в Studio и существующие только в каноническом place-файле.
-Перед проверкой настоящего DataStore опубликуйте отдельный тестовый experience.
+Update требует clean tracked state/index и отсутствия non-ignored untracked
+files. Ignored legacy artifacts остаются на месте, пока incoming target не
+пересекается с ними. Команда сохраняет project `place.rbxl`, README, project
+namespaces и Rojo/cloud identity, а при конфликте атомарно возвращает
+pre-update состояние. Непересекающиеся project изменения объединяет обычный
+three-way merge; обязательный ADR на каждый template-owned path не нужен.
 
-## Гибридный рабочий процесс Studio и Rojo
+Legacy bootstrap и подробные protected-path правила находятся в
+[docs/TemplateWorkflow.md](docs/TemplateWorkflow.md).
 
-В шаблоне используется частичная синхронизация Rojo. Необходимо сохранять оба
-вида исходных данных:
+## Repair старого derived project
 
-| Источник | Чем владеет |
+Если derived project уже имеет собственный non-template Rojo `name`, но был
+создан до появления обязательного `DerivedWindowConfig.luau`, используйте
+узкий compatibility repair. Cloud identity может полностью отсутствовать у
+unpublished project либо быть полной valid project-owned tuple; partial tuple
+и template validation identity отклоняются.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 repair `
+  -RepositoryPath D:\Projects\PROJECT -TargetRef refs/remotes/upstream/main -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 repair `
+  -RepositoryPath D:\Projects\PROJECT -TargetRef refs/remotes/upstream/main -Apply
+```
+
+Repair создаёт только отсутствующий empty config, byte-preserves project
+config, отсутствие или полную cloud identity tuple, `servePort`, README и
+`place.rbxl`, сохраняет project namespaces, проверяет Rojo build и откатывается
+при ошибке. Существующий config он не перезаписывает, commit/push не выполняет.
+
+Обычная read-only проверка использует `-RepositoryRole Auto`. Для проверенного
+template checkout без доступного canonical origin разрешён явный fail-closed
+режим `-RepositoryRole Template`; `Project` требует canonical `upstream`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 validate `
+  -RepositoryPath $PWD.Path -RepositoryRole Auto
+```
+
+## Studio и cloud identity
+
+Перед первой Studio/live-sync операцией выполните:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-rojo-server.ps1
+```
+
+До обычного редактирования файлов preflight не нужен. Команда использует
+configured `servePort`, а при его отсутствии — стандартный endpoint.
+
+Переиспользуйте уже открытый matching Studio instance:
+
+- unpublished project определяется каноническим `place.rbxl`;
+- published project — точными записанными `game.PlaceId` и `game.GameId`.
+
+Не открывайте duplicate session при недоступном connector. Published project
+должен иметь top-level `placeId`, `gameId` и `servePlaceIds` в
+`default.project.json`. После первого user-authorized publish/attachment
+считайте источником ID только фактический resulting DataModel; не угадывайте их
+из URL, имени или выбранного destination.
+
+## Hybrid ownership
+
+| Источник | Владеет |
 |---|---|
-| `src/` и `default.project.json` | Скрипты, Instances, mappings и объявленные свойства под управлением Rojo |
-| `place.rbxl` | Карта, модели и другие данные сцены, созданные в Studio и не представленные в исходниках Rojo |
+| `src/`, `default.project.json` | Rojo-managed scripts, Instances, mappings и properties |
+| `place.rbxl` | Studio-authored scene data вне Rojo mappings |
 
-Для файловых mappings Rojo установлено `$ignoreUnknownInstances: true`, поэтому
-live-синхронизация сохраняет созданные в Studio дочерние объекты, которых нет в
-`src`. Это защитная граница, а не разрешение хранить код только в place-файле:
-скрипты и сопоставленные свойства по-прежнему должны изменяться в текстовых
-исходниках.
+`place.rbxl` — бинарный канонический источник сцены. Не объединяйте и не
+исправляйте его программно; при конфликте выберите одну полную версию и
+повторите другую scene change в Studio. Generated `.rbxlx`, `sourcemap.json`,
+Studio locks и pipeline/test output не являются source.
 
-Командный процесс изменения сцены:
+## Архитектура и расширение
 
-1. Завершите или закоммитьте несвязанную работу, затем получите последние
-   изменения ветки перед открытием place-файла.
-2. Согласуйте работу с командой так, чтобы `place.rbxl` одновременно
-   изменял только один человек или одна ветка.
-3. Измените сцену в Studio и сохраните её именно в этот файл.
-4. Закоммитьте изменённый place-файл вместе с зависящими от него исходниками.
-5. Никогда не коммитьте `place.rbxl.lock` и сгенерированные
-   проверочные сборки.
-
-Git считает `.rbxl` бинарным форматом и не умеет объединять параллельные
-изменения сцены. При конфликте выберите одну полную версию place-файла и вручную
-повторите в Studio изменения из другой версии. В будущем проект может перейти
-на Team Create, но пока отслеживаемый place-файл является каноническим, Team
-Create не должен незаметно становиться вторым источником истины.
-
-## Архитектура
-
-На каждой стороне существует ровно одна исполняемая точка bootstrap:
+Исполняемые точки bootstrap:
 
 ```text
 ServerScriptService/Bootstrap.server.luau
 StarterPlayerScripts/Bootstrap.client.luau
 ```
 
-Обе стороны используют общий `InitializationRunner`, при этом композиция
-остаётся раздельной для сервера и клиента.
+Новый модуль получает зависимости через constructor, добавляется отдельной
+командой в правильный side manifest и не создаёт собственный startup Script.
+Авторитетное состояние остаётся на сервере; save providers принадлежат доменным
+модулям, а обычная синхронизация использует компактные communication messages.
 
-Порядок серверной инициализации:
+Основная документация:
 
-```text
-Assets → Pooling → Players → Communication → Teleport → TeleportValidationPad
-       → Config → Statistics → Save → Migration → DomainData → GlobalSave
-       → PersistenceSchedule
-```
+- [Initialization and save](docs/InitializationAndSaveSystem.md)
+- [Communication](docs/Communication.md)
+- [Experience configuration](docs/ExperienceConfiguration.md)
+- [Assets](docs/AssetRegistry.md)
+- [Content preloading](docs/ContentPreloading.md)
+- [Resource management](docs/ResourceManagement.md)
+- [Signals](docs/Signal.md)
+- [Teleport](docs/Teleport.md)
+- [Audio](docs/AudioSystem.md)
+- [UI](docs/UiSystem.md)
+- [Statistics](docs/Statistics.md)
+- [Data migrations](docs/UserDataMigrations.md)
 
-Порядок клиентской инициализации:
+## Проверки
 
-```text
-Assets → StartupContentPreload → Pooling → Players → Communication → Statistics
-       → Teleport → Config → Save → DomainData → GlobalSave
-```
-
-`Assets` один раз индексирует только явно заданные статические корни. Сервер
-получает пространства `Shared` и `Server`, а каждый клиент — `Shared` и
-`Client`. Каталог не ищет сервисы, remotes, модули или runtime-объекты.
-
-`StartupContentPreload` выбирает через каталог все клиентские ресурсы с тегом
-`Preload`. Весь production-код выполняет предзагрузку через
-`ContentPreloader`, а не обращается к встроенному
-`ContentProvider:PreloadAsync()` напрямую.
-
-`Pooling` инициализирует отдельный реестр на сервере и на каждом клиенте, но не
-создаёт конкретные игровые пулы. Их создают владеющие доменные модули с
-типизированным контекстом, адаптером жизненного цикла и явными лимитами.
-
-Глобальный профиль игрока представляет собой упорядоченную композицию
-независимых провайдеров:
-
-```text
-Wallet → Statistics → project providers → Version (checkpoint commit-provider)
-```
-
-`SaveModule` не знает, что означает глобальный, сессионный или слотовый слой
-сохранения. Текущий слой явно создаётся в
-`GlobalSaveInitializationCommand`. Проекты могут создавать дополнительные
-контроллеры с другими хранилищами, наборами провайдеров, ключами и временем
-жизни.
-
-Подробное описание жизненного цикла и расширения системы:
-[docs/InitializationAndSaveSystem.md](docs/InitializationAndSaveSystem.md).
-Контракт, пример и release checklist миграций пользовательских данных:
-[docs/UserDataMigrations.md](docs/UserDataMigrations.md).
-Контракт Experience Configs, codecs, клиентских bundles и refresh:
-[docs/ExperienceConfiguration.md](docs/ExperienceConfiguration.md).
-Контракт папок, путей, `AssetKey` и запросов:
-[docs/AssetRegistry.md](docs/AssetRegistry.md).
-Единая точка предзагрузки, группы, прогресс и ошибки:
-[docs/ContentPreloading.md](docs/ContentPreloading.md).
-Контракт пулов, адаптеров, lease и очистки:
-[docs/ResourceManagement.md](docs/ResourceManagement.md).
-Контракт `UiRoot`, окон, authoring и derived-project UI source:
-[docs/UiSystem.md](docs/UiSystem.md).
-Контракт локальных сигналов, подключений и рассылки:
-[docs/Signal.md](docs/Signal.md).
-Контракт клиент-серверного транспорта, лимитов и восстановления:
-[docs/Communication.md](docs/Communication.md).
-Контракт уровней, безопасного формата и output sink:
-[docs/Logger.md](docs/Logger.md).
-
-## Структура репозитория
-
-```text
-src/
-├── ReplicatedFirst/                  экран загрузки
-├── ReplicatedStorage/
-│   ├── Client/                       клиентские реализации и манифест
-│   └── Shared/                       общие контракты, каталог, пулы и утилиты
-├── ServerScriptService/
-│   ├── Initialization/               серверный манифест и команды
-│   ├── Modules/                      серверные реализации
-│   └── Tests/                        запускаемые вручную тесты Studio
-└── StarterPlayerScripts/             клиентский bootstrap
-default.project.json                  Rojo mappings, включая три asset root
-docs/
-├── adr/
-│   └── template/                    решения, принадлежащие шаблону
-├── Features/
-│   ├── README.md                    router независимых feature namespace
-│   └── template/                    TF-манифесты и dashboard шаблона
-├── CodeGraphSetup.md                 настройка CodeGraph на чистом компьютере
-├── AssetRegistry.md                  папки, пути, ключи и запросы ассетов
-├── Communication.md                  транспорт, лимиты и восстановление
-├── ContentPreloading.md              единая точка предзагрузки контента
-├── ExperienceConfiguration.md        Experience Configs и client bundles
-├── InitializationAndSaveSystem.md
-├── IntegrationTesting.md             отдельное интеграционное окружение
-├── Logger.md                         формат и гарантии журналирования
-├── ResourceManagement.md             пулы, адаптеры, lease и очистка
-├── Statistics.md                     snapshots, факты, retention и client reads
-├── Signal.md                         локальные события и lifecycle подключений
-└── UserDataMigrations.md             миграции пользовательских сохранений
-.agents/rules/                        обязательные правила изменения проекта
-.agents/templates/window-authoring/   data-only seed для cloud GUI window
-.agents/skills/window-authoring/      канонический UI authoring workflow
-.agents/skills/project-initialize/    initialization derived repository
-```
-
-## Добавление модуля
-
-1. Определите, какая сторона владеет авторитетным состоянием и runtime-данными.
-2. Размещайте в `ReplicatedStorage/Shared` только независимые от стороны
-   контракты и конфигурацию.
-3. Передавайте зависимости явно через конструктор модуля.
-4. Создайте отдельную серверную и/или клиентскую команду инициализации.
-5. Объявите реальные зависимости и добавьте команду в явный манифест.
-6. Добавляйте модуль в `context.Services`, только если он нужен последующим
-   командам.
-7. Добавьте целевые тесты и обновите документацию и правила, если изменяется
-   публичная архитектура.
-
-Модули не запускают себя самостоятельно и не должны добавлять отдельные
-bootstrap Scripts.
-
-## Добавление статического ассета
-
-Выберите корень по реальной видимости:
-
-- `ReplicatedStorage.Assets.Shared` — шаблон нужен серверу и клиенту;
-- `ReplicatedStorage.Assets.Client` — шаблон нужен только клиентскому
-  представлению;
-- `ServerStorage.Assets` — шаблон нужен только серверу.
-
-Создавайте ниже семантические папки и сохраняйте уникальные имена соседей.
-Путь строится автоматически, например `Shared/Audio/UI/Click`. Если другой
-модуль должен ссылаться на ресурс независимо от его перемещения, добавьте
-строковый атрибут `AssetKey`, например `ui.click`. Ключ должен быть уникальным
-во всём каталоге стороны.
-
-Получайте обязательные одиночные ресурсы с проверкой класса:
-
-```lua
-local click = services.Assets:RequireByKey("ui.click", "Sound")
-local slime = services.Assets:Clone("Server/Enemies/Slime", "Model")
-```
-
-Каталог является неизменяемым снимком startup. Не перемещайте и не изменяйте
-оригиналы после bootstrap; клонируйте их. Динамические объекты, remotes,
-ModuleScripts, сервисы и содержимое `Workspace` в каталог не входят. Полные
-правила папок и запросов: [docs/AssetRegistry.md](docs/AssetRegistry.md).
-
-## Добавление пула ресурсов
-
-Один доменный модуль должен владеть каждым конкретным пулом: выбирать сторону,
-определять адаптер, контекст выдачи, лимиты и момент уничтожения. Остальные
-модули получают типизированный API владельца или явно переданную ссылку на пул.
-`PoolModule:GetPool(id)` выполняет поиск по side-local ID, а не по типу объекта;
-два пула одного Roblox-класса могут иметь разные правила активации и сброса.
-
-Для Roblox Instances используйте `PoolAdapters.fromInstanceFactory` или
-`PoolAdapters.fromInstanceTemplate`. Для кастомного контроллера реализуйте
-`OnAcquire`, `OnRelease`, `Destroy` и необязательный `IsPoolableValid`, затем
-создайте его через `CreatePoolablePool`.
-
-Каждая выдача возвращает generation lease. Храните его до возврата, а из
-задержанных callbacks используйте `TryReleaseToPool`, чтобы устаревшее событие
-не освободило новое использование того же объекта. Полный контракт и примеры:
-[docs/ResourceManagement.md](docs/ResourceManagement.md).
-
-## Добавление данных профиля
-
-Не добавляйте поля в одну глобальную изменяемую таблицу профиля. Создайте
-доменный модуль, который владеет runtime-состоянием и реализует жизненный цикл
-провайдера сохранения:
-
-```text
-CreateDefault
-ReconcileMemento
-ValidateMemento
-SetMemento
-GetMemento
-BeforeMementoGet
-Run
-Stop
-ToClientMemento
-MementoChanged
-```
-
-Назначьте провайдеру стабильные `Id`, `Version` и `Authority`. Зарегистрируйте
-его в одинаковом осознанном порядке в серверной и клиентской командах
-глобального сохранения. Добавляйте провайдер в `GameDataClient`, только если
-клиенту разрешено читать его данные.
-
-При замене снимка система сначала валидирует все провайдеры без изменения
-runtime, сохраняет текущее состояние, останавливает провайдеры в обратном
-порядке, устанавливает и запускает их в прямом порядке, а при ошибке полностью
-восстанавливает предыдущее состояние.
-
-## Коммуникация
-
-Обычная runtime-синхронизация использует компактные семантические сообщения:
-
-```lua
-communication:Queue(player, "Inventory.ItemAdded", payload, requestId, {
-	Priority = CommunicationProtocol.Priorities.State,
-})
-```
-
-Регистрируйте и валидируйте на сервере каждое сообщение от клиента до изменения
-доменного состояния. Не отправляйте целые таблицы провайдеров ради небольших
-изменений и не создавайте прямые игровые remotes рядом с модулем коммуникации.
-Клиентские и серверные исходящие очереди переносят остаток между Heartbeat и
-ограничивают sustained batch/estimated-byte traffic через token buckets;
-серверные inbound budgets при этом остаются авторитетной security boundary.
-
-RemoteFunction полного снимка предназначен только для начальной загрузки и
-явной ресинхронизации. Полный ответ проверяется против отдельного сетевого
-estimated-byte cap до смены communication epoch. Runtime-коммуникация и
-сериализация DataStore используют разные валидаторы и лимиты.
-
-## Wallet
-
-`WalletModule` является сервер-авторитетным. Клиент получает упорядоченные
-компактные изменения, но никогда не отправляет балансы. Модули покупок должны
-отправлять намерение на сервер, валидировать там транзакцию и вызывать:
-
-```lua
-walletModule:Add(player, "Coins", amount, reason, metadata)
-walletModule:TrySpend(player, "Coins", price, reason, metadata)
-```
-
-Поддерживаемые идентификаторы валют задаются в
-`ReplicatedStorage/Shared/Wallet/WalletConfig.luau`. Одноразовые начальные
-балансы новых игроков задаются в Experience Config `wallet_config`; серверный
-persistent memento хранит `IsInitialized`, поэтому стартовая выдача не
-повторяется.
-Балансы, стартовые значения и суммы транзакций должны быть неотрицательными
-safe integers не выше `WalletConfig.MaxBalance` (`2^53 - 1`). Операция, которая
-превысила бы этот предел, завершается с `BalanceLimitExceeded` без изменения
-кошелька.
-
-## Statistics
-
-`StatisticsModule` хранит числовые факты в bounded snapshot-ах `Global`,
-Teleport `Session`, `Place` и проектных типов. Серверные операции применяются
-атомарно ко всем snapshot-ам, чьи frozen-фильтры принимают statistic ID;
-missing reads возвращают `0` без записи. Положительные Wallet-транзакции
-синхронно учитываются как `Wallet.<Currency>.Earned`, а стартовые балансы и
-траты игнорируются.
-
-Persistent provider полностью исключён из общего клиентского save snapshot.
-Клиентский `Services.Statistics` читает только текущие built-in snapshot/value
-через deny-by-default проекцию из `statistics_config`; mutation API отсутствует.
-Полный контракт: [docs/Statistics.md](docs/Statistics.md).
-
-## Настройка сохранения
-
-Production-настройки по умолчанию находятся в
-`ServerScriptService/Modules/Storage/StorageConfig.luau`.
-
-По умолчанию Studio использует `MemoryStorage`, поэтому обычные Play-сессии не
-обращаются к DataStore. В production используется `DataStoreStorage`, обёрнутый
-в `SessionLockingStorage`. Автосохранение обрабатывает изменённые контроллеры с
-интервалом из `global_save_config`; при выходе игрока и завершении сервера сохранение
-выполняется явно.
-
-Не запускайте smoke-тест настоящего DataStore в production place или
-production-хранилище.
-
-## Тесты
-
-Проверка сборки:
+Rojo build:
 
 ```powershell
 rojo build default.project.json --output $env:TEMP\roblox-template-validation.rbxlx
 ```
 
-Запуск детерминированных наборов тестов из серверной командной строки в режиме
-Studio Play:
+Aggregate Studio suite в Play mode:
 
 ```lua
 require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 ```
 
-Агрегированный результат и каждый входящий в него набор должны содержать
-`failed = 0`. Все изолированные тесты имеют конечный таймаут, выполняют cleanup
-и используют внедрённые часы, планировщики, транспорт и хранилища вместо
-недетерминированных внешних зависимостей. Матрица контрактов и релизный чек-лист
-находятся в [docs/TestCoverage.md](docs/TestCoverage.md).
+Не каждая правка требует aggregate или Studio. Точная risk-based матрица — в
+[.agents/rules/testing.md](.agents/rules/testing.md), runtime coverage — в
+[docs/TestCoverage.md](docs/TestCoverage.md).
 
-Совместная проверка Audio с одним сервером, двумя клиентами, командами агента,
-объективными runtime-снимками и отдельным подтверждением игрока описана в
-[docs/AudioManualQA.md](docs/AudioManualQA.md).
-
-Отключённый по умолчанию smoke-тест требует отдельного опубликованного
-тестового place с разрешённым доступом Studio к API:
-
-```lua
-require(game.ServerScriptService.Tests.RealDataStoreSmokeTest).run()
-```
-
-Он создаёт 42-символьный ключ `Smoke_<GUID>` только в
-`PlayerData_IntegrationTests_v1`, записывает данные, освобождает блокировку,
-повторно загружает и проверяет их, после чего удаляет ключ. Успех означает
-одновременно `Ok = true` и `CleanupOk = true`.
-
-Подготовка интеграционного окружения всегда выполняется в фиксированном
-порядке:
-
-1. Создать или обновить отдельную локальную копию
-   `{project_folder}_IntegrationTest` и отдельный Roblox test Experience.
-2. Перенести в test Experience все обязательные Experience Configs,
-   обязательно создать структурированные значения с нативным типом `JSON`,
-   опубликовать их и сверить ключи, типы и значения во вкладке Published.
-3. Только после публикации конфигов прикрепить канонический `place.rbxl`
-   интеграционной копии к test Experience и проверить его стабильные
-   `PlaceId`/`GameId`.
-
-Полный порядок, проверки и критерии готовности описаны в
+Real DataStore smoke запускается только в dedicated integration Experience и
+должен завершиться с `Ok=true` и `CleanupOk=true`; подробности в
 [docs/IntegrationTesting.md](docs/IntegrationTesting.md).
 
-## Управление проектом
+## Структура
 
-- [AGENTS.md](AGENTS.md) — обязательная точка входа для агентов разработки.
-- [.agents/rules/index.md](.agents/rules/index.md) направляет изменения к
-  специализированным разрешающим и запрещающим правилам реализации.
-- [docs/adr/README.md](docs/adr/README.md) направляет к независимым индексам
-  решений шаблона и конкретной игры.
-
-Шаблон не содержит проектных ADR и `docs/Features/project/`. В репозитории,
-созданном из шаблона, агент обязан до первого изменения исходников выполнить
-[project-initialization.md](.agents/rules/project-initialization.md): создать
-собственный ADR index и ADR-0001, создать project feature registry, назначить
-Rojo-подключению имя корневого каталога и проверить настройки версии,
-DataStore и Wallet.
-
-Правила описывают, как следует изменять проект. ADR сохраняют причины принятых
-долгосрочных решений. Текущее runtime-поведение должно быть отражено в
-системной документации и тестах.
+```text
+src/                              Roblox runtime source
+configs/                          authoring inputs
+default.project.json              Rojo mapping and optional cloud identity
+place.rbxl                        canonical Studio scene
+scripts/template-project.ps1      init/repair/update/validate tool
+scripts/feature.ps1               optional feature records
+.agents/rules/                    focused agent rules
+docs/adr/template/                template architectural history
+docs/Features/template/           historical and current template records
+```
 
 ## Лицензия
 
-Исходный код и документация доступны на условиях [лицензии MIT](LICENSE).
-Добавляйте только те ресурсы, которыми вы владеете или которые разрешено
-распространять на совместимых условиях.
+Код и документация доступны по [MIT License](LICENSE). Добавляйте только
+ресурсы, которыми вы владеете или которые разрешено распространять.

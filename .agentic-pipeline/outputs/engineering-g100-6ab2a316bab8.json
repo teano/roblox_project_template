@@ -1,4 +1,0 @@
-{
-  "outcome": "pass",
-  "summary": "Implemented the approved SLICE-003 window lifecycle: Active-owned add, close, and replacement; generation-safe paused handles; final-stack visibility and lifecycle confirmations; blocker-owned tokens composed with a per-view navigation registry; failure-atomic dynamic navigation attachment and default replacement; focused runtime coverage and UI documentation."
-}

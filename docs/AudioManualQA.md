@@ -67,13 +67,12 @@ The drivers:
 - keep objective observations separate from human hearing confirmation.
 
 Outside Studio the bootstraps do not require the QA drivers and create no
-bridge. `scripts/validate-repository-layout.ps1` enforces the exact
-post-success Studio gates without depending on whitespace or comments, absence
-of any other bootstrap QA reference, the exact reviewed QA source inventory,
-lexer-aware absence of executable remote creation/calls, and absence of
-`.server`/`.client` Lua or Luau files anywhere under Tests/QA roots. The
-deterministic `ShouldInstall(false)` assertion is only a companion unit check,
-not runtime proof of the source path.
+bridge. `AudioManualQaTestRunner`, focused source review, and the live Studio
+gate own this behavior. Generic template validation applies only bounded
+changed-path ownership guards; it does not replace focused runtime evidence or
+infer complete safety from QA prose and runner identities.
+The deterministic `ShouldInstall(false)` assertion is only a companion unit
+check, not runtime proof of the source path.
 
 The frozen client whitelist is exactly `Start`, `Execute`, `Snapshot`, and
 `Cleanup`; the frozen server whitelist adds `RecordScenario` and `Export`.

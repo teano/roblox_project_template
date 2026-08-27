@@ -1,4 +1,0 @@
-{
-  "outcome": "pass",
-  "summary": "Replaced the public WindowTypes any boundary with canonical structural WindowNavigatorPort, UiElementContext, BaseWindowView, WindowHandle, serializable event, and opaque ErasedWindowDefinition types. WindowConstructionContext, WindowDefinition.TryCastView, and WindowConfig now preserve compile-time narrowing while runtime values, identity, ownership, and behavior remain unchanged."
-}

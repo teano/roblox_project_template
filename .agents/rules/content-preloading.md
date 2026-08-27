@@ -75,4 +75,5 @@ Accepted template and project ADR selected from the routed indexes.
 - `AssetRegistryTestRunner`.
 - `SystemTestRunner`.
 - Clean client/server Play output after manifest or startup-selection changes.
-- `scripts/validate-repository-layout.ps1` after rule or ADR changes.
+- Bounded `scripts/template-project.ps1 validate` after repository-structure
+  changes.

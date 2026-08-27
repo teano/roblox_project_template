@@ -1,10 +1,10 @@
 # ADR-0009: Separate template and project ADR namespaces
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-29
 - Deciders: Project maintainers
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR-0046
 
 ## Context
 

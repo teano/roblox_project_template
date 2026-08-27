@@ -106,7 +106,8 @@ Required context: `docs/Teleport.md`, `docs/TeleportTesting.md`,
 - `TeleportModuleTestRunner`.
 - `SystemTestRunner`, `ProductionIntegrationTestRunner`,
   `ProductionReadinessTestRunner`, and `AllTestsRunner`.
-- `scripts/validate-repository-layout.ps1` static boundary checks.
+- Bounded `scripts/template-project.ps1 validate` for repository structure;
+  runtime boundaries remain owned by the focused suites.
 - Clean server/client bootstrap in the exact selected Studio instance.
 - A published Roblox-client multi-place E2E before a production-ready verdict;
   ordinary Studio Play does not satisfy this evidence gate.

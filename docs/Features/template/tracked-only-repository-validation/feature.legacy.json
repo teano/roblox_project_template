@@ -1,0 +1,24 @@
+{
+    "schemaVersion":  2,
+    "id":  "TF-0011",
+    "slug":  "tracked-only-repository-validation",
+    "title":  "Tracked-Only Repository Validation",
+    "status":  "in_progress",
+    "activity":  "active",
+    "branch":  "template-feature/tf-0011-tracked-only-repository-validation",
+    "baseCommit":  "fbc34584f1495d388bce2159e9a45c9c57fd9abc",
+    "startedAt":  "2026-08-26T09:40:49.1085631+00:00",
+    "completedAt":  null,
+    "updatedAt":  "2026-08-26T18:34:26.6775711+00:00",
+    "blockers":  [
+                     "Product requirements are missing.",
+                     "Technical specification is missing."
+                 ],
+    "artifacts":  [
+
+                  ],
+    "verification":  null,
+    "recoveryLog":  [
+
+                    ]
+}

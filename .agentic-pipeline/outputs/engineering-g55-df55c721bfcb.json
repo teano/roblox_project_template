@@ -1,4 +1,0 @@
-{
-  "outcome": "blocked",
-  "summary": "PRD-AC-032 is assigned to SLICE-001, but the approved specification makes WindowNavigator the sole owner of applied window lifecycle confirmations (technical-specification.md sections 4.4 and 4.6), while the SLICE-001 Forbidden Scope excludes window navigation, stack, and transitions. BaseWindowView Open/Close are optional view hooks rather than confirmation owners, and UiSystem has no configured window path in this slice. Adding a BaseWindowView publisher or invoking a test-only lifecycle seam would contradict the approved ownership contract. No candidate source or test changes were retained; this requires a public plan rebaseline that moves the observable lifecycle half of PRD-AC-032 to the WindowNavigator-owning slice or explicitly authorizes a specification change. The mandatory Rojo preflight passed; controller-owned checks and unassigned scenarios were not run."
-}

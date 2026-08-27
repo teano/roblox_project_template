@@ -60,7 +60,7 @@ ADR-0045, and the rules for every injected subsystem whose contract is used.
 ## Verification
 
 - `UiSystemTestRunner`, `SystemTestRunner`, and `AllTestsRunner`.
-- Temporary Rojo build and repository-layout validation.
+- Temporary Rojo build and bounded template-project structural validation.
 - Data-only template, authoring-skill, and derived-layout validation.
 - Clean selected canonical Studio Play for bootstrap, one root, three hosts,
   safe-area behavior, respawn persistence, and clean server/client output.

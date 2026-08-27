@@ -35,10 +35,10 @@ clean server/client bootstrap succeeds.
 | Audio startup and catalog (TF-0005 gate) | protected module load, exact normalized config/catalog, paths, selection, plus the enabled production preload command | physical Sounds-root absence/class mismatch, registry query faults, invalid/non-positive rows, profiles/routing, duplicate keys, and preload backend failure | profile/path/ID boundaries, client/server config parity, sorted unique preload IDs, exact request identity, Warn continuation, sticky reuse, full-domain tiny/huge order and zero/smallest-positive selection, huge-equal exact midpoint, representable high-sample tiny tail, reversed catalog order, anti-repeat, and small-weight parity | `AudioCatalogTestRunner`, `ContentPreloaderTestRunner` |
 | Audio graph, pools and playback (TF-0005 gate) | ordinary playback, fixed four-object `SpatialAnchor` composition, static Point, full-transform Attached through one side registry, native one-server-lease delivery, and all Music transition phases | target/readiness/transform loss, invalid regions/profiles, partial construction, unregister-first cleanup, stop/end during transitions and late frame/playback callbacks | FIFO hard capacity, LIFO rejection, exact object ceiling, one subscription per side, zero Point registration, generation authorization, phase mutations and StopAll | `AudioPlaybackTestRunner` |
 | Audio integration and settings (TF-0005 gate) | exact client graph/listener lifecycle, hybrid prediction/fanout, real save-controller snapshot/patch/rollback paths | graph failure, every client preflight gate, Queue rejection, hook false/exception and malformed settings | atomic recipient enqueue rollback, exact pair reuse and two independent settings controllers | `AudioIntegrationTestRunner` |
-| Collaborative Audio Studio QA (TF-0005 gate) | all public Audio capabilities and `PRD-AC-001..079` mapped to deterministic or collaborative evidence; exact live playback uses CartoonBubble, OldCarEngine, and PrayerRiver through production bootstrap services; public preload evidence uses exactly `AudioCatalog.Preload.v1` and exposes only counts plus failure `ContentId`/`Status` | wrong/missing exact catalog pair, asset ID, descriptor path/SoundId, unknown bridge request, bare human boolean, objective observation, or required operator statement cannot pass; `Bridge.Invoke` rejects unsafe caller data before transport; raw Bindable evidence proves cycles are engine-rejected, while Roblox strips metatable/frozen state, normalizes coroutines and mixed/sparse keys, copies tables, and does not execute `__iter`; every representable unsafe raw argument and every unsafe handler result rejects before handler dispatch; non-Studio and unavailable topology/backend stay closed/blocked | exact frozen client/server whitelists, side-local placement/schema, actual service-closure binding, raw and wrapped bidirectional deep-copy isolation, cleanup, exact CueId refs, accepted server one-shots without fake handles, explicit rejoin Start, exact `Studio-E2E-AUDIO-05` anchor, exact three-live-asset and 16-scenario identity, report precedence; lexer-aware repository validation independently enforces the formatting-tolerant post-success Studio-only require/install path, exact QA inventory, absence of executable remote structures, and no `.server`/`.client` Lua/Luau source in Tests/QA roots | `AudioManualQaTestRunner`, `scripts/validate-repository-layout.ps1`, plus [AudioManualQA.md](AudioManualQA.md) |
+| Collaborative Audio Studio QA (TF-0005 gate) | all public Audio capabilities and `PRD-AC-001..079` mapped to deterministic or collaborative evidence; exact live playback uses CartoonBubble, OldCarEngine, and PrayerRiver through production bootstrap services; public preload evidence uses exactly `AudioCatalog.Preload.v1` and exposes only counts plus failure `ContentId`/`Status` | wrong/missing exact catalog pair, asset ID, descriptor path/SoundId, unknown bridge request, bare human boolean, objective observation, or required operator statement cannot pass; `Bridge.Invoke` rejects unsafe caller data before transport; raw Bindable evidence proves cycles are engine-rejected, while Roblox strips metatable/frozen state, normalizes coroutines and mixed/sparse keys, copies tables, and does not execute `__iter`; every representable unsafe raw argument and every unsafe handler result rejects before handler dispatch; non-Studio and unavailable topology/backend stay closed/blocked | exact frozen client/server whitelists, side-local placement/schema, actual service-closure binding, raw and wrapped bidirectional deep-copy isolation, cleanup, exact CueId refs, accepted server one-shots without fake handles, explicit rejoin Start, exact `Studio-E2E-AUDIO-05` anchor, exact three-live-asset and 16-scenario identity, report precedence | `AudioManualQaTestRunner`, plus [AudioManualQA.md](AudioManualQA.md) |
 | Experience Config catalog | atomic decode, projection, refresh | missing/unknown/unsafe values, invalid refresh, mandatory Statistics identifier mismatch, impossible dedupe capacity | min/max values, NaN/infinity, oversized projection, accepted Wallet GUID and practical dedupe boundaries | `ConfigCatalogTestRunner` |
 | Side-local signals | connect, once, wait, disconnect, destroy | listener throws and owner destruction | yielding listeners, nested dispatch, nil arguments | `SystemTestRunner` |
-| UI root, authoring, semantic controllers, and window stack | persistent safe-area root/hosts, canonical data-only authoring shape, frozen definition identity, allowlisted data-only load/preload cache, destroy/pool lifecycle, Active-owned add/close/replacement, final-stack visibility, Pause/Resume lifecycle, navigation focus/baselines, all Background policies, blocker tokens, generation handles, command success | malformed/duplicate config or root, executable asset, missing derived config, reserved template project namespace, preload/factory/protected-cast/initialize failure, invalid Background/default or replacement nomination, non-Active mutation, destroy/pooled cleanup failure, duplicate window, stale handle | exact strict UTF-8 derived sequence and skill/template files, eager failure and timeout retry, one unsettled physical attempt, off-tree construction/Initialize, paused valid handles, lower-prefix preservation, pool generation reuse and contaminated-record destruction, transition deadline/quarantine, dynamic navigation attach/detach atomicity, non-blocking root listeners | `UiSystemTestRunner`, `scripts/validate-repository-layout.ps1`, `ResourceManagementTestRunner`, `ContentPreloaderTestRunner`, `SystemTestRunner` |
+| UI root, authoring, semantic controllers, and window stack | persistent safe-area root/hosts, canonical data-only authoring shape, frozen definition identity, allowlisted data-only load/preload cache, destroy/pool lifecycle, Active-owned add/close/replacement, final-stack visibility, Pause/Resume lifecycle, navigation focus/baselines, all Background policies, blocker tokens, generation handles, command success | malformed/duplicate config or root, executable asset, missing derived config, reserved template project namespace, preload/factory/protected-cast/initialize failure, invalid Background/default or replacement nomination, non-Active mutation, destroy/pooled cleanup failure, duplicate window, stale handle | exact strict UTF-8 derived sequence, eager failure and timeout retry, one unsettled physical attempt, off-tree construction/Initialize, paused valid handles, lower-prefix preservation, pool generation reuse and contaminated-record destruction, transition deadline/quarantine, dynamic navigation attach/detach atomicity, non-blocking root listeners | `UiSystemTestRunner`, `ResourceManagementTestRunner`, `ContentPreloaderTestRunner`, `SystemTestRunner` |
 | Initialization manifests | dependency order, idempotence, catalog composition | missing dependency, duplicate/malformed/out-of-order commands | concurrent callers, sticky failure, non-cancelling watchdog | `SystemTestRunner` |
 | Wallet and base provider rules | initial value and persisted reload | unknown currency, invalid amounts/balances, retained-close public mutation | zero no-op, safe-integer, NaN/fractional limits, normal Loaded admission, real Statistics preparation failure, rejected retained add/spend/no-op without signals/queue, and retry capture/order | `SystemTestRunner`, `StatisticsTestRunner`, `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
 | Statistics snapshots | built-in/custom lifecycle, formulas, both Wallet currencies, Teleport continuation, projected reads | malformed metadata/operations, malformed retention candidates, non-finite and overflow results, invalid lifecycle, rejected Wallet facts, mismatch, private-field and client-mutation rejection | omitted/allow-only/allow-all-except filters, retention 0/N and cross-generation newest-only reconciliation/persistence, exact rollback restart, accepted and failed Teleport source preservation with final facts, atomic byte failure, mandatory Wallet GUID identifier boundary, aggregate dedupe capacity, dedupe across every eligible built-in snapshot, common client fact/read rate policy, no per-operation storage writes, positive-cooldown rapid-close save coalescing, close capture, diagnostic classes/redaction, copy isolation | `StatisticsTestRunner`, `TeleportModuleTestRunner`, `ConfigCatalogTestRunner`, `SystemTestRunner`, `ProductionIntegrationTestRunner` |
@@ -56,44 +56,29 @@ clean server/client bootstrap succeeds.
 | Teleport lifecycle | external/continued arrival, public/reserved requests, client bootstrap/events, two-client transport including negative Studio simulated-player UserIds, exact two-place template policy, unpublished zero-identity inert bootstrap, explicit opt-in runtime validation pad and configured routing | untrusted envelope, invalid group/destination, synchronous/late/queue failure, zero/fractional presentation UserId rejection, private-field rejection, post-Stop delivery, unrecorded place in the template Experience, unpublished destination rejection, default-disabled validation, malformed/mismatched/metatable-bearing validation GameId/routes/tester allowlist, unknown validation-config fields, unauthorized touch | unique sessions, three-visit continuity, GameId-gated derived current-place-only policy, immutable yielding group success/failure, pre-return init-failure ordering and exception/removal/Stop/retry retirement, per-player partial failure, stale result correlation, validation-pad touch re-entry/removal/recreation/deterministic lowest-present tester selection/idempotent Stop, repeated cleanup, observable snapshot reconciliation for every lost lifecycle/presentation transition, negative-ID peer departure followed by handler-failure snapshot recovery, maximum configured player capacity, initial queue clearing, handler-failure and backpressure resync | `TeleportModuleTestRunner`, `ProductionIntegrationTestRunner` |
 | Save registries | registered controller construction | duplicate/unknown/malformed registration, permanent terminal Stop failure, and stale object-form removal | single/mixed-bulk retry after failure, exact autosave/runtime/provider/signal/lock retention, successful lifecycle handoff, string-ID compatibility, same-ID replacement survival across server autosave/session-lock and client central dispatch, two simultaneous real-client pending routes, crossed/correct results, survivor removal, same-ID stale-result rejection, and independent server/client registries | `ProductionReadinessTestRunner` |
 
-## Deterministic feature-dashboard gate (TF-0008)
+## Template tooling gate
 
-The feature-workflow dashboard gate has 18 automated identities and no manual
-identities. `scripts/tests/feature-workflow.tests.ps1` runs the same contract
-separately under Windows PowerShell 5.1 and PowerShell 7.x on the mandatory
-Windows 11 release host. Child workflow commands use the current host; they do
-not fall back to another PowerShell executable. The isolated local fixtures
-cover `en-US`, `ru-RU`, `core.autocrlf=false|true`, LF/CRLF/CR/mixed line
-separators, template and derived ownership, and exact pre/post dashboard
-hashes without using a repository feature lease, network, Studio, Roblox, or
-wall-clock timing.
+Template workflow behavior is verified independently from Roblox runtime
+behavior. `scripts/tests/template-tools.tests.ps1` covers Windows PowerShell
+5.1 and PowerShell 7, empty-origin one-command initialization, no implicit
+push, legacy bootstrap, compatibility repair with an unpublished absent-tuple
+fixture and a complete project-owned identity fixture, partial/template
+identity rejection, protected content preservation and rollback,
+check/apply/no-op updates, project namespaces, configured `servePort`
+preservation, conflict rollback, second-update idempotence,
+staged-versus-committed structural equivalence, and independence from malformed
+or missing root `/tests` artifacts. Feature-tool tests cover optional
+`open|done` records and lossless legacy sidecars. The same gate verifies that
+the four user-facing feature skills exist, allow natural-language implicit
+routing, call only the current `feature.ps1` backend, and do not restore the
+retired feature-workflow module or pipeline.
 
-| Automated identity | Acceptance | Contract coverage |
-|---|---|---|
-| `AUTO-TF0008-SPEC-TEST-001` | `PRD-AC-001`, `PRD-AC-015`, `PRD-AC-017` | Eight Windows 11 host/culture/Git cells produce one expected SHA-256, strict UTF-8 without BOM, LF only, and one terminal LF. |
-| `AUTO-TF0008-SPEC-TEST-002` | `PRD-AC-002` | Canonical LF Check succeeds and preserves the exact pre/post hash. |
-| `AUTO-TF0008-SPEC-TEST-003` | `PRD-AC-003` | Logically equal CRLF, CR, and mixed-separator dashboards pass Check without byte changes. |
-| `AUTO-TF0008-SPEC-TEST-004` | `PRD-AC-004` | Owning sync canonicalizes CRLF to UTF-8-no-BOM/LF/one-terminal-LF and a second sync preserves the exact hash. |
-| `AUTO-TF0008-SPEC-TEST-005` | `PRD-AC-005` | Derived all-namespace Check accepts a current inherited CRLF template dashboard and preserves its bytes. |
-| `AUTO-TF0008-SPEC-TEST-006` | `PRD-AC-006` | Project-only sync repairs the project dashboard while preserving the inherited template hash. |
-| `AUTO-TF0008-SPEC-TEST-007` | `PRD-AC-007`, `PRD-AC-013` | Counter, row, UTC date, marker, table, order, title, prose, and manifest-path drift fails read-only Check; owning sync restores the exact full-file projection, including missing owning output. |
-| `AUTO-TF0008-SPEC-TEST-008` | `PRD-AC-008` | Foreign title, prose, or manifest-path drift fails without mutation or a forbidden template-sync instruction; project-only sync does not repair it. |
-| `AUTO-TF0008-SPEC-TEST-009` | `PRD-AC-009` | `2026-08-05T13:28:08Z` displays as `2026-08-05` under both cultures and hosts. |
-| `AUTO-TF0008-SPEC-TEST-010` | `PRD-AC-010` | `2026-08-05T00:30:00+14:00` displays as UTC date `2026-08-04`. |
-| `AUTO-TF0008-SPEC-TEST-011` | `PRD-AC-011` | `2026-08-05T23:30:00-12:00` displays as UTC date `2026-08-06`. |
-| `AUTO-TF0008-SPEC-TEST-012` | `PRD-AC-012` | Date-only, culture-formatted, impossible, zone-less, and malformed-offset timestamps fail before write and preserve the dashboard hash. |
-| `AUTO-TF0008-SPEC-TEST-013` | `PRD-AC-013` | Missing owning output is created with the exact scaffold, one marker pair, table, UTF-8 without BOM, LF, and one terminal LF; repeat sync is idempotent. |
-| `AUTO-TF0008-SPEC-TEST-014` | `PRD-AC-014` | Missing foreign template output fails closed without creating a file or directory. |
-| `AUTO-TF0008-SPEC-TEST-015` | `PRD-AC-015`, `PRD-AC-017` | The original Windows 10/PowerShell 7/`ru-RU` fixture runs deterministically on Windows 11 with `2026-08-05T13:28:08.08195+03:00`, retains `2026-08-05`, passes workflow/layout validation, and preserves dashboard bytes. |
-| `AUTO-TF0008-SPEC-TEST-016` | `PRD-AC-016` | The complete existing lifecycle and feature-workflow contract suite plus TF-0008 regressions runs under both supported PowerShell hosts without weakened assertions. |
-| `AUTO-TF0008-SPEC-TEST-017` | `PRD-AC-017` | Both hosts run the feature validator, all-namespace Check, layout validator, and feature-workflow suite; `git diff --check` and one temporary Rojo build complete the repository gate. |
-| `AUTO-TF0008-SPEC-TEST-018` | `PRD-AC-001`, `PRD-AC-004`, `PRD-AC-008`, `PRD-AC-012` | Cyrillic, emoji, and escaped Markdown survive both hosts; invalid UTF-8 manifests/dashboards and invalid surrogate escapes fail before mutation, valid pairs pass, strict encoding rejects an unpaired output surrogate before creating output, and owning recovery is byte-idempotent. |
-
-The release gate requires all 18 identities to pass. Real Windows 10 execution
-may compare the same fixture and expected SHA-256 when a runner is available,
-but it is optional, nonblocking evidence and never changes the mandatory
-result. Studio Play is not part of this gate because TF-0008 does not change
-Roblox source or the DataModel.
+The generic repository validator is intentionally bounded to cheap structural
+checks and a small changed-path ownership denylist. It does not scan unchanged
+runtime source or parse feature prose, PRDs, specifications, runner identities,
+or historical pipeline output. Focused Roblox suites below remain the authority
+for runtime contracts. Studio Play is not part of this tooling gate because the
+workflow refactor does not change Roblox source or the DataModel.
 
 ## Deterministic Studio gate
 
@@ -141,13 +126,12 @@ run:
 
 ```powershell
 rojo build default.project.json --output $env:TEMP\roblox-template-validation.rbxlx
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-repository-layout.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 validate -RepositoryPath $PWD.Path -RepositoryRole Template
 ```
 
-`TS-TEST-014` combines the focused runtime data-only authoring fixture with
-repository checks for the canonical model, both authoring skills, template
-absence of `src/ReplicatedStorage/Project/`, and exact initialized-derived
-config ownership. `TS-TEST-016` uses the checked-in data-only fixture, fixed
+`TS-TEST-014` covers the focused runtime data-only authoring fixture.
+Repository structure and initialized-derived ownership are separate bounded
+tooling checks. `TS-TEST-016` uses the checked-in data-only fixture, fixed
 test definition, production `WindowConfigCompiler`, and production
 `WindowAssetLoader` with an injected clone-only local backend. Read-only
 `AllowInsertFreeAssets=false` evidence remains a separate exact-place gate.
@@ -184,26 +168,14 @@ Experience Settings inspection showed “Allow Loading Third Party Assets” off
 The passing focused suite also executed the deterministic `TS-TEST-009`
 post-yield Open/Close partitions for expired deadlines and navigator
 destruction, so the owner/generation/deadline fix has executable Studio Play
-evidence rather than static-only evidence. Controller-owned repository-layout
-validation, feature-workflow validation, and the temporary Rojo build all
-returned zero on the latest candidate completes. This evidence claims no
+evidence rather than static-only evidence. The then-current repository
+tooling and temporary Rojo build returned zero for that historical candidate.
+This evidence claims no
 publish, deployment, attachment, cloud load, or settings mutation.
 
 Then start one additional clean Play session without manually requiring test
 modules. Verify the server and client bootstraps complete and the client
 publishes `ClientInitialized=true`.
-
-The layout validator also runs adversarial parser fixtures. Block comments,
-comment-based token splicing, executable long/quoted strings, nested
-reassignment, or return-field replacement cannot spoof the exact closed
-default-disabled `TeleportValidationConfig`. Derived cloud identity is either
-fully absent or a complete independent positive identity with a non-empty
-duplicate-free `servePlaceIds` array; partial, scalar, duplicate, or
-template-identity fixtures are rejected. Precision-losing fractional JSON
-numbers above the exact IEEE-754 integer range, decimal/exponent numeric forms,
-unsupported CLR numeric representations, and integers outside `1..2^53-1` are
-rejected instead of being normalized into apparently valid place or Experience
-IDs.
 
 A clean or fresh Play session is a stop/start cycle inside the same explicitly
 selected Studio instance when a matching project session is already open. A
@@ -258,7 +230,7 @@ Record this evidence in the release task or pull request:
 - for an enabled validation harness, the exact temporary config revision,
   tester allowlist, forward/return and rapid-repeat evidence, followed by a
   fresh-server check after restoring and publishing `Enabled=false`;
-- Rojo build and repository-layout results;
+- Rojo build and bounded structural/tooling results;
 - aggregate suite count, test count, passed count, and failed count;
 - clean bootstrap result and server/client output inspection;
 - for TF-0005, exact reviewed specification hash, all 79 acceptance identities,

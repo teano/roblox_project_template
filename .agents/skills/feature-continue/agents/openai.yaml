@@ -1,7 +1,7 @@
 interface:
   display_name: "Continue Feature"
-  short_description: "Run a user-authorized feature Continue"
-  default_prompt: "Use $feature-continue only after I explicitly ask to resume a paused repository-owned feature."
+  short_description: "Resume an open feature in the same turn"
+  default_prompt: "Use $feature-continue to recover the open feature context and continue its concrete next step now."
 
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

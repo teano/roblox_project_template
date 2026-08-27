@@ -1,10 +1,10 @@
 # ADR-0044: Bound feature lifecycle work and recover context lazily
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-08-12
 - Deciders: Project maintainers
 - Supersedes: ADR-0037
-- Superseded by: None
+- Superseded by: ADR-0046
 
 ## Context
 

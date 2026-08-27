@@ -161,11 +161,16 @@ Template definitions live below
 `Client/UI/Config/Definitions` and are directly listed in
 `TemplateWindowConfig`. Initialized derived projects instead own the exact
 `Project/Client/UI/DerivedWindowConfig.luau` and sibling `Definitions`
-directory. `$project-initialize` creates the strict UTF-8 empty sequence before
-implementation; repository validation requires it in a derived repository and
-rejects the reserved project namespace in this reusable template. Upstream
-updates preserve the complete project namespace. There is no alternate config,
-runtime repository-kind marker, or automatic empty action source.
+directory. `scripts/template-project.ps1 init` creates the strict UTF-8 empty
+sequence only when the config is missing. Prepared and legacy initialization
+preserves an already-authored config byte-for-byte. For an already initialized
+legacy derived project with project-owned identity but no config, explicit
+`scripts/template-project.ps1 repair` creates only that missing empty sequence
+and preserves project config, README, place, and namespaces. Repository
+validation requires the config in a derived repository and rejects the
+reserved project namespace in this reusable template. Upstream updates
+preserve the complete project namespace. There is no alternate config, runtime
+repository-kind marker, or automatic empty action source.
 
 Release evidence uses the checked-in data-only `WindowAssetFixture`, its fixed
 `ui.test.window-asset-fixture`/`1001` definition, the production config compiler,
@@ -197,9 +202,9 @@ Virtual Controller gamepad navigation, respawn persistence, and complete
 `Finish()` teardown. The same executable focused run included the bounded
 `TS-TEST-009` post-yield Open/Close owner, generation, deadline, and destroyed-
 navigator regression; this behavior is backed by Studio Play execution, not
-static inspection alone. Controller-owned repository-layout validation,
-feature-workflow validation, and the temporary Rojo build passed on the latest
-candidate completes. Read-only Experience Settings inspection at
+static inspection alone. The then-current repository tooling and temporary
+Rojo build passed on that historical candidate. Read-only Experience Settings
+inspection at
 `2026-08-25T05:33:26.033Z` showed “Allow Loading Third Party Assets” disabled.
 No publish, deployment, attachment, cloud load, or settings mutation was part
 of that run.

@@ -1,7 +1,7 @@
 interface:
   display_name: "Start Feature"
-  short_description: "Run a user-authorized Start or Reopen"
-  default_prompt: "Use $feature-start only after I explicitly ask to start or reopen a named repository-owned feature."
+  short_description: "Create an open feature and begin work"
+  default_prompt: "Use $feature-start to create a lightweight feature record and begin the requested work in the same turn."
 
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

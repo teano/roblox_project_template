@@ -1,10 +1,10 @@
 # ADR-0011: Let the user choose the template update destination branch
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-07-29
 - Deciders: Project maintainers
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR-0046
 
 ## Context
 

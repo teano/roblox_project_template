@@ -1,7 +1,0 @@
-interface:
-  display_name: "Initialize Roblox Project"
-  short_description: "Initialize a safe template-derived Roblox project"
-  default_prompt: "Use $project-initialize to initialize this derived Roblox project from the reusable template."
-
-policy:
-  allow_implicit_invocation: false

@@ -1,33 +1,30 @@
 ---
 name: feature-pause
-description: Record a complete cross-chat checkpoint and pause unfinished tracked feature work only after the current user message explicitly requests Pause. Never infer Pause from the end of a turn, a generic stop instruction, unfinished work, a blocker, or agent convenience; do not use it as a completion shortcut.
+description: Checkpoint an open repository feature when the user invokes $feature-pause or naturally asks to pause, stop for now, or hand off feature work. Do not infer Pause from a blocker or the end of a turn.
 ---
 
 # Pause feature
 
-## User authorization gate
+Pause is a user-facing checkpoint, not a third feature state. The current
+record remains `open`; the user does not need to run PowerShell.
 
-Only an explicit request in the current user message authorizes this lifecycle
-transition. The end of an agent turn, a blocker, unfinished work, or a bare
-request to stop the current response does not implicitly authorize Pause. If
-intent is ambiguous, stop the response while leaving feature state unchanged
-and ask the user whether Pause is desired.
-
-1. Read `.agents/rules/feature-workflow.md` and resolve the active feature in the repository's writable namespace. Foreign template history in a derived repository is read-only. Require the recorded branch to be current and its exact schema-v2 feature lease to exist before checkpoint mutation.
-2. Prepare a self-contained checkpoint from facts already known before Pause. Include completed work and already known uncommitted state; every important decision, rejected alternative, and discussion outcome; checks already run or known not to have run; blockers; and one informational next step. State explicitly when a section has no items.
-3. Run from the repository root:
+1. Read `.agents/rules/feature-workflow.md` and resolve the requested writable
+   feature with the read-only backend:
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/feature-workflow.ps1 -Action Pause -Feature "<name-or-id>" -Summary "<result-and-state>" -Decisions "<important-decisions-and-discussions>" -VerificationSummary "<checks-run-and-not-run>" -NextStep "<next-step>"
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/feature.ps1 status -RepositoryPath <exact-root> -Feature <ID-or-slug>
    ```
 
-4. Do not include chat links or task/session/agent identifiers.
-5. After the command succeeds, report only that the feature is paused, its branch remains reserved, and the factual checkpoint was written. Do not reread or separately verify the manifest, handoff, complete worklog, lease, or dashboard.
+2. If the same message requests work before pausing, complete only that
+   requested scope and its proportional checks first. Do not invent extra work
+   or new verification solely to enrich a checkpoint.
+3. Write or refresh `handoff.md` in the feature directory as a concise
+   current summary with `State: open`, completed work, important decisions,
+   checks run/not run, blockers, and one concrete next step. Preserve useful
+   prior facts and append the checkpoint to `worklog.md` when that file exists.
+4. Do not change `feature.json`, create a `paused` value, reserve a branch, or
+   create a lease/dashboard. Report the feature ID and saved next step, then
+   stop because the user asked to pause.
 
-## Pause-only factual checkpoint boundary
-
-Pause-only factual checkpoint: use only facts already known before Pause; do not create new verification evidence, run new work or checks, or create or use subagents.
-
-Pause-only post-command boundary: after successful Pause, report the command result without new reads or checks.
-
-Do not inspect Git, source, controller state, tests, or other context merely to enrich the checkpoint. Do not run implementation, review, audit, pipeline, validators, Rojo preflight/build, or Studio. Unknown or not-run verification remains explicitly factual; it is not a reason to expand Pause scope.
+If the feature is already `done`, do not rewrite its current record or closed
+handoff.

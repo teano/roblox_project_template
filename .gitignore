@@ -9,3 +9,6 @@
 # Generated Rojo metadata
 sourcemap.json
 /tests/
+
+# Local agent and pipeline runtime state is never template source.
+/.agentic-pipeline*/

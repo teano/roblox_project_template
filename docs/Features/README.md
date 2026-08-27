@@ -1,28 +1,21 @@
-# Реестры фичей
+# Feature records
 
-Жизненный цикл фичей общий для шаблона и созданных из него игр, но канонические
-манифесты и генерируемые таблицы принадлежат разным namespace.
+Feature records are optional, lightweight context for work that benefits from a
+stable identifier. They are not an execution gate, branch reservation, lease,
+or generated dashboard.
 
-| Namespace | Реестр | Владелец |
+| Namespace | Location | Owner |
 |---|---|---|
-| Template | [template/README.md](template/README.md) | Переиспользуемый шаблон |
-| Project | `project/README.md` | Конкретная derived-игра |
+| Template | [template/](template/) | Reusable template |
+| Project | `project/` | One derived game |
 
-Шаблон отслеживает только `docs/Features/template/`. Derived-проект создаёт и
-полностью владеет `docs/Features/project/` во время обязательной инициализации.
-Обе таблицы генерируются из манифестов своего namespace и никогда не содержат
-строк другого владельца. Template-фичи используют `TF-####` и ветки
-`template-feature/tf-####-<slug>`; project-фичи используют `F-####` и ветки
-`feature/t-####-<slug>`. Колонка `Worklog` ведёт на полный переносимый между
-чатами контекст без session/task identifiers.
+The template tracks only `docs/Features/template/`. A derived project may
+create and own `docs/Features/project/`; inherited template history remains
+read-only. Current records use only `open` or `done`. Use
+`scripts/feature.ps1` for new records, status, and closure. Ordinary edits do
+not require a feature record.
 
-Состояние фичи меняется только по явной текущей команде пользователя на
-конкретный transition. Агент, сабагент, успешные проверки и окончание работы
-не могут автоматически инициировать Start, Continue, Pause, Reopen или Finish.
-
-Continue-only активирует paused feature, восстанавливает lease и показывает
-базовый обзор только из `feature.json` и `handoff.md`, после чего завершает
-turn. Next step из handoff не является командой. Более тяжёлый контекст
-загружает отдельно вызванный рабочий процесс. Pause-only фиксирует только уже
-известные факты без новых проверок и сабагента. Ссылка вида `####` допустима
-только при единственном совпадении полного ID во всех видимых namespace.
+Legacy manifests, worklogs, handoffs, PRDs, and specifications remain history.
+When a legacy manifest is migrated, the tool keeps its exact original bytes in
+a sidecar and does not rewrite the foreign template namespace in a derived
+project.

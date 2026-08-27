@@ -1,4 +1,0 @@
-{
-  "outcome": "pass",
-  "summary": "Aligned UiElementContext.DeliverToRoot with the approved two-argument public signature, retained live-claim validation so released or unclaimed identities cannot publish, updated BaseUiElement delivery, and revised TS-TEST-013 to exercise the canonical call shape and reject an unclaimed identity. Controller-owned planned checks were intentionally not run by this worker."
-}

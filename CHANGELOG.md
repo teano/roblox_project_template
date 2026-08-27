@@ -15,6 +15,18 @@ Git-теги описывают версии самого шаблона. Они
 
 ## [Unreleased]
 
+### Added
+
+- Возвращены автоматически обнаруживаемые `$feature-start`,
+  `$feature-pause`, `$feature-continue` и `$feature-finish` как тонкий
+  пользовательский интерфейс поверх `open|done` feature records.
+
+### Changed
+
+- Natural-language запросы запуска, паузы, продолжения и завершения фичи
+  теперь маршрутизируются агентом без ручного запуска PowerShell и без
+  восстановления прежних leases, dashboards или pipeline lifecycle.
+
 ## [0.21.0] - 2026-08-26
 
 ### Added

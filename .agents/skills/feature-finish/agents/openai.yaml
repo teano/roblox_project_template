@@ -1,7 +1,7 @@
 interface:
   display_name: "Finish Feature"
-  short_description: "Run a user-authorized feature Finish"
-  default_prompt: "Use $feature-finish only after I explicitly ask to document and close completed feature work."
+  short_description: "Verify and close a completed feature"
+  default_prompt: "Use $feature-finish to complete the remaining scoped work, verify it, and close the feature record when ready."
 
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

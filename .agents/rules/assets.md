@@ -134,5 +134,5 @@ the exact audio root. See `.agents/rules/audio.md`.
 - `SystemTestRunner`.
 - Clean server/client bootstrap with no asset catalog errors after manifest,
   mapping, root, or canonical-place changes.
-- `scripts/validate-repository-layout.ps1` after rule, ADR, mapping, or
-  canonical-place changes.
+- Bounded `scripts/template-project.ps1 validate` after mapping or
+  canonical-place ownership changes.

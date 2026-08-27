@@ -43,11 +43,12 @@ public reusable-template commit merely to make one operator run convenient.
    own MCP plugin when Studio operations are required. Never open a duplicate
    session because a connector is missing.
 5. Run `scripts/ensure-rojo-server.ps1` from the repository being synchronized
-   before source or Studio work. The preflight owns the single default Rojo
-   endpoint, so rerun it whenever switching repositories.
-6. A derived project must complete `.agents/rules/project-initialization.md`
-   first. Remove inherited template `placeId`, `gameId`, and `servePlaceIds`
-   before its first connection and record only independently observed identity.
+   before Studio/live-sync work. It uses that project's configured endpoint,
+   so rerun it whenever switching repositories.
+6. A derived checkout must be initialized with the current
+   `scripts/template-project.ps1 init` contract before its first connection.
+   Remove inherited template `placeId`, `gameId`, and `servePlaceIds` and record
+   only independently observed identity.
 
 ## Prepare the two repository roles
 
@@ -226,10 +227,10 @@ Do not edit either canonical `place.rbxl` for this test. Do not require the
 endpoint's unrelated scene assets to satisfy the primary template's release
 gate.
 
-The template repository-layout validator intentionally rejects a temporarily
-enabled reusable default. Run it successfully before enablement and again
-after mandatory teardown; record the temporary rejection as an expected safety
-guard rather than weakening the validator.
+Before enablement, record the exact safe-default diff and run the focused
+Teleport suite. After mandatory teardown, prove that the configuration is
+restored and rerun the same checks. Generic repository validation does not
+parse this runtime policy.
 
 ## Roblox-client E2E
 
@@ -280,12 +281,12 @@ and confirm no `TeleportValidationPad_To_*` Part appears. Existing servers may
 retain their construction-time config until shutdown; only a fresh server is
 valid teardown evidence.
 
-Finally rerun `TeleportModuleTestRunner`, the repository-layout validator, and
-a clean primary Play bootstrap. In a derived repository, confirm the temporary
+Finally rerun `TeleportModuleTestRunner`, bounded template validation, and a
+clean primary Play bootstrap. In a derived repository, confirm the temporary
 config and composition diff is empty against the recorded baseline (or restored
-to an ADR-approved disabled equivalent). The endpoint only needs to prove that
-its synchronized bootstrap works; do not count its unrelated release checks as
-primary readiness evidence.
+to an explicitly reviewed disabled equivalent). The endpoint only needs to
+prove that its synchronized bootstrap works; do not count its unrelated release
+checks as primary readiness evidence.
 
 ## Troubleshooting
 

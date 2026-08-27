@@ -1,7 +1,0 @@
-{
-  "outcome": "pass",
-  "checks": [
-    "WindowTypes.luau remains --!strict and its exported typed boundary contains no any: universal ViewModel inputs and the heterogeneous ErasedWindowDefinition boundary use unknown, while generic WindowDefinition, WindowHandle, and result unions remain explicit.",
-    "The remediation is type-only and preserves compatibility and ownership: WindowTypes still returns the same frozen empty runtime table, canonical WindowDefinition table identity remains the typed API identity, and no config, loader, navigator, lifecycle, or owner behavior is added or changed."
-  ]
-}

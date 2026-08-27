@@ -1,24 +1,22 @@
-# Фичи шаблона
+# Template feature records
 
-Этот dashboard генерируется из
-`docs/Features/template/*/feature.json`. Манифесты —
-единственный источник состояния; generated-блок не редактируется вручную.
+This directory keeps optional current records and historical implementation
+context for the reusable template. It is not a generated dashboard and does
+not reserve a branch or control whether work may proceed. Read current state
+from the record with `scripts/feature.ps1 status -RepositoryPath <exact-root>`
+after any required legacy migration.
 
-<!-- feature-index:begin -->
+- [TF-0001 — Teleport Module](TeleportModule/)
+- [TF-0002 — Players Module Production Readiness](players-module/)
+- [TF-0003 — Statistic Collection](StatisticCollection/)
+- [TF-0004 — Feature Work Management](feature-workflow/)
+- [TF-0005 — SFX System](sfx-system/)
+- [TF-0006 — CSV converter plugin](csv-converter-plugin/)
+- [TF-0007 — Agent-Agnostic Feature Workflow](agent-agnostic-feature-workflow/)
+- [TF-0008 — Deterministic Feature Dashboard Validation](deterministic-feature-dashboard-validation/)
+- [TF-0009 — Feature Workflow Optimization](feature-workflow-optimization/)
+- [TF-0010 — UI System](ui-system/)
+- [TF-0011 — Tracked-Only Repository Validation](tracked-only-repository-validation/)
 
-Всего: 10 | Готово: 10 | В работе: 0 | В плане: 0 | С блокерами: 0
-
-| ID | Фича | Состояние | Активность | Ветка | Базовый commit | Worklog | Блокеры | Обновлено |
-|---|---|---|---|---|---|---|---|---|
-| TF-0001 | [Teleport Module](./TeleportModule/) | 🟩 Готова | — | `main` | `0297a229` | [Открыть](./TeleportModule/worklog.md) | — | 2026-08-03 |
-| TF-0002 | [Players Module Production Readiness](./players-module/) | 🟩 Готова | — | `main` | `051674b9` | [Открыть](./players-module/worklog.md) | — | 2026-08-04 |
-| TF-0003 | [Statistic Collection](./StatisticCollection/) | 🟩 Готова | — | `main` | `ec70a72b` | [Открыть](./StatisticCollection/worklog.md) | — | 2026-08-05 |
-| TF-0004 | [Feature Work Management](./feature-workflow/) | 🟩 Готова | — | `main` | `94b21023` | [Открыть](./feature-workflow/worklog.md) | — | 2026-08-04 |
-| TF-0005 | [SFX System](./sfx-system/) | 🟩 Готова | — | `template-feature/tf-0005-sfx-system` | `14d4cf84` | [Открыть](./sfx-system/worklog.md) | — | 2026-08-11 |
-| TF-0006 | [CSV-конвертер плагин](./csv-converter-plugin/) | 🟩 Готова | — | `feature/tf-0006-csv-to-luau` | `15bc56c6` | [Открыть](./csv-converter-plugin/worklog.md) | — | 2026-08-06 |
-| TF-0007 | [Agent-Agnostic Feature Workflow](./agent-agnostic-feature-workflow/) | 🟩 Готова | — | `template-feature/tf-0007-agent-agnostic-feature-workflow` | `ab149070` | [Открыть](./agent-agnostic-feature-workflow/worklog.md) | — | 2026-08-06 |
-| TF-0008 | [Deterministic Feature Dashboard Validation](./deterministic-feature-dashboard-validation/) | 🟩 Готова | — | `template-feature/tf-0008-deterministic-feature-dashboard-validation` | `765fd71b` | [Открыть](./deterministic-feature-dashboard-validation/worklog.md) | — | 2026-08-12 |
-| TF-0009 | [Оптимизация работы с фичами](./feature-workflow-optimization/) | 🟩 Готова | — | `template-feature/tf-0009-feature-workflow-optimization` | `77db58e8` | [Открыть](./feature-workflow-optimization/worklog.md) | — | 2026-08-12 |
-| TF-0010 | [UI System](./ui-system/) | 🟩 Готова | — | `template-feature/tf-0010-ui-system` | `e98557f3` | [Открыть](./ui-system/worklog.md) | — | 2026-08-26 |
-
-<!-- feature-index:end -->
+Historical worklogs and handoffs describe what happened at the time. They do
+not override the current `open|done` state.

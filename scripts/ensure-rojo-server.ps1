@@ -1,18 +1,20 @@
 [CmdletBinding()]
 param(
 	[ValidateRange(1, 60)]
-	[int]$StartupTimeoutSeconds = 10
+	[int]$StartupTimeoutSeconds = 10,
+
+	[string]$RepositoryPath,
+
+	[switch]$ResolveOnly
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$rojoPort = 34872
-$repositoryRootOutput = @(
-	& git -C $PSScriptRoot rev-parse --show-toplevel 2>$null
-)
+$requestedRoot = if ([string]::IsNullOrWhiteSpace($RepositoryPath)) { $PSScriptRoot } else { $RepositoryPath }
+$repositoryRootOutput = @(& git -C $requestedRoot rev-parse --show-toplevel 2>$null)
 if ($LASTEXITCODE -ne 0 -or $repositoryRootOutput.Count -ne 1) {
-	throw "Could not resolve the repository root from '$PSScriptRoot'."
+	throw "Could not resolve the repository root from '$requestedRoot'."
 }
 
 $repositoryRoot = [IO.Path]::GetFullPath($repositoryRootOutput[0].Trim())
@@ -23,23 +25,28 @@ if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
 
 $project = Get-Content -LiteralPath $projectPath -Raw | ConvertFrom-Json
 $servePortProperty = $project.PSObject.Properties["servePort"]
+$rojoPort = 34872
 if ($null -ne $servePortProperty) {
-	throw (
-		"default.project.json must not define servePort. This repository uses " +
-		"the shared Rojo default port $rojoPort and switches its active server."
-	)
+	$configuredPort = $servePortProperty.Value
+	if (
+		($configuredPort -isnot [int16] -and $configuredPort -isnot [int32] -and $configuredPort -isnot [int64]) -or
+		[int64]$configuredPort -lt 1 -or
+		[int64]$configuredPort -gt 65535
+	) {
+		throw "default.project.json servePort must be an exact integer in 1..65535."
+	}
+	$rojoPort = [int]$configuredPort
 }
 
-$expectedProjectName = [string]$project.name
-$repositoryName = Split-Path -Leaf $repositoryRoot
-if ([string]::IsNullOrWhiteSpace($expectedProjectName)) {
+$nameProperty = $project.PSObject.Properties["name"]
+if ($null -eq $nameProperty -or [string]::IsNullOrWhiteSpace([string]$nameProperty.Value)) {
 	throw "default.project.json must define a non-empty name."
 }
-if ($expectedProjectName -cne $repositoryName) {
-	throw (
-		"default.project.json name '$expectedProjectName' must match the " +
-		"repository directory '$repositoryName'."
-	)
+$expectedProjectName = [string]$nameProperty.Value
+
+if ($ResolveOnly) {
+	Write-Output "ROJO ENDPOINT repository=$repositoryRoot name=$expectedProjectName host=127.0.0.1 port=$rojoPort"
+	exit 0
 }
 
 function Find-ByteSequence {
@@ -178,14 +185,6 @@ function Get-PortListeners {
 }
 
 $activeProjectName = Get-ActiveRojoProjectName
-if ($activeProjectName -ceq $expectedProjectName) {
-	Write-Output (
-		"Rojo preflight passed: '$expectedProjectName' is already serving on " +
-		"127.0.0.1:$rojoPort."
-	)
-	exit 0
-}
-
 $listeners = @(Get-PortListeners)
 if ($listeners.Count -gt 0) {
 	$ownerProcessIds = @(
@@ -201,12 +200,22 @@ if ($listeners.Count -gt 0) {
 
 	$ownerProcessId = [int]$ownerProcessIds[0]
 	$ownerProcess = Get-Process -Id $ownerProcessId -ErrorAction Stop
-	if ($ownerProcess.ProcessName -ine "rojo") {
+	$ownerDetails = Get-CimInstance Win32_Process -Filter "ProcessId = $ownerProcessId" -ErrorAction Stop
+	$ownerCommandLine = [string]$ownerDetails.CommandLine
+	$provenRojo = $ownerProcess.ProcessName -ieq "rojo" -and $ownerCommandLine -match '(?i)(^|\s)serve(?:\s|$)'
+	if (-not $provenRojo) {
 		throw (
-			"Port $rojoPort is owned by non-Rojo process " +
-			"'$($ownerProcess.ProcessName)' (PID $ownerProcessId). Refusing " +
-			"to terminate it."
+			"Port $rojoPort listener PID $ownerProcessId could not be proven to be a Rojo serve process. " +
+			"Process='$($ownerProcess.ProcessName)'. Refusing to terminate it."
 		)
+	}
+	$servesExactProject = $ownerCommandLine.IndexOf($projectPath, [StringComparison]::OrdinalIgnoreCase) -ge 0
+	if ($activeProjectName -ceq $expectedProjectName -and $servesExactProject) {
+		Write-Output (
+			"Rojo preflight passed: exact project '$projectPath' is already serving on " +
+			"127.0.0.1:$rojoPort (PID $ownerProcessId)."
+		)
+		exit 0
 	}
 
 	$shownProjectName = if ([string]::IsNullOrWhiteSpace($activeProjectName)) {
@@ -215,8 +224,8 @@ if ($listeners.Count -gt 0) {
 		$activeProjectName
 	}
 	Write-Output (
-		"Rojo preflight: replacing '$shownProjectName' on port $rojoPort with " +
-		"'$expectedProjectName'."
+		"Rojo preflight: replacing proven Rojo project '$shownProjectName' on port $rojoPort with " +
+		"exact project '$projectPath'."
 	)
 
 	$taskkillOutput = @(
@@ -246,9 +255,10 @@ $rojoCommand = Get-Command rojo.exe -ErrorAction Stop
 $logToken = [Guid]::NewGuid().ToString("N")
 $standardOutputPath = Join-Path $env:TEMP "rojo-$logToken.stdout.log"
 $standardErrorPath = Join-Path $env:TEMP "rojo-$logToken.stderr.log"
+$quotedProjectPath = '"' + $projectPath + '"'
 $rojoProcess = Start-Process `
 	-FilePath $rojoCommand.Source `
-	-ArgumentList @("serve", "default.project.json") `
+	-ArgumentList @("serve", $quotedProjectPath) `
 	-WorkingDirectory $repositoryRoot `
 	-WindowStyle Hidden `
 	-RedirectStandardOutput $standardOutputPath `

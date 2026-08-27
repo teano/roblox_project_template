@@ -7,8 +7,9 @@ description: Author one project-owned cloud UI window from the repository data-o
 
 Create only the requested concrete window. Read `AGENTS.md`,
 `.agents/rules/index.md`, `.agents/rules/ui.md`, `docs/UiSystem.md`, and the
-current repository's applicable project-initialization/template-update rules
-and ADRs before changing source or Studio state.
+current repository's `.agents/rules/template-workflow.md` only when project
+initialization or an upstream update is actually involved. Read ADRs only when
+the requested window changes a still-active durable decision.
 
 ## Resolve ownership and identity
 
@@ -87,8 +88,9 @@ and ADRs before changing source or Studio state.
 
 ## Verify
 
-Run the repository-mandated Rojo preflight before source or Studio changes.
-Then run the focused config identity, data-only prefab, factory/cast/
+Run the repository-mandated Rojo preflight immediately before Studio or
+live-sync work; ordinary filesystem edits do not require it. Then run the
+focused config identity, data-only prefab, factory/cast/
 Initialize, lifecycle, pool, event, blocker/background, and navigation cases in
 `UiSystemTestRunner`, followed by every release gate required by
 `.agents/rules/ui.md` and `.agents/rules/testing.md`. Use only the already-open,

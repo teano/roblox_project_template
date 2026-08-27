@@ -1,4 +1,0 @@
-{
-  "outcome": "pass",
-  "summary": "Window activation now defers navigation eligibility and focus until Open or Resume completes, failed new-candidate cleanup is surfaced as CleanupFailed in both add and replacement recovery, and TS-TEST-008 now deterministically covers Pause and Resume error/yield isolation, lifecycle ordering, recovery, and custom-method access through a valid paused handle."
-}

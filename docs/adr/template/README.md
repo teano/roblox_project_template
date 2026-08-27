@@ -16,9 +16,9 @@ Repositories derived from the template receive these records from their
 | [ADR-0006](0006-hybrid-rojo-and-studio-place-ownership.md) | Track one canonical Studio place alongside partial Rojo source | Superseded by ADR-0008 |
 | [ADR-0007](0007-side-owned-generation-safe-object-pools.md) | Use side-owned generation-safe object pools | Accepted |
 | [ADR-0008](0008-canonical-place-filename.md) | Use one project-neutral canonical place filename | Accepted |
-| [ADR-0009](0009-separate-template-and-project-adrs.md) | Separate template and project ADR namespaces | Accepted |
-| [ADR-0010](0010-adr-grounded-upstream-merges.md) | Use ADR-grounded upstream merges and preserve the project place | Accepted |
-| [ADR-0011](0011-user-selected-template-update-branch.md) | Let the user choose the template update destination branch | Accepted |
+| [ADR-0009](0009-separate-template-and-project-adrs.md) | Separate template and project ADR namespaces | Superseded by ADR-0046 |
+| [ADR-0010](0010-adr-grounded-upstream-merges.md) | Use ADR-grounded upstream merges and preserve the project place | Superseded by ADR-0046 |
+| [ADR-0011](0011-user-selected-template-update-branch.md) | Let the user choose the template update destination branch | Superseded by ADR-0046 |
 | [ADR-0012](0012-project-specific-rojo-server-ports.md) | Assign and preserve project-specific Rojo server ports | Superseded by ADR-0015 |
 | [ADR-0013](0013-side-owned-static-asset-catalogs.md) | Use side-owned immutable static asset catalogs | Accepted |
 | [ADR-0014](0014-catalog-integrated-content-preloading.md) | Route content preloading through a catalog-integrated module | Accepted |
@@ -51,8 +51,10 @@ Repositories derived from the template receive these records from their
 | [ADR-0041](0041-protect-audio-startup-and-keep-disabled-transport-handlers.md) | Protect audio startup and keep disabled transport handlers | Accepted |
 | [ADR-0042](0042-bind-studio-audio-qa-through-existing-bootstraps.md) | Bind Studio Audio QA through existing bootstraps | Accepted |
 | [ADR-0043](0043-fixed-spatial-anchor-composition.md) | Use one fixed SpatialAnchor composition | Accepted |
-| [ADR-0044](0044-bound-feature-lifecycle-work.md) | Bound feature lifecycle work and recover context lazily | Accepted |
+| [ADR-0044](0044-bound-feature-lifecycle-work.md) | Bound feature lifecycle work and recover context lazily | Superseded by ADR-0046 |
 | [ADR-0045](0045-client-ui-system-boundaries.md) | Keep client UI ownership behind one manifest-composed root | Accepted |
+| [ADR-0046](0046-simplify-template-project-workflow.md) | Use direct template tooling and optional work records | Accepted |
+| [ADR-0047](0047-route-feature-intent-through-thin-user-skills.md) | Route feature intent through thin user skills | Accepted |
 
 ## Ownership and numbering
 

@@ -1,4 +1,0 @@
-{
-  "outcome": "pass",
-  "summary": "Updated the window-authoring skill to require one repo-owned strict concrete BaseWindowView-derived module that owns its ViewModel validation, semantic events, optional transitions, navigation, and cleanup, and explicitly bound the canonical definition's CreateView, TryCastView, and InitializeView to that concrete module. Tightened BlockObjectRef authoring so its sink remains under the same window root and has display/Z placement above all interactive descendants. A focused strict-UTF-8 contract-token check passed; no controller-owned checks or Studio operations were run."
-}

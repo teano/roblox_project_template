@@ -1,4 +1,0 @@
-{
-  "outcome": "blocked",
-  "summary": "Approved authority revision is blocked before mutation by retired schema-10 lineage evolution: the public Development Plan revise-approved route fails closed because retired schema-10 lineage authority does not match the v2 authority. This controller-level authority reconciliation cannot be resolved within the bounded Engineering assignment scope. No product files, plan/spec bytes, controller state, or product checks were changed or run."
-}

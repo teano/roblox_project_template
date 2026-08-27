@@ -1,9 +1,0 @@
-{
-  "outcome": "pass",
-  "checks": [
-    "Static acceptance review confirmed WindowNavigator revalidates the exact operation owner, generation, transition token, and absolute deadline after yielding Open or Close before any continuation-owned lifecycle, stack, navigation, or recovery mutation.",
-    "Deterministic TS-TEST-009 regression covers Open and Close at the exact deadline and after Navigator:Destroy(): rejected Open emits no lifecycle, exact-deadline Close performs the approved forced-removal recovery exactly once, and post-Destroy Close performs no lifecycle or recovery mutation.",
-    "Fresh focused UiSystemTestRunner in the reused canonical Studio session PlaceId 91045933836846 / GameId 10596427617 passed 16 of 16 with zero failures; the only listener-error output was the suite's asserted ExpectedUiRootListenerFailure diagnostic.",
-    "Studio was returned to Edit after the focused Play run, and no product, controller, cloud, place identity, or Experience-setting mutation was performed."
-  ]
-}
