@@ -15,17 +15,70 @@ Git-теги описывают версии самого шаблона. Они
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-08-27
+
 ### Added
 
+- Добавлен единый self-contained `scripts/template-project.ps1` для
+  shared-history initialization, точечного compatibility repair, атомарного
+  template update и bounded structural validation с явными режимами
+  `-Check`/`-Apply`.
+- Добавлено создание локального клиента без Git из exact tracked snapshot
+  указанного полного commit ID. Команда не копирует working tree, не создаёт
+  `.git` или remote и после проверки атомарно публикует только выбранную
+  версию вместе с project-owned UI config.
 - Возвращены автоматически обнаруживаемые `$feature-start`,
   `$feature-pause`, `$feature-continue` и `$feature-finish` как тонкий
   пользовательский интерфейс поверх `open|done` feature records.
 
 ### Changed
 
+- Обычная работа теперь использует прямые path-routed правила и
+  пропорциональные проверки; feature records и ADR остаются опциональными, а
+  Rojo preflight требуется перед Studio/live-sync, но не перед обычной правкой
+  файлов.
+- Shared-history init настраивает game `origin` и template `upstream`, а update
+  работает в выбранной пользователем ветке с already-fetched ref, сохраняет
+  project README, `place.rbxl`, project namespaces и локальную Rojo/cloud
+  identity и откатывает merge при конфликте или failed validation.
 - Natural-language запросы запуска, паузы, продолжения и завершения фичи
   теперь маршрутизируются агентом без ручного запуска PowerShell и без
   восстановления прежних leases, dashboards или pipeline lifecycle.
+- Текущая feature-модель сокращена до опциональных состояний `open|done`;
+  schema-v2 history при закрытии сохраняется побайтово в legacy sidecars, а
+  унаследованные template records в клиентском проекте остаются read-only.
+- Для обновления существующего Git-backed клиента новый self-contained tool
+  можно извлечь из fetched target ref и запустить без старого pipeline.
+  Originless-клиенты поддерживают initialization и `F-####` feature records,
+  но update, repair и validate намеренно остаются только Git-backed.
+
+### Fixed
+
+- Originless snapshot сохраняет exact blob bytes даже при включённом
+  `core.autocrlf`, генерирует README и UI config в детерминированном UTF-8/LF
+  и восстанавливает отсутствующий либо пустой destination при ошибке.
+- Template update побайтово сохраняет protected project data, проверяет exact
+  rollback после неуспеха и не создаёт no-op churn в
+  `default.project.json`, когда incoming configuration уже эквивалентна.
+- Git stdout/stderr обрабатываются одинаково в Windows PowerShell 5.1 и
+  PowerShell 7 без ложных native-command diagnostics.
+
+### Removed
+
+- Удалены обязательные leases, generated dashboards/indexes, branch
+  reservation и tracked agent/pipeline runtime state, а также прежние
+  `FeatureWorkflow.psm1`, lifecycle wrappers и отдельный
+  `$project-initialize`; исторические feature-документы сохранены.
+
+### Verification
+
+- Focused template-tool suite прошёл `148/148` на Windows PowerShell 5.1 и
+  `148/148` на PowerShell 7; direct template validation и compatibility
+  wrapper также прошли.
+- Repository skills прошли `quick_validate` `6/6`, local Markdown links —
+  `136/136`, active stale-command scan и `git diff --check` — без ошибок.
+- Roblox runtime source, Rojo mappings и canonical scene не менялись, поэтому
+  Studio Play и runtime suites не запускались.
 
 ## [0.21.0] - 2026-08-26
 
@@ -478,7 +531,8 @@ Git-теги описывают версии самого шаблона. Они
 - Добавлены Rojo project mapping, канонические agent rules, ADR и первые
   системные и production integration tests.
 
-[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/teano/roblox_project_template/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/teano/roblox_project_template/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/teano/roblox_project_template/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/teano/roblox_project_template/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/teano/roblox_project_template/compare/v0.18.0...v0.19.0
