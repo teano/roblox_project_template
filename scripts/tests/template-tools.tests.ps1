@@ -440,6 +440,40 @@ try {
 		Commit-All -Root $templateTupleRepair -Message "invalid inherited template identity" | Out-Null
 		Assert-CommandFails -Tool $templateTool -Arguments @("repair", "-Check", "-RepositoryPath", $templateTupleRepair) -Contains "non-inheritable template validation PlaceId" | Out-Null
 
+		# An unrelated template update must not canonicalize or re-index a structurally unchanged project config.
+		Invoke-TestGit -Root $derived -Arguments @("config", "core.autocrlf", "true") | Out-Null
+		Invoke-TestGit -Root $derived -Arguments @("restore", "--source=HEAD", "--worktree", "--", "README.md") | Out-Null
+		$unchangedConfigPath = Join-Path $derived "default.project.json"
+		$unchangedConfig = Read-Json $unchangedConfigPath
+		$unchangedConfigBytes = [Text.Encoding]::UTF8.GetBytes(($unchangedConfig | ConvertTo-Json -Depth 20 -Compress) + "`n")
+		[IO.File]::WriteAllBytes($unchangedConfigPath, $unchangedConfigBytes)
+		$unchangedConfigHead = Commit-All -Root $derived -Message "use noncanonical LF project config"
+		$unchangedConfigBlob = ([string](Invoke-TestGit -Root $derived -Arguments @("rev-parse", "${unchangedConfigHead}:default.project.json")).Output[0]).Trim()
+		Assert-True (-not ([Text.Encoding]::UTF8.GetString($unchangedConfigBytes).Contains("`r"))) "test precondition must use exact LF config bytes"
+		Assert-True (([Text.Encoding]::UTF8.GetString($unchangedConfigBytes)).IndexOf("`n") -eq ($unchangedConfigBytes.Length - 1)) "test precondition must keep the semantically equivalent config noncanonical"
+		$templateConfigBlob = ([string](Invoke-TestGit -Root $templateRoot -Arguments @("rev-parse", "HEAD:default.project.json")).Output[0]).Trim()
+		Write-Utf8NoBom -Path (Join-Path $templateRoot "unrelated-config-update.txt") -Content "unrelated`n"
+		Commit-All -Root $templateRoot -Message "unrelated template update" | Out-Null
+		Assert-True (([string](Invoke-TestGit -Root $templateRoot -Arguments @("rev-parse", "HEAD:default.project.json")).Output[0]).Trim() -eq $templateConfigBlob) "unrelated template update must leave its config blob unchanged"
+		Invoke-TestGit -Root $derived -Arguments @("fetch", "upstream") | Out-Null
+		$unchangedApply = Invoke-Tool -Tool $templateTool -Arguments @("update", "-Apply", "-RepositoryPath", $derived)
+		$unchangedUpdateHead = ([string](Invoke-TestGit -Root $derived -Arguments @("rev-parse", "HEAD")).Output[0]).Trim()
+		Assert-True ($unchangedApply.Text.Contains("UPDATE APPLIED")) "unrelated template update must apply successfully"
+		Assert-True (Test-BytesEqual -Left ([IO.File]::ReadAllBytes($unchangedConfigPath)) -Right $unchangedConfigBytes) "structurally unchanged update must preserve exact config bytes"
+		Assert-True (([string](Invoke-TestGit -Root $derived -Arguments @("rev-parse", "${unchangedUpdateHead}:default.project.json")).Output[0]).Trim() -eq $unchangedConfigBlob) "structurally unchanged update must preserve the exact config blob"
+		Assert-True (@((Invoke-TestGit -Root $derived -Arguments @("diff", "--name-status", $unchangedConfigHead, $unchangedUpdateHead, "--", "default.project.json")).Output).Count -eq 0) "structurally unchanged config must be absent from update name-status"
+		Assert-True (@((Invoke-TestGit -Root $derived -Arguments @("diff", "--numstat", $unchangedConfigHead, $unchangedUpdateHead, "--", "default.project.json")).Output).Count -eq 0) "structurally unchanged config must be absent from update numstat"
+		$normalMergeWarning = "WARNING: Automatic merge went well; stopped before committing as requested"
+		$unchangedApplyLines = @($unchangedApply.Text -split '\r?\n' | ForEach-Object { ($_ -replace '\x1b\[[0-9;]*m', '').TrimEnd() })
+		Assert-True ($unchangedApplyLines -contains $normalMergeWarning) "structurally unchanged update must surface Git's successful no-commit merge diagnostic as one normal warning"
+		foreach ($nativeErrorMarker in @("NativeCommandError", "CategoryInfo", "FullyQualifiedErrorId")) {
+			Assert-True (-not $unchangedApply.Text.Contains($nativeErrorMarker)) "structurally unchanged update must not surface PowerShell native-command metadata '$nativeErrorMarker'"
+		}
+		Assert-True (-not ($unchangedApply.Text -match "(?im)^.*default\.project\.json.*(?:LF will be replaced by CRLF|CRLF will be replaced by LF).*$|^.*(?:LF will be replaced by CRLF|CRLF will be replaced by LF).*default\.project\.json.*$")) "structurally unchanged update must not emit an EOL replacement warning for default.project.json"
+		Assert-True ((Get-StatusText $derived) -eq "") "structurally unchanged update must leave the checkout and index clean"
+		$unchangedNoOp = Invoke-Tool -Tool $templateTool -Arguments @("update", "-Check", "-RepositoryPath", $derived)
+		Assert-True ($unchangedNoOp.Text.Contains("UPDATE CURRENT") -and ([string](Invoke-TestGit -Root $derived -Arguments @("rev-parse", "HEAD")).Output[0]).Trim() -eq $unchangedUpdateHead) "second unchanged-config update check must be a read-only no-op"
+
 		# Update preserves raw protected bytes even when autocrlf would rewrite a checkout.
 		Invoke-TestGit -Root $derived -Arguments @("config", "core.autocrlf", "true") | Out-Null
 		$focusedReadmeBytes = [Text.Encoding]::UTF8.GetBytes("# SampleGame`nLF README PREIMAGE`n")

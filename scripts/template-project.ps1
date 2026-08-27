@@ -89,20 +89,22 @@ function Invoke-Git {
 		[Parameter(Mandatory = $true)][string[]]$Arguments,
 		[switch]$AllowFailure
 	)
-	$stderrPath = Join-Path ([IO.Path]::GetTempPath()) ("roblox-template-git-stderr-{0}.tmp" -f [Guid]::NewGuid().ToString("N"))
 	$priorErrorAction = $ErrorActionPreference
 	$ErrorActionPreference = "Continue"
 	$output = @()
 	$errorOutput = @()
 	try {
-		$output = @(& git -C $Root @Arguments 2> $stderrPath | ForEach-Object { [string]$_ })
+		$records = @(& git -C $Root @Arguments 2>&1)
 		$exitCode = $LASTEXITCODE
-		if (Test-Path -LiteralPath $stderrPath) {
-			$errorOutput = @(Get-Content -LiteralPath $stderrPath | ForEach-Object { [string]$_ })
+		foreach ($record in $records) {
+			if ($record -is [System.Management.Automation.ErrorRecord]) {
+				$errorOutput += [string]$record.Exception.Message
+			} else {
+				$output += [string]$record
+			}
 		}
 	} finally {
 		$ErrorActionPreference = $priorErrorAction
-		if (Test-Path -LiteralPath $stderrPath) { Remove-Item -LiteralPath $stderrPath -Force }
 	}
 	if ($exitCode -ne 0 -and -not $AllowFailure) {
 		$detail = (@($output) + @($errorOutput) -join [Environment]::NewLine).Trim()
@@ -1042,7 +1044,8 @@ function Invoke-Update {
 	$localConfig = Read-JsonText -Text (Get-GitText -Root $Root -Revision $head -Path "default.project.json") -Label "local default.project.json"
 	$incomingConfig = Read-JsonText -Text (Get-GitText -Root $Root -Revision $targetCommit -Path "default.project.json") -Label "incoming default.project.json"
 	$mergedConfig = Get-MergedProjectConfiguration -Base $baseConfig -Local $localConfig -Incoming $incomingConfig
-	$mergedText = Format-ProjectJson -Configuration $mergedConfig
+	$configIsStructurallyUnchanged = Test-StructuralEqual $mergedConfig $localConfig
+	$mergedText = if ($configIsStructurallyUnchanged) { $null } else { Format-ProjectJson -Configuration $mergedConfig }
 	$rootPrefix = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
 	$snapshotPaths = @()
 	$seenSnapshotPaths = @{}
@@ -1094,8 +1097,16 @@ function Invoke-Update {
 			[IO.File]::WriteAllBytes($protectedSnapshot.FullPath, [byte[]]$protectedSnapshot.Bytes)
 			Invoke-Git -Root $Root -Arguments @("add", "--", $protected) | Out-Null
 		}
-		Write-TextFile -Path (Join-Path $Root "default.project.json") -Content $mergedText
-		Invoke-Git -Root $Root -Arguments @("add", "--", "default.project.json") | Out-Null
+		if ($configIsStructurallyUnchanged) {
+			$configSnapshot = $snapshotByPath["default.project.json"]
+			if ($null -eq $configSnapshot -or -not $configSnapshot.Existed) { throw "Protected update path 'default.project.json' was not present in the pre-update snapshot." }
+			Invoke-Git -Root $Root -Arguments @("restore", "--source=$head", "--staged", "--", "default.project.json") | Out-Null
+			[IO.File]::WriteAllBytes($configSnapshot.FullPath, [byte[]]$configSnapshot.Bytes)
+			Invoke-Git -Root $Root -Arguments @("update-index", "--refresh", "--", "default.project.json") | Out-Null
+		} else {
+			Write-TextFile -Path (Join-Path $Root "default.project.json") -Content $mergedText
+			Invoke-Git -Root $Root -Arguments @("add", "--", "default.project.json") | Out-Null
+		}
 		$remaining = @((Invoke-Git -Root $Root -Arguments @("diff", "--name-only", "--diff-filter=U")).Output)
 		if ($remaining.Count -gt 0) { throw "Template merge still has unresolved paths: $($remaining -join ', ')." }
 		foreach ($protected in @("README.md", "place.rbxl")) {
