@@ -495,7 +495,7 @@ function Test-GitPathEqual {
 
 function Get-ProjectReadme {
 	param([string]$Name, [string]$TemplateCommit)
-	return @"
+	$content = @"
 # $Name
 
 Roblox project derived from ``roblox_project_template``.
@@ -510,7 +510,9 @@ The canonical Studio scene is ``place.rbxl``. Update the project from the
 already-fetched template ref with ``scripts/template-project.ps1 update``.
 
 Template baseline: ``$TemplateCommit``.
-"@.TrimEnd() + "`n"
+"@
+	$normalized = $content.Replace("`r`n", "`n").Replace("`r", "`n")
+	return $normalized.TrimEnd([char[]]"`n") + "`n"
 }
 
 function Assert-InitializedStructure {
@@ -919,7 +921,7 @@ function Invoke-OriginlessProjectBootstrap {
 	$published = $false
 	try {
 		[IO.Directory]::CreateDirectory($staging) | Out-Null
-		Invoke-Git -Root $templateRoot -Arguments @("archive", "--format=zip", "--output=$archive", $targetCommit) | Out-Null
+		Invoke-Git -Root $templateRoot -Arguments @("-c", "core.autocrlf=false", "archive", "--format=zip", "--output=$archive", $targetCommit) | Out-Null
 		Add-Type -AssemblyName System.IO.Compression.FileSystem
 		[IO.Compression.ZipFile]::ExtractToDirectory($archive, $staging)
 		[IO.File]::Delete($archive)

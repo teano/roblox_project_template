@@ -119,6 +119,7 @@ function New-TemplateRepository {
 	Write-Utf8NoBom -Path (Join-Path $Root "shared.txt") -Content "base`n"
 	Write-Utf8NoBom -Path (Join-Path $Root "docs/Features/template/README.md") -Content "# Template features`n"
 	Write-Utf8NoBom -Path (Join-Path $Root "scripts/ensure-rojo-server.ps1") -Content "# template structural fixture`n"
+	Write-Utf8NoBom -Path (Join-Path $Root ".agents/skills/feature-start/SKILL.md") -Content "# Feature start skill`n"
 	Write-Utf8NoBom -Path (Join-Path $Root "src/ServerScriptService/Bootstrap.server.luau") -Content "--!strict`n"
 	Write-Utf8NoBom -Path (Join-Path $Root "src/StarterPlayerScripts/Bootstrap.client.luau") -Content "--!strict`n"
 	Write-Utf8NoBom -Path (Join-Path $Root "docs/Features/template/tracked-only-repository-validation/feature.json") -Content @"
@@ -261,6 +262,20 @@ try {
 	Assert-True ((Get-Hash (Join-Path $unsafeDestination "keep.txt")) -eq $unsafeHash) "bootstrap must not overwrite a non-empty unrelated destination"
 
 	# Originless init exports one exact tracked snapshot without creating a repository.
+	Invoke-TestGit -Root $templateRoot -Arguments @("config", "core.autocrlf", "true") | Out-Null
+	Assert-True (([string](Invoke-TestGit -Root $templateRoot -Arguments @("config", "--get", "core.autocrlf")).Output[0]).Trim() -eq "true") "originless fixture must exercise archive with core.autocrlf=true"
+	$targetBlobIds = @{}
+	$targetRegularPaths = @()
+	foreach ($treeLineValue in (Invoke-TestGit -Root $templateRoot -Arguments @("ls-tree", "-r", $baseline)).Output) {
+		$treeLine = [string]$treeLineValue
+		if ($treeLine -match '^(100[0-9]{3}) blob ([0-9a-f]+)\t(.+)$') {
+			$targetRegularPaths += $Matches[3]
+			$targetBlobIds[$Matches[3]] = $Matches[2]
+		}
+	}
+	foreach ($requiredSnapshotPath in @(".agents/skills/feature-start/SKILL.md", "scripts/ensure-rojo-server.ps1", "place.rbxl")) {
+		Assert-True ($targetBlobIds.ContainsKey($requiredSnapshotPath)) "originless fixture must cover tracked snapshot path $requiredSnapshotPath"
+	}
 	Write-Utf8NoBom -Path (Join-Path $templateRoot "tests/plain-ignored.txt") -Content "ignored source state`n"
 	Write-Utf8NoBom -Path (Join-Path $templateRoot "working-tree-only.txt") -Content "untracked source state`n"
 	$plainSourceStatus = Get-StatusText $templateRoot
@@ -306,6 +321,18 @@ try {
 	Assert-True ((Invoke-TestGit -Root $plainDestination -Arguments @("rev-parse", "--show-toplevel") -AllowFailure).ExitCode -ne 0) "originless client must not be a Git repository"
 	Assert-True ($plainConfig.name -eq "PlainGame") "originless Apply must derive the Rojo name from the destination leaf"
 	Assert-True ($null -eq $plainConfig.PSObject.Properties["placeId"] -and $null -eq $plainConfig.PSObject.Properties["gameId"] -and $null -eq $plainConfig.PSObject.Properties["servePlaceIds"] -and $null -eq $plainConfig.PSObject.Properties["servePort"]) "originless Apply must strip inherited cloud identity and servePort"
+	$generatedPlainUiPath = "src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau"
+	$expectedPlainPaths = @(($targetRegularPaths + $generatedPlainUiPath) | Sort-Object -CaseSensitive)
+	$plainPrefix = $plainDestination.TrimEnd([char[]]"\/") + [IO.Path]::DirectorySeparatorChar
+	$actualPlainPaths = @(Get-ChildItem -LiteralPath $plainDestination -File -Recurse | ForEach-Object {
+		$_.FullName.Substring($plainPrefix.Length).Replace('\', '/')
+	} | Sort-Object -CaseSensitive)
+	Assert-True (($actualPlainPaths -join "`n") -ceq ($expectedPlainPaths -join "`n")) "originless Apply must export the exact target regular-file path set plus the generated UI config"
+	foreach ($targetPath in $targetRegularPaths) {
+		if ($targetPath -in @("README.md", "default.project.json")) { continue }
+		$actualBlobId = ([string](Invoke-TestGit -Root $templateRoot -Arguments @("hash-object", "--no-filters", "--", (Join-Path $plainDestination $targetPath))).Output[0]).Trim()
+		Assert-True ($actualBlobId.Equals([string]$targetBlobIds[$targetPath], [StringComparison]::Ordinal)) "originless Apply must preserve raw target blob bytes for $targetPath"
+	}
 	Assert-True ((Get-Hash (Join-Path $plainDestination "place.rbxl")) -eq $targetPlaceHash) "originless Apply must preserve target place bytes"
 	$expectedPlainReadme = (@(
 		"# PlainGame",
@@ -323,9 +350,13 @@ try {
 		"",
 		('Template baseline: `{0}`.' -f $baseline)
 	) -join "`n") + "`n"
-	$actualPlainReadme = [IO.File]::ReadAllText((Join-Path $plainDestination "README.md")).Replace("`r`n", "`n")
-	Assert-True ($actualPlainReadme -ceq $expectedPlainReadme) "originless Apply must generate the exact README text with intact Markdown and no stray carriage returns"
-	Assert-True ([IO.File]::ReadAllText((Join-Path $plainDestination "src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau")).Replace("`r`n", "`n") -eq "--!strict`n`nreturn table.freeze({})`n") "originless Apply must create the exact project UI config"
+	$actualPlainReadmeBytes = [IO.File]::ReadAllBytes((Join-Path $plainDestination "README.md"))
+	$expectedPlainReadmeBytes = [Text.Encoding]::UTF8.GetBytes($expectedPlainReadme)
+	Assert-True (Test-BytesEqual -Left $actualPlainReadmeBytes -Right $expectedPlainReadmeBytes) "originless Apply must generate README as exact UTF-8 no-BOM LF bytes"
+	Assert-True ([IO.File]::ReadAllText((Join-Path $plainDestination "README.md")) -ceq $expectedPlainReadme) "originless Apply must generate the exact README text with intact Markdown and one trailing LF"
+	$expectedPlainUiBytes = [Text.Encoding]::UTF8.GetBytes("--!strict`n`nreturn table.freeze({})`n")
+	$actualPlainUiBytes = [IO.File]::ReadAllBytes((Join-Path $plainDestination $generatedPlainUiPath))
+	Assert-True (Test-BytesEqual -Left $actualPlainUiBytes -Right $expectedPlainUiBytes) "originless Apply must create the exact UTF-8 no-BOM LF project UI config"
 	Assert-True (-not (Test-Path -LiteralPath (Join-Path $plainDestination "tests/plain-ignored.txt")) -and -not (Test-Path -LiteralPath (Join-Path $plainDestination "working-tree-only.txt"))) "originless Apply must exclude ignored and untracked source files"
 
 	$plainFeature = Invoke-Tool -Tool $featureTool -Arguments @("new", "-RepositoryPath", $plainDestination, "-Title", "Plain Client Work")
