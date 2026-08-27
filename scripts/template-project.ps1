@@ -10,8 +10,10 @@ Init and update are two-phase operations: use exactly one of -Check or -Apply.
 Validate is always read-only and accepts neither switch. RepositoryPath is
 mandatory so the command never guesses which checkout it owns.
 
-TargetRef names the already-fetched template commit. The script never guesses
-a legacy bootstrap branch. For a repository whose target started with its own
+TargetRef names a template commit already available in the selected Git
+source. Originless init requires its full 40-character ID and exports only that
+tracked snapshot from an exact local template root. The script never guesses a
+legacy bootstrap branch. For a repository whose target started with its own
 README, merge the template history first, then pass the exact fetched template
 ref to init. A project README that differs from TargetRef is preserved byte for
 byte; a still-template README is replaced by the small project README.
@@ -19,6 +21,8 @@ byte; a still-template README is replaced by the small project README.
 .EXAMPLE
   ./scripts/template-project.ps1 init -Check -OriginUrl https://github.com/OWNER/GAME.git -Destination D:\Games\GAME
   ./scripts/template-project.ps1 init -Apply -OriginUrl https://github.com/OWNER/GAME.git -Destination D:\Games\GAME
+  ./scripts/template-project.ps1 init -Check -TemplateUrl D:\Templates\roblox_project_template -Destination D:\Games\LocalGame -TargetRef <full-commit-id>
+  ./scripts/template-project.ps1 init -Apply -TemplateUrl D:\Templates\roblox_project_template -Destination D:\Games\LocalGame -TargetRef <full-commit-id>
   ./scripts/template-project.ps1 init -Check -RepositoryPath D:\Games\MyGame
   ./scripts/template-project.ps1 init -Apply -RepositoryPath D:\Games\MyGame
   ./scripts/template-project.ps1 update -Check -RepositoryPath D:\Games\MyGame -TargetRef refs/remotes/upstream/main
@@ -85,20 +89,31 @@ function Invoke-Git {
 		[Parameter(Mandatory = $true)][string[]]$Arguments,
 		[switch]$AllowFailure
 	)
+	$stderrPath = Join-Path ([IO.Path]::GetTempPath()) ("roblox-template-git-stderr-{0}.tmp" -f [Guid]::NewGuid().ToString("N"))
 	$priorErrorAction = $ErrorActionPreference
 	$ErrorActionPreference = "Continue"
+	$output = @()
+	$errorOutput = @()
 	try {
-		$output = @(& git -C $Root @Arguments 2>&1 | ForEach-Object { [string]$_ })
+		$output = @(& git -C $Root @Arguments 2> $stderrPath | ForEach-Object { [string]$_ })
 		$exitCode = $LASTEXITCODE
+		if (Test-Path -LiteralPath $stderrPath) {
+			$errorOutput = @(Get-Content -LiteralPath $stderrPath | ForEach-Object { [string]$_ })
+		}
 	} finally {
 		$ErrorActionPreference = $priorErrorAction
+		if (Test-Path -LiteralPath $stderrPath) { Remove-Item -LiteralPath $stderrPath -Force }
 	}
 	if ($exitCode -ne 0 -and -not $AllowFailure) {
-		$detail = ($output -join [Environment]::NewLine).Trim()
+		$detail = (@($output) + @($errorOutput) -join [Environment]::NewLine).Trim()
 		if ([string]::IsNullOrWhiteSpace($detail)) { $detail = "git exited with code $exitCode" }
 		throw "git $($Arguments -join ' ') failed in '$Root': $detail"
 	}
-	return [PSCustomObject]@{ ExitCode = $exitCode; Output = @($output) }
+	if ($exitCode -eq 0 -and $errorOutput.Count -gt 0) {
+		$warning = ($errorOutput -join [Environment]::NewLine).Trim()
+		if (-not [string]::IsNullOrWhiteSpace($warning)) { Write-Warning $warning }
+	}
+	return [PSCustomObject]@{ ExitCode = $exitCode; Output = @($output); Error = @($errorOutput) }
 }
 
 function Invoke-GitGlobal {
@@ -423,6 +438,15 @@ function Get-FileSha256 {
 	return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 
+function Test-ByteArraysEqual {
+	param([byte[]]$Left, [byte[]]$Right)
+	if ($Left.Length -ne $Right.Length) { return $false }
+	for ($index = 0; $index -lt $Left.Length; $index += 1) {
+		if ($Left[$index] -ne $Right[$index]) { return $false }
+	}
+	return $true
+}
+
 function Invoke-RojoBuildValidation {
 	param([string]$Root)
 	$rojo = Get-Command rojo -ErrorAction SilentlyContinue
@@ -439,6 +463,7 @@ function Invoke-RojoBuildValidation {
 		$ErrorActionPreference = $priorErrorAction
 		if (Test-Path -LiteralPath $outputPath) { Remove-Item -LiteralPath $outputPath -Force }
 	}
+	Write-Output "ROJO BUILD VALID repository=$Root"
 }
 
 function Assert-DerivedRepository {
@@ -473,7 +498,7 @@ function Get-ProjectReadme {
 	return @"
 # $Name
 
-Roblox project derived from `roblox_project_template`.
+Roblox project derived from ``roblox_project_template``.
 
 ## Local development
 
@@ -481,10 +506,10 @@ Roblox project derived from `roblox_project_template`.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-rojo-server.ps1
 ``````
 
-The canonical Studio scene is `place.rbxl`. Update the project from the
-already-fetched template ref with `scripts/template-project.ps1 update`.
+The canonical Studio scene is ``place.rbxl``. Update the project from the
+already-fetched template ref with ``scripts/template-project.ps1 update``.
 
-Template baseline: `$TemplateCommit`.
+Template baseline: ``$TemplateCommit``.
 "@.TrimEnd() + "`n"
 }
 
@@ -765,6 +790,180 @@ function Test-IsGitRepository {
 	return $result.ExitCode -eq 0
 }
 
+function Resolve-LocalTemplateRoot {
+	param([string]$Path)
+	if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Container)) {
+		throw "Originless init requires -TemplateUrl to name an existing local template Git root exactly."
+	}
+	$requested = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $Path).Path).TrimEnd('\', '/')
+	$result = Invoke-Git -Root $requested -Arguments @("rev-parse", "--show-toplevel") -AllowFailure
+	if ($result.ExitCode -ne 0 -or $result.Output.Count -eq 0) { throw "TemplateUrl is not a readable local Git checkout: $requested" }
+	$root = [IO.Path]::GetFullPath(([string]$result.Output[0]).Trim()).TrimEnd('\', '/')
+	if (-not $root.Equals($requested, [StringComparison]::OrdinalIgnoreCase)) {
+		throw "TemplateUrl must name the local template Git root exactly. Resolved root: $root"
+	}
+	if ((Get-RepositoryRole -Root $root) -ne "template") { throw "TemplateUrl does not identify the canonical roblox_project_template checkout: $root" }
+	return $root
+}
+
+function Resolve-ExactCommitId {
+	param([string]$Root, [string]$Ref)
+	if ([string]::IsNullOrWhiteSpace($Ref) -or $Ref -notmatch '^[0-9a-fA-F]{40}$') {
+		throw "Originless init requires TargetRef as an explicit full 40-character commit ID."
+	}
+	$result = Invoke-Git -Root $Root -Arguments @("rev-parse", "--verify", "$Ref^{commit}") -AllowFailure
+	if ($result.ExitCode -ne 0 -or $result.Output.Count -eq 0) { throw "TargetRef '$Ref' does not resolve to a commit in the local template checkout." }
+	$commit = ([string]$result.Output[0]).Trim()
+	if (-not $commit.Equals($Ref, [StringComparison]::OrdinalIgnoreCase)) { throw "TargetRef '$Ref' is not the exact commit ID '$commit'." }
+	return $commit
+}
+
+function Assert-OriginlessDestination {
+	param([string]$Path)
+	$full = [IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+	$parent = Split-Path -Parent $full
+	$leaf = Split-Path -Leaf $full
+	if ([string]::IsNullOrWhiteSpace($parent) -or [string]::IsNullOrWhiteSpace($leaf) -or -not (Test-Path -LiteralPath $parent -PathType Container)) {
+		throw "Destination must have an existing parent directory and a non-empty leaf name: $full"
+	}
+	$exists = Test-Path -LiteralPath $full
+	if ($exists) {
+		if (-not (Test-Path -LiteralPath $full -PathType Container)) { throw "Destination exists and is not a directory: $full" }
+		$entries = @(Get-ChildItem -LiteralPath $full -Force)
+		if ($entries.Count -gt 0) { throw "Destination must be absent or empty for originless init: $full" }
+	}
+	$probe = if ($exists) { $full } else { $parent }
+	$git = Invoke-GitGlobal -Arguments @("-C", $probe, "rev-parse", "--show-toplevel") -AllowFailure
+	if ($git.ExitCode -eq 0) { throw "Destination must be outside every Git worktree for originless init. Resolved containing root: $(([string]$git.Output[0]).Trim())" }
+	return [PSCustomObject]@{ Path = $full; Parent = $parent; Leaf = $leaf; Existed = [bool]$exists }
+}
+
+function Assert-PlainTemplateTarget {
+	param([string]$Root, [string]$Commit)
+	$config = Read-JsonText -Text (Get-GitText -Root $Root -Revision $Commit -Path "default.project.json") -Label "TargetRef default.project.json"
+	if ($null -eq (Get-ObjectProperty $config "name") -or -not ([string]$config.name).Equals("roblox_project_template", [StringComparison]::Ordinal)) {
+		throw "TargetRef default.project.json is not the canonical template configuration."
+	}
+	Assert-IdentityTuple -Configuration $config -Label "TargetRef default.project.json" -AllowTemplateIdentity | Out-Null
+	Assert-UpstreamContainsNoReservedProjectNamespace -Root $Root -TargetCommit $Commit
+	foreach ($required in @(
+		"README.md",
+		"place.rbxl",
+		"scripts/ensure-rojo-server.ps1",
+		"src/ServerScriptService/Bootstrap.server.luau",
+		"src/StarterPlayerScripts/Bootstrap.client.luau"
+	)) {
+		$result = Invoke-Git -Root $Root -Arguments @("cat-file", "-e", "$Commit`:$required") -AllowFailure
+		if ($result.ExitCode -ne 0) { throw "TargetRef is missing required tracked path '$required'." }
+	}
+}
+
+function Assert-PlainInitializedStructure {
+	param([string]$Root, [string]$ExpectedName)
+	if (Test-Path -LiteralPath (Join-Path $Root ".git")) { throw "Originless project staging must not contain .git." }
+	$config = Read-JsonFile -Path (Join-Path $Root "default.project.json") -Label "default.project.json"
+	if ($null -eq (Get-ObjectProperty $config "name") -or -not ([string]$config.name).Equals($ExpectedName, [StringComparison]::Ordinal)) {
+		throw "Originless project name must equal destination leaf '$ExpectedName'."
+	}
+	foreach ($propertyName in @("placeId", "gameId", "servePlaceIds", "servePort")) {
+		if ($null -ne (Get-ObjectProperty $config $propertyName)) { throw "Originless project must not inherit '$propertyName'." }
+	}
+	foreach ($required in @(
+		"README.md",
+		"place.rbxl",
+		"scripts/ensure-rojo-server.ps1",
+		"src/ServerScriptService/Bootstrap.server.luau",
+		"src/StarterPlayerScripts/Bootstrap.client.luau",
+		"src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau"
+	)) {
+		if (-not (Test-Path -LiteralPath (Join-Path $Root $required) -PathType Leaf)) { throw "Originless project is missing '$required'." }
+	}
+	$uiPath = Join-Path $Root "src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau"
+	$uiBytes = [IO.File]::ReadAllBytes($uiPath)
+	if ($uiBytes.Length -ge 3 -and $uiBytes[0] -eq 0xEF -and $uiBytes[1] -eq 0xBB -and $uiBytes[2] -eq 0xBF) { throw "DerivedWindowConfig.luau must be UTF-8 without BOM." }
+	$uiText = [Text.Encoding]::UTF8.GetString($uiBytes).Replace("`r`n", "`n").Replace("`r", "`n")
+	if (-not $uiText.Equals("--!strict`n`nreturn table.freeze({})`n", [StringComparison]::Ordinal)) {
+		throw "DerivedWindowConfig.luau must use the exact initialized strict frozen-empty-table shape."
+	}
+}
+
+function Assert-BootstrapScratchPath {
+	param([string]$Path, [string]$Parent, [string]$Prefix)
+	$full = [IO.Path]::GetFullPath($Path)
+	$actualParent = [IO.Path]::GetFullPath((Split-Path -Parent $full)).TrimEnd('\', '/')
+	$expectedParent = [IO.Path]::GetFullPath($Parent).TrimEnd('\', '/')
+	$leaf = Split-Path -Leaf $full
+	if (-not $actualParent.Equals($expectedParent, [StringComparison]::OrdinalIgnoreCase) -or -not $leaf.StartsWith($Prefix, [StringComparison]::Ordinal)) {
+		throw "Refusing unsafe originless init scratch path: $full"
+	}
+}
+
+function Invoke-OriginlessProjectBootstrap {
+	param([string]$DestinationPath, [string]$TemplateSource, [bool]$DoApply, [bool]$DoPush, [string]$Ref)
+	if ($DoPush) { throw "Originless init never commits or pushes; omit -Push." }
+	$destination = Assert-OriginlessDestination -Path $DestinationPath
+	$templateRoot = Resolve-LocalTemplateRoot -Path $TemplateSource
+	$targetCommit = Resolve-ExactCommitId -Root $templateRoot -Ref $Ref
+	Assert-PlainTemplateTarget -Root $templateRoot -Commit $targetCommit
+	Write-Output "ORIGINLESS INIT PLAN destination=$($destination.Path) template=$templateRoot target=$targetCommit name=$($destination.Leaf)"
+	Write-Output "  export exact tracked target snapshot; strip cloud identity and servePort; generate README and empty DerivedWindowConfig; create no Git metadata"
+	if (-not $DoApply) { return }
+
+	$token = [Guid]::NewGuid().ToString("N")
+	$scratchPrefix = ".$($destination.Leaf).template-init-"
+	$staging = Join-Path $destination.Parent "$scratchPrefix$token"
+	$archive = Join-Path $destination.Parent "$scratchPrefix$token.zip"
+	$backup = Join-Path $destination.Parent "$scratchPrefix$token.empty"
+	foreach ($scratch in @($staging, $archive, $backup)) { Assert-BootstrapScratchPath -Path $scratch -Parent $destination.Parent -Prefix $scratchPrefix }
+	$destinationMoved = $false
+	$published = $false
+	try {
+		[IO.Directory]::CreateDirectory($staging) | Out-Null
+		Invoke-Git -Root $templateRoot -Arguments @("archive", "--format=zip", "--output=$archive", $targetCommit) | Out-Null
+		Add-Type -AssemblyName System.IO.Compression.FileSystem
+		[IO.Compression.ZipFile]::ExtractToDirectory($archive, $staging)
+		[IO.File]::Delete($archive)
+		$placeHash = Get-FileSha256 (Join-Path $staging "place.rbxl")
+		$configPath = Join-Path $staging "default.project.json"
+		$config = Read-JsonFile -Path $configPath -Label "TargetRef default.project.json"
+		foreach ($propertyName in @("name", "placeId", "gameId", "servePlaceIds", "servePort")) {
+			if ($null -ne (Get-ObjectProperty $config $propertyName)) { $config.PSObject.Properties.Remove($propertyName) }
+		}
+		$config | Add-Member -NotePropertyName name -NotePropertyValue $destination.Leaf
+		Write-TextFile -Path $configPath -Content (Format-ProjectJson -Configuration $config)
+		Write-TextFile -Path (Join-Path $staging "README.md") -Content (Get-ProjectReadme -Name $destination.Leaf -TemplateCommit $targetCommit)
+		Write-TextFile -Path (Join-Path $staging "src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau") -Content "--!strict`n`nreturn table.freeze({})`n"
+		Assert-PlainInitializedStructure -Root $staging -ExpectedName $destination.Leaf
+		if ((Get-FileSha256 (Join-Path $staging "place.rbxl")) -ne $placeHash) { throw "Originless initialization changed place.rbxl unexpectedly." }
+		Invoke-RojoBuildValidation -Root $staging
+
+		if ($destination.Existed) {
+			[IO.Directory]::Move($destination.Path, $backup)
+			$destinationMoved = $true
+		}
+		[IO.Directory]::Move($staging, $destination.Path)
+		$published = $true
+		if ($destinationMoved) { [IO.Directory]::Delete($backup, $false) }
+	} catch {
+		$failure = $_
+		try {
+			if ($published -and (Test-Path -LiteralPath $destination.Path -PathType Container)) { [IO.Directory]::Delete($destination.Path, $true) }
+			if ($destinationMoved -and (Test-Path -LiteralPath $backup -PathType Container)) { [IO.Directory]::Move($backup, $destination.Path) }
+			if (Test-Path -LiteralPath $staging -PathType Container) { [IO.Directory]::Delete($staging, $true) }
+			if (Test-Path -LiteralPath $archive -PathType Leaf) { [IO.File]::Delete($archive) }
+			if (Test-Path -LiteralPath $backup) { [IO.Directory]::Delete($backup, $true) }
+			$restored = if ($destination.Existed) {
+				(Test-Path -LiteralPath $destination.Path -PathType Container) -and @(Get-ChildItem -LiteralPath $destination.Path -Force).Count -eq 0
+			} else { -not (Test-Path -LiteralPath $destination.Path) }
+			if (-not $restored) { throw "Destination was not restored to its exact absent/empty pre-state." }
+		} catch {
+			throw "Originless initialization failed and cleanup could not restore the destination. Cause: $($failure.Exception.Message) Cleanup: $($_.Exception.Message)"
+		}
+		throw "Originless initialization failed; destination was restored exactly. Cause: $($failure.Exception.Message)"
+	}
+	Write-Output "ORIGINLESS INIT APPLIED destination=$($destination.Path) target=$targetCommit. No Git repository, commit, remote, or push was created."
+}
+
 function Assert-BootstrapDestination {
 	param([string]$Path)
 	$full = [IO.Path]::GetFullPath($Path)
@@ -842,10 +1041,23 @@ function Invoke-Update {
 	$incomingConfig = Read-JsonText -Text (Get-GitText -Root $Root -Revision $targetCommit -Path "default.project.json") -Label "incoming default.project.json"
 	$mergedConfig = Get-MergedProjectConfiguration -Base $baseConfig -Local $localConfig -Incoming $incomingConfig
 	$mergedText = Format-ProjectJson -Configuration $mergedConfig
-	$placePath = Join-Path $Root "place.rbxl"
-	$readmePath = Join-Path $Root "README.md"
-	$placeHash = Get-FileSha256 $placePath
-	$readmeHash = Get-FileSha256 $readmePath
+	$rootPrefix = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+	$snapshotPaths = @()
+	$seenSnapshotPaths = @{}
+	$targetDelta = Invoke-Git -Root $Root -Arguments @("diff", "--name-only", "--no-renames", $base, $targetCommit, "--")
+	foreach ($candidate in @($targetDelta.Output) + @("README.md", "place.rbxl", "default.project.json")) {
+		$relative = ([string]$candidate).Replace('\', '/')
+		$segments = @($relative.Split('/'))
+		if ([string]::IsNullOrWhiteSpace($relative) -or [IO.Path]::IsPathRooted($relative) -or @($segments | Where-Object { [string]::IsNullOrWhiteSpace($_) -or $_ -eq "." -or $_ -eq ".." }).Count -gt 0) {
+			throw "Template target contains an unsafe update path: '$relative'."
+		}
+		$fullPath = [IO.Path]::GetFullPath((Join-Path $Root ($relative.Replace('/', [IO.Path]::DirectorySeparatorChar))))
+		if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Template target path escapes the repository root: '$relative'." }
+		if (-not $seenSnapshotPaths.ContainsKey($relative)) {
+			$seenSnapshotPaths[$relative] = $true
+			$snapshotPaths += ,[PSCustomObject]@{ RelativePath = $relative; FullPath = $fullPath }
+		}
+	}
 	$preIndex = Get-GitScalar -Root $Root -Arguments @("write-tree")
 
 	Write-Output "UPDATE PLAN repository=$Root branch=$branch base=$base from=$head target=$targetCommit"
@@ -853,6 +1065,16 @@ function Invoke-Update {
 	Write-Output "  reconcile default.project.json with a true three-way structural merge"
 	Write-Output "  preserve only local name, local complete identity tuple, and an already-existing local servePort"
 	if (-not $DoApply) { return }
+	$pathSnapshot = @()
+	$snapshotByPath = @{}
+	foreach ($path in $snapshotPaths) {
+		$exists = Test-Path -LiteralPath $path.FullPath
+		if ($exists -and -not (Test-Path -LiteralPath $path.FullPath -PathType Leaf)) { throw "Update snapshot path is not a file: '$($path.RelativePath)'." }
+		$bytes = if ($exists) { [IO.File]::ReadAllBytes($path.FullPath) } else { $null }
+		$entry = [PSCustomObject]@{ RelativePath = $path.RelativePath; FullPath = $path.FullPath; Existed = [bool]$exists; Bytes = $bytes }
+		$pathSnapshot += ,$entry
+		$snapshotByPath[$path.RelativePath] = $entry
+	}
 
 	$success = $false
 	$failure = $null
@@ -864,14 +1086,22 @@ function Invoke-Update {
 		if ($merge.ExitCode -ne 0 -and $unmerged.Count -eq 0) { throw "git merge failed before producing resolvable protected-path conflicts: $($merge.Output -join ' ')" }
 
 		foreach ($protected in @("README.md", "place.rbxl")) {
-			Invoke-Git -Root $Root -Arguments @("restore", "--source=$head", "--staged", "--worktree", "--", $protected) | Out-Null
+			$protectedSnapshot = $snapshotByPath[$protected]
+			if ($null -eq $protectedSnapshot -or -not $protectedSnapshot.Existed) { throw "Protected update path '$protected' was not present in the pre-update snapshot." }
+			Invoke-Git -Root $Root -Arguments @("restore", "--source=$head", "--staged", "--", $protected) | Out-Null
+			[IO.File]::WriteAllBytes($protectedSnapshot.FullPath, [byte[]]$protectedSnapshot.Bytes)
+			Invoke-Git -Root $Root -Arguments @("add", "--", $protected) | Out-Null
 		}
 		Write-TextFile -Path (Join-Path $Root "default.project.json") -Content $mergedText
 		Invoke-Git -Root $Root -Arguments @("add", "--", "default.project.json") | Out-Null
 		$remaining = @((Invoke-Git -Root $Root -Arguments @("diff", "--name-only", "--diff-filter=U")).Output)
 		if ($remaining.Count -gt 0) { throw "Template merge still has unresolved paths: $($remaining -join ', ')." }
-		if ((Get-FileSha256 $placePath) -ne $placeHash) { throw "Template update did not preserve place.rbxl exactly." }
-		if ((Get-FileSha256 $readmePath) -ne $readmeHash) { throw "Template update did not preserve README.md exactly." }
+		foreach ($protected in @("README.md", "place.rbxl")) {
+			$protectedSnapshot = $snapshotByPath[$protected]
+			if (-not (Test-Path -LiteralPath $protectedSnapshot.FullPath -PathType Leaf) -or -not (Test-ByteArraysEqual -Left ([IO.File]::ReadAllBytes($protectedSnapshot.FullPath)) -Right ([byte[]]$protectedSnapshot.Bytes))) {
+				throw "Template update did not preserve $protected byte-exactly."
+			}
+		}
 		$actualConfig = Read-JsonFile -Path (Join-Path $Root "default.project.json") -Label "merged default.project.json"
 		if (-not (Test-StructuralEqual $actualConfig $mergedConfig)) { throw "Staged default.project.json differs structurally from the computed three-way result." }
 		Assert-InitializedStructure -Root $Root | Out-Null
@@ -889,16 +1119,59 @@ function Invoke-Update {
 		$failure = $_
 	} finally {
 		if (-not $success) {
-			$mergeHead = Join-Path (Get-GitScalar -Root $Root -Arguments @("rev-parse", "--git-dir")) "MERGE_HEAD"
-			if (-not [IO.Path]::IsPathRooted($mergeHead)) { $mergeHead = Join-Path $Root $mergeHead }
-			if (Test-Path -LiteralPath $mergeHead) { Invoke-Git -Root $Root -Arguments @("merge", "--abort") | Out-Null }
-			$postAbortHead = Get-GitScalar -Root $Root -Arguments @("rev-parse", "HEAD")
-			$postAbortIndex = Get-GitScalar -Root $Root -Arguments @("write-tree")
-			$status = @((Invoke-Git -Root $Root -Arguments @("status", "--porcelain", "--untracked-files=no")).Output)
-			if (-not $postAbortHead.Equals($head, [StringComparison]::Ordinal) -or -not $postAbortIndex.Equals($preIndex, [StringComparison]::Ordinal) -or $status.Count -gt 0) {
-				throw "Update failed and merge abort did not restore the exact pre-state. preHead=$head postHead=$postAbortHead preIndex=$preIndex postIndex=$postAbortIndex status=$($status -join '; ') Original error: $($failure.Exception.Message)"
+			$rollbackIssues = @()
+			Invoke-Git -Root $Root -Arguments @("merge", "--abort") -AllowFailure | Out-Null
+			foreach ($entry in $pathSnapshot) {
+				try {
+					if ($entry.Existed) {
+						if (Test-Path -LiteralPath $entry.FullPath -PathType Container) { Remove-Item -LiteralPath $entry.FullPath -Recurse -Force }
+						$parent = Split-Path -Parent $entry.FullPath
+						if (-not [string]::IsNullOrWhiteSpace($parent)) { [IO.Directory]::CreateDirectory($parent) | Out-Null }
+						[IO.File]::WriteAllBytes($entry.FullPath, [byte[]]$entry.Bytes)
+					} elseif (Test-Path -LiteralPath $entry.FullPath) {
+						Remove-Item -LiteralPath $entry.FullPath -Recurse -Force
+					}
+				} catch {
+					$rollbackIssues += "restore '$($entry.RelativePath)': $($_.Exception.Message)"
+				}
 			}
-			throw "Update failed; merge was aborted and exact pre-state was restored. preHead=$head postHead=$postAbortHead preIndex=$preIndex postIndex=$postAbortIndex. Cause: $($failure.Exception.Message)"
+			foreach ($entry in $pathSnapshot) {
+				if (-not $entry.Existed) { continue }
+				try {
+					Invoke-Git -Root $Root -Arguments @("add", "--", $entry.RelativePath) | Out-Null
+				} catch {
+					$rollbackIssues += "refresh index '$($entry.RelativePath)': $($_.Exception.Message)"
+				}
+			}
+			foreach ($entry in $pathSnapshot) {
+				try {
+					if ($entry.Existed) {
+						if (-not (Test-Path -LiteralPath $entry.FullPath -PathType Leaf) -or -not (Test-ByteArraysEqual -Left ([IO.File]::ReadAllBytes($entry.FullPath)) -Right ([byte[]]$entry.Bytes))) {
+							$rollbackIssues += "verify '$($entry.RelativePath)': bytes or existence differ"
+						}
+					} elseif (Test-Path -LiteralPath $entry.FullPath) {
+						$rollbackIssues += "verify '$($entry.RelativePath)': path should be absent"
+					}
+				} catch {
+					$rollbackIssues += "verify '$($entry.RelativePath)': $($_.Exception.Message)"
+				}
+			}
+			$postAbortHead = "<unavailable>"
+			$postAbortIndex = "<unavailable>"
+			$status = @("<unavailable>")
+			try { $postAbortHead = Get-GitScalar -Root $Root -Arguments @("rev-parse", "HEAD") } catch { $rollbackIssues += "HEAD receipt: $($_.Exception.Message)" }
+			try { $postAbortIndex = Get-GitScalar -Root $Root -Arguments @("write-tree") } catch { $rollbackIssues += "index receipt: $($_.Exception.Message)" }
+			try { $status = @((Invoke-Git -Root $Root -Arguments @("status", "--porcelain", "--untracked-files=all")).Output) } catch { $rollbackIssues += "status receipt: $($_.Exception.Message)" }
+			$mergeState = Invoke-Git -Root $Root -Arguments @("rev-parse", "--verify", "-q", "MERGE_HEAD") -AllowFailure
+			if ($mergeState.ExitCode -eq 0) { $rollbackIssues += "MERGE_HEAD remains after merge --abort" }
+			if (-not $postAbortHead.Equals($head, [StringComparison]::Ordinal)) { $rollbackIssues += "HEAD differs: pre=$head post=$postAbortHead" }
+			if (-not $postAbortIndex.Equals($preIndex, [StringComparison]::Ordinal)) { $rollbackIssues += "index differs: pre=$preIndex post=$postAbortIndex" }
+			if ($status.Count -gt 0) { $rollbackIssues += "status is not clean: $($status -join '; ')" }
+			$failureMessage = if ($null -eq $failure) { "unknown update failure" } else { $failure.Exception.Message }
+			if ($rollbackIssues.Count -gt 0) {
+				throw "Update failed and exact rollback verification failed. issues=$($rollbackIssues -join ' | ') Original error: $failureMessage"
+			}
+			throw "Update failed; merge was aborted and exact pre-state was restored. preHead=$head postHead=$postAbortHead preIndex=$preIndex postIndex=$postAbortIndex. Cause: $failureMessage"
 		}
 	}
 }
@@ -907,9 +1180,13 @@ $normalizedAction = $Action.ToLowerInvariant()
 if ($normalizedAction -ne "init" -and (-not [string]::IsNullOrWhiteSpace($OriginUrl) -or $Push)) {
 	throw "-OriginUrl and -Push are valid only with init."
 }
-if ($normalizedAction -eq "init" -and -not [string]::IsNullOrWhiteSpace($OriginUrl) -and -not (Test-IsGitRepository -Path $RepositoryPath)) {
+if ($normalizedAction -eq "init" -and -not (Test-IsGitRepository -Path $RepositoryPath)) {
 	if (($Check -and $Apply) -or (-not $Check -and -not $Apply)) { throw "init requires exactly one of -Check or -Apply." }
-	Invoke-NewProjectBootstrap -DestinationPath $RepositoryPath -TargetOrigin $OriginUrl -TemplateSource $TemplateUrl -DoApply ([bool]$Apply) -DoPush ([bool]$Push) -Ref $TargetRef
+	if (-not [string]::IsNullOrWhiteSpace($OriginUrl)) {
+		Invoke-NewProjectBootstrap -DestinationPath $RepositoryPath -TargetOrigin $OriginUrl -TemplateSource $TemplateUrl -DoApply ([bool]$Apply) -DoPush ([bool]$Push) -Ref $TargetRef
+	} else {
+		Invoke-OriginlessProjectBootstrap -DestinationPath $RepositoryPath -TemplateSource $TemplateUrl -DoApply ([bool]$Apply) -DoPush ([bool]$Push) -Ref $TargetRef
+	}
 	exit 0
 }
 

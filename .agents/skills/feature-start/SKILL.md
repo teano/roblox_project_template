@@ -9,8 +9,9 @@ Use this skill as the user-facing router for the optional feature record. The
 user does not need to run PowerShell.
 
 1. Read `AGENTS.md`, `.agents/rules/index.md`, and
-   `.agents/rules/feature-workflow.md`. Resolve the exact repository root and
-   writable template/project namespace from canonical remotes.
+   `.agents/rules/feature-workflow.md`. Resolve the exact root and writable
+   template/project namespace from canonical remotes, or from the narrow
+   non-Git derived-project evidence defined by the feature rule.
 2. Resolve any supplied feature ID, slug, or title. Reuse an existing `open`
    record instead of creating a duplicate. Never reopen or overwrite `done`
    history; ask before allocating a new record for follow-up work.

@@ -46,6 +46,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1
   -RepositoryPath D:\Projects\PROJECT -TargetRef refs/remotes/upstream/main -Apply
 ```
 
+### Локальный клиент без Git
+
+Если клиентскому проекту намеренно не нужен repository, используйте local
+template checkout и полный commit ID. Destination должен отсутствовать или
+быть пустым и находиться вне любого Git worktree:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init `
+  -TemplateUrl D:\Projects\roblox_project_template `
+  -Destination D:\Projects\LocalGame `
+  -TargetRef 0123456789abcdef0123456789abcdef01234567 -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init `
+  -TemplateUrl D:\Projects\roblox_project_template `
+  -Destination D:\Projects\LocalGame `
+  -TargetRef 0123456789abcdef0123456789abcdef01234567 -Apply
+```
+
+`-Check` ничего не создаёт. `-Apply` берёт только tracked snapshot exact commit
+через `git archive`, выполняет обычные init transforms в sibling staging,
+проверяет структуру и temporary Rojo build, затем атомарно публикует папку.
+Working-tree, ignored и untracked файлы template не копируются; `.git`, remote,
+commit и push не создаются. При ошибке absent/empty состояние destination
+восстанавливается. Для такого клиента предусмотрены feature records, но не
+originless update, repair или validate.
+
 ## Repair legacy checkout
 
 Если derived project уже имеет project-owned non-template Rojo `name`, но ещё

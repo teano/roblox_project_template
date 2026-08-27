@@ -28,6 +28,12 @@ Template records use `TF-####` under `docs/Features/template/`. Derived-game
 records use `F-####` under `docs/Features/project/`. A derived repository may
 read inherited template history but never migrates or mutates it.
 
+A completely non-Git derived-project root uses the same `F-####` ownership
+when `default.project.json` has a non-empty non-template name and the exact
+project-owned `src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau`
+exists. Broken `.git` metadata and paths nested inside another Git worktree
+fail closed. A non-Git template root is never inferred.
+
 ## User-facing skills
 
 - Start creates or reuses an `open` record. Work requested in the same message

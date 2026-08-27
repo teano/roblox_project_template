@@ -98,6 +98,21 @@ config и выполняет локальную проверку. Она не п
 prepared checkout остаётся advanced compatibility mode через
 `-RepositoryPath`.
 
+Для локального клиента, которому намеренно не нужен Git repository, укажите
+exact local template root и полный commit ID, но не `-OriginUrl`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init `
+  -TemplateUrl D:\Projects\roblox_project_template `
+  -Destination D:\Projects\LocalGame `
+  -TargetRef 0123456789abcdef0123456789abcdef01234567 -Apply
+```
+
+Этот маршрут экспортирует только tracked snapshot указанного commit, не
+копирует ignored/untracked файлы и не создаёт `.git`, remotes, commit или push.
+Он предназначен для absent/empty destination вне другого Git worktree;
+originless update/repair не поддерживаются.
+
 ## Обновление из template upstream
 
 В нужной ветке derived project:

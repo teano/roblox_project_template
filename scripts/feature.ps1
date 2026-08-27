@@ -56,7 +56,21 @@ function Resolve-FeatureRepositoryRoot {
 	param([string]$Path)
 	if (-not (Test-Path -LiteralPath $Path -PathType Container)) { throw "RepositoryPath does not exist or is not a directory: $Path" }
 	$requested = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $Path).Path).TrimEnd('\', '/')
-	$result = Invoke-FeatureGit -Root $requested -Arguments @("rev-parse", "--show-toplevel")
+	$result = Invoke-FeatureGit -Root $requested -Arguments @("rev-parse", "--show-toplevel") -AllowFailure
+	if ($result.ExitCode -ne 0) {
+		if (Test-Path -LiteralPath (Join-Path $requested ".git")) { throw "RepositoryPath contains broken .git metadata and cannot use the non-Git project fallback: $requested" }
+		$configPath = Join-Path $requested "default.project.json"
+		$uiPath = Join-Path $requested "src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau"
+		if (-not (Test-Path -LiteralPath $configPath -PathType Leaf) -or -not (Test-Path -LiteralPath $uiPath -PathType Leaf)) {
+			throw "Non-Git RepositoryPath is not an initialized derived project: default.project.json and the exact project-owned DerivedWindowConfig.luau are required."
+		}
+		try { $config = [IO.File]::ReadAllText($configPath) | ConvertFrom-Json } catch { throw "Non-Git default.project.json is invalid JSON: $($_.Exception.Message)" }
+		$nameProperty = $config.PSObject.Properties["name"]
+		if ($null -eq $nameProperty -or [string]::IsNullOrWhiteSpace([string]$nameProperty.Value) -or ([string]$nameProperty.Value).Equals("roblox_project_template", [StringComparison]::Ordinal)) {
+			throw "Non-Git RepositoryPath must have a non-empty project-owned name different from roblox_project_template."
+		}
+		return $requested
+	}
 	$root = [IO.Path]::GetFullPath(([string]$result.Output[0]).Trim()).TrimEnd('\', '/')
 	if (-not $root.Equals($requested, [StringComparison]::OrdinalIgnoreCase)) { throw "RepositoryPath must name the repository root exactly. Resolved root: $root" }
 	return $root
@@ -64,6 +78,8 @@ function Resolve-FeatureRepositoryRoot {
 
 function Get-FeatureRepositoryRole {
 	param([string]$Root)
+	$gitRoot = Invoke-FeatureGit -Root $Root -Arguments @("rev-parse", "--show-toplevel") -AllowFailure
+	if ($gitRoot.ExitCode -ne 0) { return "project" }
 	$result = Invoke-FeatureGit -Root $Root -Arguments @("remote", "get-url", "upstream") -AllowFailure
 	if ($result.ExitCode -ne 0) {
 		$origin = Invoke-FeatureGit -Root $Root -Arguments @("remote", "get-url", "origin") -AllowFailure

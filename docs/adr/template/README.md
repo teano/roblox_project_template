@@ -55,6 +55,7 @@ Repositories derived from the template receive these records from their
 | [ADR-0045](0045-client-ui-system-boundaries.md) | Keep client UI ownership behind one manifest-composed root | Accepted |
 | [ADR-0046](0046-simplify-template-project-workflow.md) | Use direct template tooling and optional work records | Accepted |
 | [ADR-0047](0047-route-feature-intent-through-thin-user-skills.md) | Route feature intent through thin user skills | Accepted |
+| [ADR-0048](0048-create-originless-clients-from-exact-snapshots.md) | Create originless clients from exact template snapshots | Accepted |
 
 ## Ownership and numbering
 

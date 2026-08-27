@@ -46,10 +46,12 @@ Record не создаёт ветку, lease, pipeline, разрешение н�
 
 Создание, проверка, legacy bootstrap и атомарное обновление описаны в
 [TemplateWorkflow.md](TemplateWorkflow.md). Единственный интерфейс —
-`scripts/template-project.ps1 init|update|validate`. Primary init принимает
-target URL и explicit destination; update требует exact repository root и
-already-fetched target ref. Никакой implicit push, force-push, publish или
-автоматической смены update-ветки нет.
+`scripts/template-project.ps1 init|repair|update|validate`. Shared-history init
+принимает target URL и explicit destination. Локальный клиент без Git можно
+создать из exact local template root и полного commit ID; feature-команды в нём
+создают project-owned `F-####` записи без скрытого repository. Update требует
+exact Git repository root и already-fetched target ref. Никакой implicit push,
+force-push, publish или автоматической смены update-ветки нет.
 
 ## Studio
 

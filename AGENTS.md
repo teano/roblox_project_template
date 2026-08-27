@@ -28,6 +28,12 @@ updating a derived project. The command owns the mechanical Git transaction and
 protected project paths. Do not reproduce that merge workflow by hand unless
 the command reports a condition that needs an explicit user decision.
 
+A local client that intentionally has no Git repository may be created from an
+exact local template checkout and full template commit ID. This originless
+route exports only that tracked snapshot, creates no `.git` or remotes, and
+still supports the optional project feature records. It does not add an
+originless update or repair workflow.
+
 Routine project changes do not require a project ADR or feature record.
 Architecture decisions are for durable ownership or public-contract choices;
 feature records are optional lightweight bookkeeping described in

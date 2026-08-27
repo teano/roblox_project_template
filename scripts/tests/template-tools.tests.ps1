@@ -260,6 +260,93 @@ try {
 	Assert-CommandFails -Tool $templateTool -Arguments @("init", "-Check", "-OriginUrl", $emptyOrigin, "-TemplateUrl", $templateRoot, "-Destination", $unsafeDestination) -Contains "non-empty" | Out-Null
 	Assert-True ((Get-Hash (Join-Path $unsafeDestination "keep.txt")) -eq $unsafeHash) "bootstrap must not overwrite a non-empty unrelated destination"
 
+	# Originless init exports one exact tracked snapshot without creating a repository.
+	Write-Utf8NoBom -Path (Join-Path $templateRoot "tests/plain-ignored.txt") -Content "ignored source state`n"
+	Write-Utf8NoBom -Path (Join-Path $templateRoot "working-tree-only.txt") -Content "untracked source state`n"
+	$plainSourceStatus = Get-StatusText $templateRoot
+	$plainCheckDestination = Join-Path $testRoot "PlainCheckGame"
+	Invoke-Tool -Tool $templateTool -Arguments @("init", "-Check", "-TemplateUrl", $templateRoot, "-Destination", $plainCheckDestination, "-TargetRef", $baseline) | Out-Null
+	Assert-True (-not (Test-Path -LiteralPath $plainCheckDestination)) "originless Check must not create an absent destination"
+	Assert-True ((Get-StatusText $templateRoot) -eq $plainSourceStatus) "originless Check must not mutate the template checkout"
+	$plainEmptyCheck = Join-Path $testRoot "PlainEmptyCheck"
+	[IO.Directory]::CreateDirectory($plainEmptyCheck) | Out-Null
+	Invoke-Tool -Tool $templateTool -Arguments @("init", "-Check", "-TemplateUrl", $templateRoot, "-Destination", $plainEmptyCheck, "-TargetRef", $baseline) | Out-Null
+	Assert-True ((Test-Path -LiteralPath $plainEmptyCheck -PathType Container) -and @(Get-ChildItem -LiteralPath $plainEmptyCheck -Force).Count -eq 0) "originless Check must preserve an existing empty destination"
+
+	$invalidPlainDestination = Join-Path $testRoot "InvalidPlainGame"
+	Assert-CommandFails -Tool $templateTool -Arguments @("init", "-Check", "-TemplateUrl", $templateRoot, "-Destination", $invalidPlainDestination, "-TargetRef", "not-a-full-commit") -Contains "full 40-character" | Out-Null
+	Assert-True (-not (Test-Path -LiteralPath $invalidPlainDestination)) "invalid originless TargetRef must not create destination state"
+	$nonEmptyPlainDestination = Join-Path $testRoot "NonEmptyPlainGame"
+	Write-Utf8NoBom -Path (Join-Path $nonEmptyPlainDestination "keep.txt") -Content "keep`n"
+	$nonEmptyPlainHash = Get-Hash (Join-Path $nonEmptyPlainDestination "keep.txt")
+	Assert-CommandFails -Tool $templateTool -Arguments @("init", "-Apply", "-TemplateUrl", $templateRoot, "-Destination", $nonEmptyPlainDestination, "-TargetRef", $baseline) -Contains "absent or empty" | Out-Null
+	Assert-True ((Get-Hash (Join-Path $nonEmptyPlainDestination "keep.txt")) -eq $nonEmptyPlainHash) "originless init must not alter a non-empty destination"
+
+	$failedPlainDestination = Join-Path $testRoot "FailedPlainGame"
+	[IO.Directory]::CreateDirectory($failedPlainDestination) | Out-Null
+	$plainFailingRojoBin = Join-Path $testRoot "plain-failing-rojo-bin"
+	Write-Utf8NoBom -Path (Join-Path $plainFailingRojoBin "rojo.cmd") -Content "@echo forced originless rojo failure 1>&2`r`n@exit /b 23`r`n"
+	$plainPriorPath = $env:PATH
+	try {
+		$env:PATH = "$plainFailingRojoBin;$plainPriorPath"
+		Assert-CommandFails -Tool $templateTool -Arguments @("init", "-Apply", "-TemplateUrl", $templateRoot, "-Destination", $failedPlainDestination, "-TargetRef", $baseline) -Contains "destination was restored exactly" | Out-Null
+	} finally {
+		$env:PATH = $plainPriorPath
+	}
+	Assert-True ((Test-Path -LiteralPath $failedPlainDestination -PathType Container) -and @(Get-ChildItem -LiteralPath $failedPlainDestination -Force).Count -eq 0) "failed originless build must restore the exact existing-empty destination"
+	Assert-True (@(Get-ChildItem -LiteralPath $testRoot -Force -Filter ".FailedPlainGame.template-init-*").Count -eq 0) "failed originless init must clean guarded sibling scratch paths"
+
+	$plainDestination = Join-Path $testRoot "PlainGame"
+	$targetPlaceHash = Get-Hash (Join-Path $templateRoot "place.rbxl")
+	$plainInit = Invoke-Tool -Tool $templateTool -Arguments @("init", "-Apply", "-TemplateUrl", $templateRoot, "-Destination", $plainDestination, "-TargetRef", $baseline)
+	$plainConfig = Read-Json (Join-Path $plainDestination "default.project.json")
+	$plainRojoReceipts = @($plainInit.Output | Where-Object { $_ -like "ROJO BUILD VALID repository=*" })
+	Assert-True ($plainRojoReceipts.Count -eq 1) "successful Rojo validation must emit exactly one concise receipt after the non-empty build"
+	Assert-True (-not (Test-Path -LiteralPath (Join-Path $plainDestination ".git"))) "originless Apply must not create .git"
+	Assert-True ((Invoke-TestGit -Root $plainDestination -Arguments @("rev-parse", "--show-toplevel") -AllowFailure).ExitCode -ne 0) "originless client must not be a Git repository"
+	Assert-True ($plainConfig.name -eq "PlainGame") "originless Apply must derive the Rojo name from the destination leaf"
+	Assert-True ($null -eq $plainConfig.PSObject.Properties["placeId"] -and $null -eq $plainConfig.PSObject.Properties["gameId"] -and $null -eq $plainConfig.PSObject.Properties["servePlaceIds"] -and $null -eq $plainConfig.PSObject.Properties["servePort"]) "originless Apply must strip inherited cloud identity and servePort"
+	Assert-True ((Get-Hash (Join-Path $plainDestination "place.rbxl")) -eq $targetPlaceHash) "originless Apply must preserve target place bytes"
+	$expectedPlainReadme = (@(
+		"# PlainGame",
+		"",
+		'Roblox project derived from `roblox_project_template`.',
+		"",
+		"## Local development",
+		"",
+		'```powershell',
+		"powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-rojo-server.ps1",
+		'```',
+		"",
+		'The canonical Studio scene is `place.rbxl`. Update the project from the',
+		'already-fetched template ref with `scripts/template-project.ps1 update`.',
+		"",
+		('Template baseline: `{0}`.' -f $baseline)
+	) -join "`n") + "`n"
+	$actualPlainReadme = [IO.File]::ReadAllText((Join-Path $plainDestination "README.md")).Replace("`r`n", "`n")
+	Assert-True ($actualPlainReadme -ceq $expectedPlainReadme) "originless Apply must generate the exact README text with intact Markdown and no stray carriage returns"
+	Assert-True ([IO.File]::ReadAllText((Join-Path $plainDestination "src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau")).Replace("`r`n", "`n") -eq "--!strict`n`nreturn table.freeze({})`n") "originless Apply must create the exact project UI config"
+	Assert-True (-not (Test-Path -LiteralPath (Join-Path $plainDestination "tests/plain-ignored.txt")) -and -not (Test-Path -LiteralPath (Join-Path $plainDestination "working-tree-only.txt"))) "originless Apply must exclude ignored and untracked source files"
+
+	$plainFeature = Invoke-Tool -Tool $featureTool -Arguments @("new", "-RepositoryPath", $plainDestination, "-Title", "Plain Client Work")
+	Assert-True ($plainFeature.Text.Contains("CREATED F-0001")) "plain derived client must allocate F-0001 without Git"
+	$plainFeatureStatus = Invoke-Tool -Tool $featureTool -Arguments @("status", "-RepositoryPath", $plainDestination)
+	Assert-True ($plainFeatureStatus.Text.Contains("TF-0011") -and $plainFeatureStatus.Text.Contains("namespace=template access=read-only") -and $plainFeatureStatus.Text.Contains("F-0001 state=open")) "plain derived status must expose inherited template history as read-only"
+	Assert-CommandFails -Tool $featureTool -Arguments @("close", "-RepositoryPath", $plainDestination, "-Feature", "TF-0011") -Contains "read-only" | Out-Null
+	Invoke-Tool -Tool $featureTool -Arguments @("close", "-RepositoryPath", $plainDestination, "-Feature", "F-0001") | Out-Null
+	Assert-True ((Read-Json (Join-Path $plainDestination "docs/Features/project/plain-client-work/feature.json")).state -eq "done") "plain derived close must persist F-0001 as done"
+	Assert-True (-not (Test-Path -LiteralPath (Join-Path $plainDestination ".git"))) "plain feature bookkeeping must not create Git metadata"
+
+	$brokenPlainRoot = Join-Path $testRoot "BrokenPlainRoot"
+	Write-Utf8NoBom -Path (Join-Path $brokenPlainRoot ".git") -Content "gitdir: missing`n"
+	Assert-CommandFails -Tool $featureTool -Arguments @("new", "-RepositoryPath", $brokenPlainRoot, "-Title", "Must Fail") -Contains "broken .git" | Out-Null
+	$nestedPlainRoot = Join-Path $templateRoot "NestedPlainRoot"
+	[IO.Directory]::CreateDirectory($nestedPlainRoot) | Out-Null
+	Assert-CommandFails -Tool $featureTool -Arguments @("new", "-RepositoryPath", $nestedPlainRoot, "-Title", "Must Fail") -Contains "repository root exactly" | Out-Null
+	Remove-Item -LiteralPath $nestedPlainRoot -Recurse -Force
+	Remove-Item -LiteralPath (Join-Path $templateRoot "tests") -Recurse -Force
+	Remove-Item -LiteralPath (Join-Path $templateRoot "working-tree-only.txt") -Force
+
 	$derived = New-DerivedClone -TemplateRoot $templateRoot -Destination (Join-Path $testRoot "SampleGame")
 	$placeBefore = Get-Hash (Join-Path $derived "place.rbxl")
 	$statusBefore = Get-StatusText $derived
@@ -322,15 +409,59 @@ try {
 		Commit-All -Root $templateTupleRepair -Message "invalid inherited template identity" | Out-Null
 		Assert-CommandFails -Tool $templateTool -Arguments @("repair", "-Check", "-RepositoryPath", $templateTupleRepair) -Contains "non-inheritable template validation PlaceId" | Out-Null
 
+		# Update preserves raw protected bytes even when autocrlf would rewrite a checkout.
+		Invoke-TestGit -Root $derived -Arguments @("config", "core.autocrlf", "true") | Out-Null
+		$focusedReadmeBytes = [Text.Encoding]::UTF8.GetBytes("# SampleGame`nLF README PREIMAGE`n")
+		$focusedPlaceBytes = [Text.Encoding]::UTF8.GetBytes("PLACE-PROJECT-LF`n`0BINARY")
+		[IO.File]::WriteAllBytes((Join-Path $derived "README.md"), $focusedReadmeBytes)
+		[IO.File]::WriteAllBytes((Join-Path $derived "place.rbxl"), $focusedPlaceBytes)
+		Commit-All -Root $derived -Message "project LF protected preimage" | Out-Null
+		Assert-True (Test-BytesEqual -Left ([IO.File]::ReadAllBytes((Join-Path $derived "README.md"))) -Right $focusedReadmeBytes) "test precondition must keep LF README bytes with autocrlf=true"
+		Assert-True (Test-BytesEqual -Left ([IO.File]::ReadAllBytes((Join-Path $derived "place.rbxl"))) -Right $focusedPlaceBytes) "test precondition must keep LF place bytes with autocrlf=true"
+
+		$focusedTemplateConfig = Read-Json (Join-Path $templateRoot "default.project.json")
+		$focusedTemplateConfig.tree | Add-Member -NotePropertyName ServerStorage -NotePropertyValue ([PSCustomObject]@{ '$className' = 'Folder' })
+		Write-Utf8NoBom -Path (Join-Path $templateRoot "default.project.json") -Content (($focusedTemplateConfig | ConvertTo-Json -Depth 20) + "`n")
+		Write-Utf8NoBom -Path (Join-Path $templateRoot "README.md") -Content "# Incoming template README`n"
+		[IO.File]::WriteAllBytes((Join-Path $templateRoot "place.rbxl"), [Text.Encoding]::UTF8.GetBytes("PLACE-INCOMING`n`0BINARY"))
 		Write-Utf8NoBom -Path (Join-Path $templateRoot "focused-update.txt") -Content "focused`n"
 		Commit-All -Root $templateRoot -Message "focused template update" | Out-Null
 		Invoke-TestGit -Root $derived -Arguments @("fetch", "upstream") | Out-Null
-		Invoke-Tool -Tool $templateTool -Arguments @("update", "-Apply", "-RepositoryPath", $derived) | Out-Null
+		$focusedApply = Invoke-Tool -Tool $templateTool -Arguments @("update", "-Apply", "-RepositoryPath", $derived)
+		Assert-True ($focusedApply.Text.Contains("UPDATE APPLIED") -and -not $focusedApply.Text.Contains("unresolved non-protected conflicts")) "successful Git stderr must remain diagnostic and never become machine-readable unresolved-path output"
+		$focusedUpdatedConfig = Read-Json (Join-Path $derived "default.project.json")
 		Assert-True (Test-Path -LiteralPath (Join-Path $derived "focused-update.txt")) "focused update must apply an ordinary incoming template file"
+		Assert-True ($focusedUpdatedConfig.name -eq "SampleGame" -and $focusedUpdatedConfig.tree.ServerStorage.'$className' -eq "Folder") "focused update must structurally merge incoming config while preserving project identity"
+		Assert-True (Test-BytesEqual -Left ([IO.File]::ReadAllBytes((Join-Path $derived "README.md"))) -Right $focusedReadmeBytes) "autocrlf=true update must preserve raw README bytes"
+		Assert-True (Test-BytesEqual -Left ([IO.File]::ReadAllBytes((Join-Path $derived "place.rbxl"))) -Right $focusedPlaceBytes) "autocrlf=true update must preserve raw place bytes"
+		$focusedUpdateHead = ([string](Invoke-TestGit -Root $derived -Arguments @("rev-parse", "HEAD")).Output[0]).Trim()
+		$focusedNoOp = Invoke-Tool -Tool $templateTool -Arguments @("update", "-Check", "-RepositoryPath", $derived)
+		Assert-True ($focusedNoOp.Text.Contains("UPDATE CURRENT") -and ([string](Invoke-TestGit -Root $derived -Arguments @("rev-parse", "HEAD")).Output[0]).Trim() -eq $focusedUpdateHead) "second update check must be a read-only no-op"
 		Invoke-TestGit -Root $unpublishedRepair -Arguments @("fetch", "upstream") | Out-Null
 		Invoke-Tool -Tool $templateTool -Arguments @("update", "-Apply", "-RepositoryPath", $unpublishedRepair) | Out-Null
 		$updatedUnpublishedConfig = Read-Json $unpublishedConfigPath
 		Assert-True ($null -eq $updatedUnpublishedConfig.PSObject.Properties["placeId"] -and $null -eq $updatedUnpublishedConfig.PSObject.Properties["gameId"] -and $null -eq $updatedUnpublishedConfig.PSObject.Properties["servePlaceIds"]) "subsequent template update must preserve cloud identity absence"
+
+		# A post-merge validation failure restores every target-delta path byte-exactly before claiming rollback.
+		Write-Utf8NoBom -Path (Join-Path $templateRoot "shared.txt") -Content "incoming rollback mutation`n"
+		Invoke-TestGit -Root $templateRoot -Arguments @("rm", "focused-update.txt") | Out-Null
+		Write-Utf8NoBom -Path (Join-Path $templateRoot "rollback-added.txt") -Content "must disappear on rollback`n"
+		$rollbackViolation = "src/ReplicatedStorage/Shared/Audio/RollbackViolation.luau"
+		Write-Utf8NoBom -Path (Join-Path $templateRoot $rollbackViolation) -Content "--!strict`nreturn function(remote) remote:FireAllClients({}) end`n"
+		Commit-All -Root $templateRoot -Message "forced post-merge update failure" | Out-Null
+		Invoke-TestGit -Root $derived -Arguments @("fetch", "upstream") | Out-Null
+		$rollbackExistingPaths = @("README.md", "place.rbxl", "default.project.json", "shared.txt", "focused-update.txt")
+		$rollbackBytes = @{}
+		foreach ($relative in $rollbackExistingPaths) { $rollbackBytes[$relative] = [IO.File]::ReadAllBytes((Join-Path $derived $relative)) }
+		$rollbackHead = ([string](Invoke-TestGit -Root $derived -Arguments @("rev-parse", "HEAD")).Output[0]).Trim()
+		$rollbackIndex = ([string](Invoke-TestGit -Root $derived -Arguments @("write-tree")).Output[0]).Trim()
+		$rollbackFailure = Assert-CommandFails -Tool $templateTool -Arguments @("update", "-Apply", "-RepositoryPath", $derived) -Contains "exact pre-state was restored"
+		Assert-True (-not $rollbackFailure.Text.Contains("rollback verification failed")) "update must claim exact rollback only after all byte and repository receipts pass"
+		foreach ($relative in $rollbackExistingPaths) {
+			Assert-True (Test-BytesEqual -Left ([IO.File]::ReadAllBytes((Join-Path $derived $relative))) -Right ([byte[]]$rollbackBytes[$relative])) "failed update must restore raw bytes for target-delta path $relative"
+		}
+		Assert-True (-not (Test-Path -LiteralPath (Join-Path $derived "rollback-added.txt")) -and -not (Test-Path -LiteralPath (Join-Path $derived $rollbackViolation))) "failed update must delete target-added paths that were absent before merge"
+		Assert-True (([string](Invoke-TestGit -Root $derived -Arguments @("rev-parse", "HEAD")).Output[0]).Trim() -eq $rollbackHead -and ([string](Invoke-TestGit -Root $derived -Arguments @("write-tree")).Output[0]).Trim() -eq $rollbackIndex -and (Get-StatusText $derived) -eq "") "failed update must restore exact HEAD, index, and status"
 		$focusedFeature = Invoke-Tool -Tool $featureTool -Arguments @("new", "-RepositoryPath", $derived, "-Title", "Focused Bookkeeping")
 		Assert-True ($focusedFeature.Text.Contains("CREATED F-0001")) "focused feature new must allocate the owning namespace"
 		Invoke-Tool -Tool $featureTool -Arguments @("close", "-RepositoryPath", $derived, "-Feature", "F-0001") | Out-Null

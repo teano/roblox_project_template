@@ -15,6 +15,8 @@ per-path divergence records before using it.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init -OriginUrl <game-url> -Destination <exact-path> -Check
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init -OriginUrl <game-url> -Destination <exact-path> -Apply [-Push]
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init -TemplateUrl <exact-local-template-root> -Destination <exact-path> -TargetRef <full-commit-id> -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 init -TemplateUrl <exact-local-template-root> -Destination <exact-path> -TargetRef <full-commit-id> -Apply
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 repair -RepositoryPath <exact-root> -TargetRef <fetched-ref> -Check
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 repair -RepositoryPath <exact-root> -TargetRef <fetched-ref> -Apply
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 update -RepositoryPath <exact-root> -TargetRef <fetched-ref> -Check
@@ -22,10 +24,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 validate -RepositoryPath <exact-root> [-RepositoryRole Auto|Template|Project]
 ```
 
-Primary `init` requires the target game `-OriginUrl` and an explicit
+Shared-history `init` requires the target game `-OriginUrl` and an explicit
 `-Destination`; `-TemplateUrl` may override the canonical template URL.
-Prepared-checkout compatibility mode accepts `-RepositoryPath` and
-`-TargetRef`. `repair`, `update`, and `validate` always require an exact
+Originless local init omits `-OriginUrl`, requires `-TemplateUrl` to name the
+exact local template Git root, and requires `-TargetRef` as a full 40-character
+commit ID. Prepared-checkout compatibility mode accepts `-RepositoryPath` and
+`-TargetRef`. `repair`, `update`, and `validate` always require an exact Git
 repository root; repair and update targets must be already-fetched refs.
 
 `init`, `repair`, and `update` require exactly one of `-Check` or `-Apply`;
@@ -37,7 +41,7 @@ DataStore.
 
 ## New project
 
-- Primary init clones the template into the explicit destination, renames the
+- Shared-history init clones the template into the explicit destination, renames the
   template remote to `upstream`, adds the supplied game URL as `origin`, and
   keeps shared Git history so normal future merges work.
 - `-Check` validates an empty target/destination without writing. `-Apply`
@@ -52,6 +56,17 @@ DataStore.
   project actually records a decision or feature.
 - Validate and perform a temporary Rojo build before accepting initialization.
   Do not commit or push unless the invocation explicitly includes `-Push`.
+
+For a deliberately originless local client, the destination must be absent or
+empty and outside every Git worktree. `-Check` validates the local template
+root, exact commit, and destination without writing. `-Apply` exports that
+commit with `git archive` into guarded sibling staging, applies the same name,
+identity, README, and UI-config transforms, validates and builds there, then
+publishes the directory atomically. It never copies the template working tree,
+creates Git metadata/remotes, or supports `-Push`. Ignored and untracked source
+files are not imported. Failure restores the destination to its exact absent or
+empty state. Originless `repair`, `update`, and `validate` are intentionally not
+provided.
 
 ## Compatibility repair
 
