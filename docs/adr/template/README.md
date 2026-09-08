@@ -60,6 +60,7 @@ Repositories derived from the template receive these records from their
 | [ADR-0050](0050-stock-physical-windows-and-dual-sources.md) | Поставлять физические окна приглашений с общим выбором источника | Принято |
 | [ADR-0051](0051-local-group-offers-and-external-admission.md) | Разделить локальные предложения группы и внешние приглашения | Заменено ADR-0052 |
 | [ADR-0052](0052-separate-invite-attempt-and-reservation-deadlines.md) | Разделить срок попытки приглашения и срок полного резерва | Принято |
+| [ADR-0053](0053-atomic-cross-server-slot-admission.md) | Резервировать межсерверную вместимость атомарно | Принято |
 
 ## Ownership and numbering
 

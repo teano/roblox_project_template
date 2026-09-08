@@ -10,6 +10,8 @@ local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 
 type FriendsTeleportContinuation = TeleportTypes.FriendsTeleportContinuation
 type FriendsContinuationResult = TeleportTypes.FriendsContinuationResult
+type AdmissionTeleportContinuation = TeleportTypes.AdmissionTeleportContinuation
+type AdmissionContinuationResult = TeleportTypes.AdmissionContinuationResult
 
 type SessionRecord = {
 	SessionId: string,
@@ -108,11 +110,30 @@ local function copyFriendsContinuation(continuation: FriendsTeleportContinuation
 	})
 end
 
+local function copyAdmissionContinuation(continuation: AdmissionTeleportContinuation): AdmissionTeleportContinuation
+	return table.freeze({
+		Version = 1,
+		ServerKey = continuation.ServerKey,
+		Generation = continuation.Generation,
+		SlotId = continuation.SlotId,
+		Token = continuation.Token,
+		Hop = continuation.Hop,
+	})
+end
+
 local function absentFriendsContinuation(): FriendsContinuationResult
 	return table.freeze({ Status = "Absent" })
 end
 
 local function invalidFriendsContinuation(code: string): FriendsContinuationResult
+	return table.freeze({ Status = "Invalid", Code = code })
+end
+
+local function absentAdmissionContinuation(): AdmissionContinuationResult
+	return table.freeze({ Status = "Absent" })
+end
+
+local function invalidAdmissionContinuation(code: string): AdmissionContinuationResult
 	return table.freeze({ Status = "Invalid", Code = code })
 end
 
@@ -172,6 +193,7 @@ function TeleportModule.new(deps: {
 		_logger = deps.Logger or Logger.new("Teleport.Server", "info"),
 		_sessions = {} :: { [any]: SessionRecord },
 		_friendsContinuations = {} :: { [any]: FriendsContinuationResult },
+		_admissionContinuations = {} :: { [any]: AdmissionContinuationResult },
 		_attempts = {} :: { [any]: AttemptRecord },
 		_observerDisconnect = nil :: (() -> ())?,
 		_initFailedConnection = nil :: any,
@@ -275,17 +297,61 @@ function TeleportModule:_validateFriendsContinuation(value: any?): (FriendsTelep
 	return result.Continuation, nil
 end
 
-function TeleportModule:_validateContinuation(player: any, joinData: any): (SessionRecord?, FriendsContinuationResult)
+function TeleportModule:_decodeAdmissionContinuation(value: any): AdmissionContinuationResult
+	if not hasOnlyKeys(value, {
+		Version = true,
+		ServerKey = true,
+		Generation = true,
+		SlotId = true,
+		Token = true,
+		Hop = true,
+	}) then
+		return invalidAdmissionContinuation("InvalidAdmissionContinuationShape")
+	end
+	if value.Version ~= 1
+		or not isNonemptyString(value.ServerKey)
+		or not TeleportProtocol.IsCanonicalGuid(value.Generation)
+		or not isFinitePositiveInteger(value.SlotId)
+		or not isNonemptyString(value.Token)
+		or (value.Hop ~= 1 and value.Hop ~= 2 and value.Hop ~= 3)
+	then
+		return invalidAdmissionContinuation("InvalidAdmissionContinuationValue")
+	end
+	return table.freeze({
+		Status = "Valid",
+		Continuation = copyAdmissionContinuation({
+			Version = 1,
+			ServerKey = value.ServerKey,
+			Generation = value.Generation,
+			SlotId = value.SlotId,
+			Token = value.Token,
+			Hop = value.Hop,
+		}),
+	})
+end
+
+function TeleportModule:_validateAdmissionContinuation(value: any?): (AdmissionTeleportContinuation?, string?)
+	if value == nil then
+		return nil, nil
+	end
+	local result = self:_decodeAdmissionContinuation(value)
+	if result.Status ~= "Valid" then
+		return nil, result.Code
+	end
+	return result.Continuation, nil
+end
+
+function TeleportModule:_validateContinuation(player: any, joinData: any): (SessionRecord?, FriendsContinuationResult, AdmissionContinuationResult)
 	if typeof(joinData) ~= "table" then
-		return nil, absentFriendsContinuation()
+		return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 	end
 	local sourcePlaceId = joinData.SourcePlaceId
 	if not isFinitePositiveInteger(sourcePlaceId) or self._policy.AllowedPlaceIds[sourcePlaceId] ~= true then
-		return nil, absentFriendsContinuation()
+		return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 	end
 	local teleportData = joinData.TeleportData
 	if not hasOnlyKeys(teleportData, { [TeleportProtocol.EnvelopeKey] = true }) then
-		return nil, absentFriendsContinuation()
+		return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 	end
 	local envelope = teleportData[TeleportProtocol.EnvelopeKey]
 	if not hasOnlyKeys(envelope, {
@@ -294,18 +360,19 @@ function TeleportModule:_validateContinuation(player: any, joinData: any): (Sess
 		AttemptId = true,
 		SessionsByUserId = true,
 		Friends = true,
+		Admission = true,
 	}) then
-		return nil, absentFriendsContinuation()
+		return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 	end
 	if envelope.Version ~= TeleportProtocol.EnvelopeVersion
 		or envelope.SourcePlaceId ~= sourcePlaceId
 		or not TeleportProtocol.IsCanonicalGuid(envelope.AttemptId)
 	then
-		return nil, absentFriendsContinuation()
+		return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 	end
 	local sessions = envelope.SessionsByUserId
 	if typeof(sessions) ~= "table" or getmetatable(sessions) ~= nil then
-		return nil, absentFriendsContinuation()
+		return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 	end
 	local sessionCount = 0
 	for userId, sessionId in sessions do
@@ -316,23 +383,28 @@ function TeleportModule:_validateContinuation(player: any, joinData: any): (Sess
 			or tostring(tonumber(userId)) ~= userId
 			or not TeleportProtocol.IsCanonicalGuid(sessionId)
 		then
-			return nil, absentFriendsContinuation()
+			return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 		end
 		sessionCount += 1
 		if sessionCount > self._policy.MaxGroupSize then
-			return nil, absentFriendsContinuation()
+			return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 		end
 	end
 	local sessionId = sessions[tostring(player.UserId)]
 	if not TeleportProtocol.IsCanonicalGuid(sessionId) then
-		return nil, absentFriendsContinuation()
+		return nil, absentFriendsContinuation(), absentAdmissionContinuation()
 	end
 	local friendsResult = if envelope.Friends == nil then absentFriendsContinuation() else self:_decodeFriendsContinuation(envelope.Friends)
+	local admissionResult = if envelope.Admission == nil then absentAdmissionContinuation() else self:_decodeAdmissionContinuation(envelope.Admission)
+	if envelope.Friends ~= nil and envelope.Admission ~= nil then
+		friendsResult = invalidFriendsContinuation("ConflictingContinuations")
+		admissionResult = invalidAdmissionContinuation("ConflictingContinuations")
+	end
 	return {
 		SessionId = sessionId,
 		EntryKind = "Teleported",
 		SourcePlaceId = sourcePlaceId,
-	}, friendsResult
+	}, friendsResult, admissionResult
 end
 
 function TeleportModule:_onPlayerAdded(player: any)
@@ -344,8 +416,9 @@ function TeleportModule:_onPlayerAdded(player: any)
 	end)
 	local record: SessionRecord? = nil
 	local friendsContinuation: FriendsContinuationResult = absentFriendsContinuation()
+	local admissionContinuation: AdmissionContinuationResult = absentAdmissionContinuation()
 	if joinOk then
-		record, friendsContinuation = self:_validateContinuation(player, joinData)
+		record, friendsContinuation, admissionContinuation = self:_validateContinuation(player, joinData)
 	end
 	if record == nil then
 		record = {
@@ -354,9 +427,11 @@ function TeleportModule:_onPlayerAdded(player: any)
 			SourcePlaceId = nil,
 		}
 		friendsContinuation = absentFriendsContinuation()
+		admissionContinuation = absentAdmissionContinuation()
 	end
 	self._sessions[player] = record
 	self._friendsContinuations[player] = friendsContinuation
+	self._admissionContinuations[player] = admissionContinuation
 	local snapshot = copySession(record)
 	self.PlayerArrived:Fire(player, snapshot)
 	self:_queue(
@@ -389,6 +464,7 @@ function TeleportModule:_onPlayerRemoving(player: any)
 	self._attempts[player] = nil
 	self._sessions[player] = nil
 	self._friendsContinuations[player] = nil
+	self._admissionContinuations[player] = nil
 	self.PlayerDeparted:Fire(player, departure)
 	local safeDeparture = { UserId = player.UserId }
 	for otherPlayer in self._sessions do
@@ -476,6 +552,40 @@ function TeleportModule:GetFriendsContinuation(player: any): FriendsContinuation
 	return table.freeze({
 		Status = "Valid",
 		Continuation = copyFriendsContinuation(result.Continuation),
+	})
+end
+
+function TeleportModule:GetAdmissionContinuation(player: any): AdmissionContinuationResult
+	local result = self._admissionContinuations[player]
+	if result == nil or result.Status == "Absent" then
+		return absentAdmissionContinuation()
+	end
+	if result.Status == "Invalid" then
+		return invalidAdmissionContinuation(result.Code)
+	end
+	return table.freeze({
+		Status = "Valid",
+		Continuation = copyAdmissionContinuation(result.Continuation),
+	})
+end
+
+function TeleportModule:ReserveServer(placeId: any): TeleportTypes.ReserveServerResult
+	if not isFinitePositiveInteger(placeId) or self._policy.AllowedPlaceIds[placeId] ~= true then
+		return table.freeze({ Ok = false, Error = "Destination place is not allowed" })
+	end
+	local callOk, accessCode, privateServerId = pcall(function()
+		return self._teleportService:ReserveServerAsync(placeId)
+	end)
+	if not callOk then
+		return table.freeze({ Ok = false, Error = sanitizeError(accessCode) })
+	end
+	if not isValidSelector(accessCode) or not isValidSelector(privateServerId) then
+		return table.freeze({ Ok = false, Error = "Reservation result is invalid" })
+	end
+	return table.freeze({
+		Ok = true,
+		AccessCode = accessCode,
+		PrivateServerId = privateServerId,
 	})
 end
 
@@ -623,7 +733,7 @@ function TeleportModule:_onTeleportInitFailed(player: any, teleportResult: any, 
 	end
 end
 
-function TeleportModule:Teleport(players: any, destination: any, friendsContinuation: any?): any
+function TeleportModule:Teleport(players: any, destination: any, friendsContinuation: any?, admissionContinuation: any?): any
 	local destinationSnapshot, destinationError = self:_validateDestination(destination)
 	if destinationSnapshot == nil then
 		return { Ok = false, Code = "InvalidDestination", Error = destinationError :: string }
@@ -631,6 +741,13 @@ function TeleportModule:Teleport(players: any, destination: any, friendsContinua
 	local validatedFriendsContinuation, friendsContinuationError = self:_validateFriendsContinuation(friendsContinuation)
 	if friendsContinuationError ~= nil then
 		return { Ok = false, Code = "InvalidFriendsContinuation", Error = friendsContinuationError }
+	end
+	local validatedAdmissionContinuation, admissionContinuationError = self:_validateAdmissionContinuation(admissionContinuation)
+	if admissionContinuationError ~= nil then
+		return { Ok = false, Code = "InvalidAdmissionContinuation", Error = admissionContinuationError }
+	end
+	if validatedFriendsContinuation ~= nil and validatedAdmissionContinuation ~= nil then
+		return { Ok = false, Code = "ConflictingContinuations", Error = "Only one continuation kind is allowed" }
 	end
 	local playersOk, participants, playersError = self:_validatePlayers(players)
 	if not playersOk then
@@ -672,6 +789,8 @@ function TeleportModule:Teleport(players: any, destination: any, friendsContinua
 		}
 		if validatedFriendsContinuation ~= nil then
 			envelope.Friends = copyFriendsContinuation(validatedFriendsContinuation)
+		elseif validatedAdmissionContinuation ~= nil then
+			envelope.Admission = copyAdmissionContinuation(validatedAdmissionContinuation)
 		end
 		options:SetTeleportData({ [TeleportProtocol.EnvelopeKey] = envelope })
 		if destinationSnapshot.Kind == "ServerInstance" then

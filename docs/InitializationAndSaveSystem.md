@@ -28,7 +28,7 @@
 
 ```text
 Assets → AudioStartup → Pooling → Players → Communication → Config → Characters
-       → AudioGraph → OrdinarySound → Teleport → PlayerSlots → TeleportValidationPad
+       → AudioGraph → OrdinarySound → Teleport → PlayerSlots → AdmissionRouting → TeleportValidationPad
        → Statistics → Save → Migration → DomainData → GlobalSave
        → PlayerAdmission → PersistenceSchedule
 ```
@@ -157,6 +157,14 @@ Client: Assets → AudioStartup → StartupContentPreload → Pooling → Player
 `ConnectionApproved`.
 
 `Friends.Current` ограничивает личную вместимость исходящих приглашений.
+
+Между подготовкой местного слота и общей фиксацией `AdmissionRouting`
+атомарно подтверждает его в общем временном хранилище. При нехватке мест
+координатор резервирует точную межсерверную цель; при необходимости
+согласованно создаётся резервный сервер. Первый игрок принимается местно,
+а отключённая стратегия не обращается к реестру. Контракт гонок, сроки,
+очистка и порядок запуска описаны в [межсерверном допуске](AdmissionRouting.md).
+
 Единственная входящая связь гостя с пригласившим игроком при отсутствии
 резервов не расходует эту вместимость: гость с `Current=0` может принять
 приглашение. Для владельца и всех остальных сочетаний связей и резервов

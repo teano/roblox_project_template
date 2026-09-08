@@ -37,6 +37,7 @@ implementation edits that preserve architecture do not require unrelated ADRs.
 | Experience Config catalog, codecs, bundles, projections, or refresh | `configuration.md`, `communication.md`, `testing.md` |
 | Player or character lifecycle | `players.md`, `testing.md` |
 | Слоты игроков, друзья, приглашения или составной допуск | `players.md`, `communication.md`, `configuration.md`, `initialization.md`, `testing.md`; для окон также `ui.md` |
+| Межсерверный подбор, временный реестр и резервы владельцев слотов | `players.md`, `teleport.md`, `initialization.md`, `testing.md`; [системное руководство](../../docs/AdmissionRouting.md) |
 | Происхождение перенесённых систем, журнал `docs/Migrations/**`, ссылки на исходные решения | `architecture-decisions.md`; [журнал миграций](../../docs/Migrations/README.md) |
 | Wallet, Version, GameData, Statistics, another provider, or authority change | `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
 | Teleport session/attempt/envelope/destination or validation pad | `teleport.md`, `players.md`, `communication.md`, `testing.md` |

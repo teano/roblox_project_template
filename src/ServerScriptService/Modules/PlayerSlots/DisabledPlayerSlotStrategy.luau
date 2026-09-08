@@ -36,7 +36,9 @@ function Strategy:Initialize()
 	self._ready = true
 end
 
-function Strategy:PrepareAdmission(player: Player, context: any): any
+function Strategy:GetAvailableSlotIds(): { number } return table.freeze({}) end
+
+function Strategy:PrepareAdmission(player: Player, context: any, _selectedSlotId: number?): any
 	if self._stopped or not self._ready then return table.freeze({ Ok = false, Error = "NotReady" }) end
 	if not exactContext(context) then return table.freeze({ Ok = false, Error = "Rejected" }) end
 	if self._players:GetPlayerByUserId(player.UserId) ~= player then return table.freeze({ Ok = false, Error = "PlayerGone" }) end

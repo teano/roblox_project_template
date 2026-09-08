@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local ConfigService = game:GetService("ConfigService")
 local HttpService = game:GetService("HttpService")
+local MemoryStoreService = game:GetService("MemoryStoreService")
 local TeleportService = game:GetService("TeleportService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -23,6 +24,7 @@ local TeleportModule = require(Modules.Teleport.TeleportModule)
 local PlayerSlotModule = require(Modules.PlayerSlots.PlayerSlotModule)
 local FriendsModule = require(Modules.Friends.FriendsModule)
 local PlayerAdmissionCoordinator = require(Modules.PlayerAdmission.PlayerAdmissionCoordinator)
+local AdmissionRouting = require(Modules.PlayerAdmission.AdmissionRouting)
 local TeleportPolicy = require(Modules.Teleport.TeleportPolicy)
 local TeleportValidationConfig = require(Modules.Teleport.TeleportValidationConfig)
 local TeleportValidationPad = require(Modules.Teleport.TeleportValidationPad)
@@ -59,6 +61,7 @@ local CommunicationInitializationCommand = require(Commands.CommunicationInitial
 local TeleportInitializationCommand = require(Commands.TeleportInitializationCommand)
 local PlayerSlotInitializationCommand = require(Commands.PlayerSlotInitializationCommand)
 local PlayerAdmissionInitializationCommand = require(Commands.PlayerAdmissionInitializationCommand)
+local AdmissionRoutingInitializationCommand = require(Commands.AdmissionRoutingInitializationCommand)
 local TeleportValidationPadInitializationCommand = require(Commands.TeleportValidationPadInitializationCommand)
 local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand)
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
@@ -126,6 +129,15 @@ local playerSlotModule = PlayerSlotModule.new({
 	MaxPlayers = Players.MaxPlayers,
 })
 local playerAdmissionCoordinator: any = nil
+local admissionRouting = AdmissionRouting.new({
+	Store = MemoryStoreService:GetSortedMap("PlayerAdmission_v1_" .. tostring(game.PlaceId)),
+	TeleportModule = teleportModule,
+	GenerateId = function() return HttpService:GenerateGUID(false) end,
+	PlaceId = game.PlaceId,
+	JobId = if game.JobId == "" then "studio-" .. HttpService:GenerateGUID(false) else game.JobId,
+	PrivateServerId = game.PrivateServerId,
+	MatchmakingType = game.MatchmakingType.Name,
+})
 local friendsModule = FriendsModule.new({
 	Config = configCatalog,
 	PlayerSlots = playerSlotModule,
@@ -151,6 +163,7 @@ playerAdmissionCoordinator = PlayerAdmissionCoordinator.new({
 	PlayerSlots = playerSlotModule,
 	TeleportModule = teleportModule,
 	CharacterModule = characterModule,
+	AdmissionRouting = admissionRouting,
 	PlaceId = game.PlaceId,
 	JobId = game.JobId,
 	DecodeJson = function(value: string) return HttpService:JSONDecode(value) end,
@@ -222,6 +235,7 @@ local services = {
 	PlayerSlots = playerSlotModule,
 	Friends = friendsModule,
 	PlayerAdmission = playerAdmissionCoordinator,
+	AdmissionRouting = admissionRouting,
 	TeleportValidationPad = teleportValidationPad,
 	Config = configCatalog,
 	Save = saveModule,
@@ -250,6 +264,7 @@ local commands = {
 	OrdinarySoundInitializationCommand.new(ordinarySound, hybridAudio),
 	TeleportInitializationCommand.new(teleportModule),
 	PlayerSlotInitializationCommand.new(playerSlotModule),
+	AdmissionRoutingInitializationCommand.new(admissionRouting, playerSlotModule, function(callback: any) game:BindToClose(callback) end),
 	TeleportValidationPadInitializationCommand.new(teleportValidationPad),
 	StatisticsInitializationCommand.new({
 		Statistics = statisticsModule,

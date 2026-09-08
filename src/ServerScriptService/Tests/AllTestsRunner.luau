@@ -27,6 +27,7 @@ local suites = {
 	{ Name = "FriendsClientRecoveryTestRunner", Runner = require(Tests.FriendsClientRecoveryTestRunner) },
 	{ Name = "FriendInvitationsUiTestRunner", Runner = require(Tests.FriendInvitationsUiTestRunner) },
 	{ Name = "PlayerAdmissionCoordinatorTestRunner", Runner = require(Tests.PlayerAdmissionCoordinatorTestRunner) },
+	{ Name = "AdmissionRoutingTestRunner", Runner = require(Tests.AdmissionRoutingTestRunner) },
 	{ Name = "CharacterModuleTestRunner", Runner = require(Tests.CharacterModuleTestRunner) },
 	{ Name = "SystemTestRunner", Runner = require(Tests.SystemTestRunner) },
 	{ Name = "ProductionIntegrationTestRunner", Runner = require(Tests.ProductionIntegrationTestRunner) },

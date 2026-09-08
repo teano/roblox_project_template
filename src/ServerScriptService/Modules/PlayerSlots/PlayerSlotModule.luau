@@ -46,6 +46,7 @@ function Module.new(deps: any)
 		_initialized = false,
 		_stopped = false,
 		_strategy = nil,
+		_strategyName = "",
 		PlayerAssigned = Signal.new(),
 		PlayerUnassigned = Signal.new(),
 	}, Module)
@@ -79,15 +80,26 @@ function Module:Initialize()
 		error("Unknown player-slots strategy", 2)
 	end
 	self._strategy:Initialize()
+	self._strategyName = playerSlotsConfig.Strategy
 	self._initialized = true
 end
 
-function Module:PrepareAdmission(player: Player, context: any): any
+function Module:GetStrategy(): string
 	self:_requireActive()
-	if not exactAdmissionContext(context) then
+	return self._strategyName
+end
+
+function Module:GetAvailableSlotIds(): { number }
+	self:_requireActive()
+	return self._strategy:GetAvailableSlotIds()
+end
+
+function Module:PrepareAdmission(player: Player, context: any, selectedSlotId: number?): any
+	self:_requireActive()
+	if not exactAdmissionContext(context) or (selectedSlotId ~= nil and (not finiteNonzeroInteger(selectedSlotId) or selectedSlotId < 1 or context.Kind ~= "Ordinary")) then
 		return table.freeze({ Ok = false, Error = "Rejected" })
 	end
-	return self._strategy:PrepareAdmission(player, context)
+	return self._strategy:PrepareAdmission(player, context, selectedSlotId)
 end
 
 function Module:CommitAdmission(operation: any): boolean

@@ -457,6 +457,212 @@ function Runner.runAll()
 		equal(#calls, inviterDepartureCount, "late respawn completed an inviter-departure transfer")
 	end)
 
+	local function routingFixture(scope: any, options: any): any
+		local loaded, removing, failed = Signal.new(), Signal.new(), Signal.new()
+		scope:Defer(function() loaded:Destroy(); removing:Destroy(); failed:Destroy() end)
+		local state: any = { Calls = {}, Timers = {}, Released = {}, Acquired = {}, Prepared = {}, Teleports = {}, Approved = 0, Rejected = 0, Present = true }
+		local player = { UserId = 501, GetJoinData = function() return {} end } :: any
+		state.Player = player
+		state.Removing = removing
+		local slots = {
+			GetAvailableSlotIds = function() return options.SlotIds or { 1, 2 } end,
+			GetPlayerSlot = function() return nil end,
+			PrepareAdmission = function(_self: any, _player: any, _context: any, slotId: number?)
+				table.insert(state.Prepared, slotId or 0)
+				if options.NoSlot then return { Ok = false, Error = "NoSlot" } end
+				return { Ok = true, Operation = { SlotId = slotId }, SlotId = slotId }
+			end,
+			CommitAdmission = function() table.insert(state.Calls, "slot.commit"); return true end,
+			CancelAdmission = function() table.insert(state.Calls, "slot.cancel") end,
+			EmitAdmissionEvents = function() end,
+			BeginDeparture = function() return { Kind = "None" } end,
+			CompleteDeparture = function() end,
+		}
+		local routing = {
+			IsEnabled = function() return options.Enabled ~= false end,
+			AcquireLocal = function(_self: any, userId: number, slotId: number, continuation: any)
+				table.insert(state.Acquired, slotId)
+				if options.Acquire then return options.Acquire(state, slotId, continuation) end
+				return { Ok = true, Claim = { UserId = userId, SlotId = slotId, Token = `claim-{slotId}` } }
+			end,
+			IsClaimCurrent = function() return options.Stale ~= true end,
+			Release = function(_self: any, claim: any) table.insert(state.Released, claim) end,
+			ReserveDestination = function(_self: any, _userId: number, previous: any)
+				state.ReserveCalls = (state.ReserveCalls or 0) + 1
+				if options.Reserve then return options.Reserve(state, previous) end
+				local hop = if previous then previous.Hop + 1 else 1
+				return { Ok = true, Destination = { Kind = "ServerInstance", PlaceId = 1, ServerInstanceId = "other" },
+					Continuation = { Version = 1, ServerKey = "public:other", Generation = "generation", SlotId = 1, Token = `token-{hop}`, Hop = hop },
+					Claim = { Token = `remote-{hop}` } }
+			end,
+			ResolveFriendDestination = function(_self: any, targetJobId: string)
+				state.ResolveCalls = (state.ResolveCalls or 0) + 1
+				if options.Resolve then return options.Resolve(state) end
+				return { Ok = true, Destination = { Kind = "ServerInstance", PlaceId = 1, ServerInstanceId = targetJobId } }
+			end,
+		}
+		local coordinator = PlayerAdmissionCoordinator.new({
+			PlayersModule = {
+				GetPlayers = function() return { player } end,
+				GetPlayerByUserId = function() return if state.Present then player else nil end,
+				PlayerRemoving = removing,
+				PrepareApproval = function() return { Ok = true, Operation = {} } end,
+				CommitApproval = function() table.insert(state.Calls, "players.commit"); return true end,
+				CancelApproval = function() end,
+				EmitConnectionApproved = function() state.Approved += 1 end,
+				DisconnectPlayer = function() state.Rejected += 1 end,
+			},
+			FriendsModule = {
+				BindLocalTransferHandler = function() end,
+				PrepareAdmission = function() return { Ok = true, Operation = {}, SlotContext = table.freeze({ Kind = "Ordinary" }) } end,
+				CommitAdmission = function() table.insert(state.Calls, "friends.commit"); return true end,
+				CancelAdmission = function() end,
+				EmitAdmissionEvents = function() end,
+				BeginDeparture = function() return { Operation = {}, FriendsToDisconnect = {} } end,
+				CompleteDeparture = function() end,
+			},
+			PlayerSlots = slots,
+			AdmissionRouting = routing,
+			CharacterModule = {},
+			TeleportModule = {
+				AttemptFailed = failed,
+				GetFriendsContinuation = function() return if options.FriendContinuation then { Status = "Valid", Continuation = options.FriendContinuation } else { Status = "Absent" } end,
+				GetAdmissionContinuation = function() return if options.Arrival then { Status = "Valid", Continuation = options.Arrival } else { Status = "Absent" } end,
+				Teleport = function(_self: any, _players: any, destination: any, friendsContinuation: any, admissionContinuation: any)
+					table.insert(state.Teleports, { Destination = destination, Friends = friendsContinuation, Admission = admissionContinuation })
+					return { Ok = not options.TeleportFails, AttemptId = `attempt-{#state.Teleports}` }
+				end,
+			},
+			PlaceId = 1,
+			Spawn = function(callback) callback() end,
+			Wait = function() end,
+			Delay = function(seconds, callback) table.insert(state.Timers, { Seconds = seconds, Callback = callback }) end,
+		})
+		scope:Defer(function() coordinator:Stop() end)
+		state.Coordinator = coordinator
+		coordinator:Initialize({ PlayerLoaded = loaded, IsLoaded = function() return true end })
+		return state
+	end
+
+	test("remote reservation wins first slot while ordinary arrival acquires another local slot", function(scope)
+		local state = routingFixture(scope, { Acquire = function(_state, slotId)
+			return if slotId == 1 then { Ok = false, Error = "NoSlot" } else { Ok = true, Claim = { SlotId = slotId, Token = "winner" } }
+		end })
+		equal(table.concat(state.Acquired, ","), "1,2")
+		equal(state.Approved, 1)
+		equal(#state.Teleports, 0)
+		equal(state.Calls[1], "slot.cancel")
+		state.Present = false; state.Removing:Fire(state.Player)
+		equal(#state.Released, 1); equal(state.Released[1].Token, "winner")
+	end)
+
+	test("departure during atomic acquisition cancels local preparation and releases late claim", function(scope)
+		local state = routingFixture(scope, { Acquire = function(current, slotId)
+			current.Present = false; current.Removing:Fire(current.Player)
+			return { Ok = true, Claim = { SlotId = slotId, Token = "late" } }
+		end })
+		equal(state.Approved, 0); equal(#state.Released, 1); equal(state.Released[1].Token, "late")
+		equal(table.find(state.Calls, "slot.commit"), nil)
+	end)
+
+	test("expired registry generation cannot publish a prepared local owner", function(scope)
+		local state = routingFixture(scope, { Stale = true })
+		equal(state.Approved, 0); equal(state.Rejected, 1); equal(#state.Released, 1); equal(#state.Teleports, 0)
+	end)
+
+	test("admission deadline retires yielding acquisition and releases its late success", function(scope)
+		local state = routingFixture(scope, { Acquire = function(current, slotId)
+			current.Timers[1].Callback()
+			return { Ok = true, Claim = { SlotId = slotId, Token = "after-deadline" } }
+		end })
+		equal(state.Approved, 0); equal(state.Rejected, 1); equal(#state.Released, 1)
+		equal(state.Released[1].Token, "after-deadline")
+	end)
+
+	test("reserved arrival consumes exactly its slot and rejection never restarts matchmaking", function(scope)
+		local arrival = { Version = 1, ServerKey = "server", Generation = "generation", SlotId = 2, Token = "arrival", Hop = 1 }
+		local state = routingFixture(scope, { Arrival = arrival, Acquire = function(_current, slotId, input)
+			equal(slotId, 2); equal(input, arrival)
+			return { Ok = false, Error = "InvalidReservation" }
+		end })
+		equal(state.Approved, 0); equal(state.Rejected, 1); equal(#state.Teleports, 0); equal(state.ReserveCalls, nil)
+	end)
+
+	test("disabled slots perform local admission without directory acquisition or selection", function(scope)
+		local state = routingFixture(scope, { Enabled = false })
+		equal(state.Approved, 1); equal(#state.Acquired, 0); equal(state.ReserveCalls, nil)
+		equal(#state.Timers, 0); equal(state.Rejected, 0)
+	end)
+
+	test("throwing or malformed matchmaking result terminates instead of leaving a redirect pending", function(scope)
+		for _, response in { function() error("expected injected routing error") end, function() return false end } do
+			local state = routingFixture(scope, { NoSlot = true, Reserve = response })
+			equal(state.Rejected, 1); equal(#state.Teleports, 0)
+			for _, timer in state.Timers do timer.Callback() end
+			equal(state.Rejected, 1)
+		end
+	end)
+
+	test("matchmaking deadline precedes its yielding call and releases a returned late reservation", function(scope)
+		local state = routingFixture(scope, { NoSlot = true, Reserve = function(current)
+			local deadlineInstalled = false
+			for _, timer in current.Timers do
+				if timer.Seconds == 45 then deadlineInstalled = true; timer.Callback() end
+			end
+			truthy(deadlineInstalled, "routing call has no independent deadline")
+			return { Ok = true, Claim = { Token = "late-routing" } }
+		end })
+		equal(state.Rejected, 1); equal(#state.Teleports, 0)
+		equal(#state.Released, 1); equal(state.Released[1].Token, "late-routing")
+	end)
+
+	test("friend destination exception or late result is terminal before teleport", function(scope)
+		local continuation = { Version = 1, TargetJobId = "friend-target", Token = "friend-token", Attempt = 1 }
+		for _, resolve in {
+			function() error("expected injected friend lookup error") end,
+			function(current)
+				local installed = false
+				for _, timer in current.Timers do if timer.Seconds == 45 then installed = true; timer.Callback() end end
+				truthy(installed, "friend lookup has no independent deadline")
+				return { Ok = true, Destination = { Kind = "ServerInstance", PlaceId = 1, ServerInstanceId = "friend-target" } }
+			end,
+		} do
+			local state = routingFixture(scope, { FriendContinuation = continuation, Resolve = resolve })
+			equal(state.Rejected, 1); equal(#state.Teleports, 0); equal(state.ResolveCalls, 1)
+		end
+	end)
+
+	test("disabled slots route a friend directly without directory lookup", function(scope)
+		local state = routingFixture(scope, { Enabled = false,
+			FriendContinuation = { Version = 1, TargetJobId = "friend-target", Token = "friend-token", Attempt = 1 } })
+		equal(state.ResolveCalls, nil); equal(#state.Teleports, 1)
+		equal(state.Teleports[1].Destination.ServerInstanceId, "friend-target")
+	end)
+
+	test("targeted matchmaking failures release each reservation and stop after three attempts", function(scope)
+		local state = routingFixture(scope, { NoSlot = true, TeleportFails = true })
+		equal(#state.Teleports, 3); equal(state.ReserveCalls, 3); equal(#state.Released, 3); equal(state.Rejected, 1)
+		for index, teleport in state.Teleports do
+			equal(teleport.Destination.Kind, "ServerInstance"); equal(teleport.Friends, nil); equal(teleport.Admission.Hop, index)
+		end
+	end)
+
+	test("accepted teleport without removal reaches a terminal deadline and releases its reservation", function(scope)
+		local state = routingFixture(scope, { NoSlot = true })
+		equal(#state.Teleports, 1); equal(state.Rejected, 0)
+		for _, timer in state.Timers do if timer.Seconds == 45 then timer.Callback() end end
+		equal(state.Rejected, 1); equal(#state.Released, 1)
+		for _, timer in state.Timers do timer.Callback() end
+		equal(state.Rejected, 1); equal(#state.Released, 1)
+	end)
+
+	test("normal source removal preserves target reservation until arrival or expiry", function(scope)
+		local state = routingFixture(scope, { NoSlot = true })
+		state.Present = false; state.Removing:Fire(state.Player)
+		for _, timer in state.Timers do timer.Callback() end
+		equal(#state.Released, 0); equal(state.Rejected, 0)
+	end)
+
 	return TestHarness.runAll("PlayerAdmissionCoordinatorTestRunner", tests)
 end
 

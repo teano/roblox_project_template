@@ -392,6 +392,26 @@ function Runner.runAll()
 		truthy(newcomerAdmission.Ok, "degraded rollback prevented later ordinary admission")
 	end)
 
+	test("selected slot preparation excludes concurrent admissions and restores availability on cancellation", function(scope)
+		local module, players = makeModule(scope, "Enabled", { 1, 3 })
+		local first = { UserId = 710, Team = nil, RespawnLocation = nil } :: any
+		local second = { UserId = 711, Team = nil, RespawnLocation = nil } :: any
+		players:Add(first); players:Add(second)
+		equal(module:GetStrategy(), "Enabled")
+		equal(table.concat(module:GetAvailableSlotIds(), ","), "1,3")
+		local prepared = module:PrepareAdmission(first, table.freeze({ Kind = "Ordinary" }), 3)
+		truthy(prepared.Ok, "selected slot was not prepared")
+		equal(prepared.SlotId, 3)
+		equal(table.concat(module:GetAvailableSlotIds(), ","), "1")
+		equal(module:PrepareAdmission(second, table.freeze({ Kind = "Ordinary" }), 3).Error, "NoSlot")
+		module:CancelAdmission(prepared.Operation)
+		equal(table.concat(module:GetAvailableSlotIds(), ","), "1,3")
+		local retry = module:PrepareAdmission(second, table.freeze({ Kind = "Ordinary" }), 3)
+		truthy(module:CommitAdmission(retry.Operation), "second player could not consume released slot")
+		equal(module:GetPlayerSlot(second).SlotId, 3)
+		equal(table.concat(module:GetAvailableSlotIds(), ","), "1")
+	end)
+
 	return TestHarness.runAll("PlayerSlotModuleTestRunner", tests)
 end
 

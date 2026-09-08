@@ -254,7 +254,16 @@ function Strategy:_findFreeSlot(): any?
 	return nil
 end
 
-function Strategy:PrepareAdmission(player: Player, context: any): any
+function Strategy:GetAvailableSlotIds(): { number }
+	local result = {}
+	if self._stopped or not self._ready then return result end
+	for _, slot in self._slots do
+		if slot.Owner == nil and next(slot.Reservations) == nil and not slot.Closing then table.insert(result, slot.SlotId) end
+	end
+	return table.freeze(result)
+end
+
+function Strategy:PrepareAdmission(player: Player, context: any, selectedSlotId: number?): any
 	if self._stopped or not self._ready then
 		return table.freeze({ Ok = false, Error = "NotReady" })
 	end
@@ -271,7 +280,8 @@ function Strategy:PrepareAdmission(player: Player, context: any): any
 	local role = context.Kind
 	local owner: Player
 	if context.Kind == "Ordinary" then
-		slot = self:_findFreeSlot()
+		slot = if selectedSlotId ~= nil then self._slotsById[selectedSlotId] else self:_findFreeSlot()
+		if slot ~= nil and (slot.Owner ~= nil or next(slot.Reservations) ~= nil or slot.Closing) then slot = nil end
 		if slot == nil then return table.freeze({ Ok = false, Error = "NoSlot" }) end
 		owner = player
 	else
@@ -316,7 +326,7 @@ function Strategy:PrepareAdmission(player: Player, context: any): any
 		Stage = "Prepared",
 	}
 	slot.Reservations[operation] = true
-	return table.freeze({ Ok = true, Operation = operation, Result = "AssignedWithSlot" })
+	return table.freeze({ Ok = true, Operation = operation, Result = "AssignedWithSlot", SlotId = slot.SlotId })
 end
 
 function Strategy:CommitAdmission(operation: any): boolean

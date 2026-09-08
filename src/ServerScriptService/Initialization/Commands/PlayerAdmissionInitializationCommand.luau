@@ -6,7 +6,7 @@ Command.__index = Command
 function Command.new(module: any)
 	return setmetatable({
 		Id = "PlayerAdmission",
-		DependsOn = { "GlobalSave", "Characters", "PlayerSlots" },
+		DependsOn = { "GlobalSave", "Characters", "PlayerSlots", "AdmissionRouting" },
 		_module = module,
 	}, Command)
 end

@@ -205,6 +205,8 @@ local function newTeleportService()
 		Throw = false,
 		Yield = false,
 		Calls = {},
+		ReserveCalls = {},
+		ReserveThrow = false,
 	}
 	function service:TeleportAsync(placeId, players, options)
 		table.insert(self.Calls, { PlaceId = placeId, Players = players, Options = options })
@@ -215,6 +217,13 @@ local function newTeleportService()
 			error("platform rejected synchronously")
 		end
 		return { ReservedServerAccessCode = "private-result" }
+	end
+	function service:ReserveServerAsync(placeId)
+		table.insert(self.ReserveCalls, placeId)
+		if self.ReserveThrow then
+			error("reservation failed synchronously")
+		end
+		return "reserved-access", "private-server-id"
 	end
 	return service
 end
@@ -823,6 +832,112 @@ test("Friends continuation is exact, copied into TeleportData, and exposed only 
 	assertEqual(invalidRequest.Ok, false)
 	assertEqual(invalidRequest.Code, "InvalidFriendsContinuation")
 	assertEqual(#teleportService.Calls, 1, "invalid continuation must not reach TeleportService")
+end)
+
+test("owner admission continuation is exact, exclusive, and copied through TeleportData", function(scope)
+	local player = newPlayer(361, nil)
+	local module, _, teleportService = newServer(scope, { player })
+	local continuation = {
+		Version = 1,
+		ServerKey = "reserved-server-key",
+		Generation = guid(360),
+		SlotId = 2,
+		Token = "owner-admission-token",
+		Hop = 1,
+	}
+	local request = module:Teleport(
+		{ player },
+		{ Kind = "ReservedServer", PlaceId = PLACE_ID, ReservedServerAccessCode = "reserved-access" },
+		nil,
+		continuation
+	)
+	assertTrue(request.Ok)
+	local envelope = teleportService.Calls[1].Options.TeleportData.TeleportModule
+	assertEqual(envelope.Friends, nil)
+	assertEqual(envelope.Admission.ServerKey, "reserved-server-key")
+	assertEqual(envelope.Admission.Generation, guid(360))
+	assertEqual(envelope.Admission.SlotId, 2)
+	assertEqual(envelope.Admission.Token, "owner-admission-token")
+	assertEqual(envelope.Admission.Hop, 1)
+	assertEqual(envelope.Admission.ReservedServerAccessCode, nil, "access code leaked into TeleportData")
+
+	continuation.Token = "mutated-after-call"
+	local target = newPlayer(361, {
+		SourcePlaceId = PLACE_ID,
+		TeleportData = teleportService.Calls[1].Options.TeleportData,
+	})
+	local targetModule = newServer(scope, { target })
+	local arrived = targetModule:GetAdmissionContinuation(target)
+	assertEqual(arrived.Status, "Valid")
+	assertEqual(arrived.Continuation.Token, "owner-admission-token")
+	assertEqual(arrived.Continuation.Hop, 1)
+	assertEqual(targetModule:GetFriendsContinuation(target).Status, "Absent")
+
+	local invalid = module:Teleport({ player }, { Kind = "Public", PlaceId = PLACE_ID }, nil, {
+		Version = 1,
+		ServerKey = "reserved-server-key",
+		Generation = "not-empty",
+		SlotId = 2,
+		Token = "owner-admission-token",
+		Hop = 1,
+	})
+	assertEqual(invalid.Ok, false)
+	assertEqual(invalid.Code, "InvalidAdmissionContinuation")
+	local invalidHop = module:Teleport({ player }, { Kind = "Public", PlaceId = PLACE_ID }, nil, {
+		Version = 1,
+		ServerKey = "reserved-server-key",
+		Generation = guid(361),
+		SlotId = 2,
+		Token = "owner-admission-token",
+		Hop = 4,
+	})
+	assertEqual(invalidHop.Ok, false)
+	assertEqual(invalidHop.Code, "InvalidAdmissionContinuation")
+
+	local conflict = module:Teleport({ player }, { Kind = "Public", PlaceId = PLACE_ID }, {
+		Version = 1,
+		Token = "friend-token",
+		TargetJobId = "target-job",
+		Attempt = 1,
+	}, {
+		Version = 1,
+		ServerKey = "reserved-server-key",
+		Generation = guid(362),
+		SlotId = 2,
+		Token = "owner-admission-token",
+		Hop = 1,
+	})
+	assertEqual(conflict.Ok, false)
+	assertEqual(conflict.Code, "ConflictingContinuations")
+	assertEqual(#teleportService.Calls, 1, "invalid continuations reached TeleportService")
+end)
+
+test("server reservation is bounded by destination policy and validates both private selectors", function(scope)
+	local player = newPlayer(371, nil)
+	local service = newTeleportService()
+	local module = newServer(scope, { player }, service)
+	local reserved = module:ReserveServer(PLACE_ID)
+	assertTrue(reserved.Ok)
+	assertEqual(reserved.AccessCode, "reserved-access")
+	assertEqual(reserved.PrivateServerId, "private-server-id")
+	assertEqual(service.ReserveCalls[1], PLACE_ID)
+
+	local forbidden = module:ReserveServer(PLACE_ID + 1)
+	assertEqual(forbidden.Ok, false)
+	assertEqual(#service.ReserveCalls, 1, "forbidden destination reached ReserveServerAsync")
+
+	service.ReserveThrow = true
+	local failed = module:ReserveServer(PLACE_ID)
+	assertEqual(failed.Ok, false)
+	assertEqual(#service.ReserveCalls, 2)
+
+	service.ReserveThrow = false
+	function service:ReserveServerAsync(placeId)
+		table.insert(self.ReserveCalls, placeId)
+		return "", "private-server-id"
+	end
+	local malformed = module:ReserveServer(PLACE_ID)
+	assertEqual(malformed.Ok, false)
 end)
 
 test("accepted request carries only the module envelope and does not publish arrival", function(scope)

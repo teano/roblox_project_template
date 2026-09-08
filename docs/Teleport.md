@@ -26,7 +26,9 @@
 GetSession(player)
 GetAttempt(player)
 GetFriendsContinuation(player)
-Teleport(players, destination, friendsContinuation?)
+GetAdmissionContinuation(player)
+ReserveServer(placeId)
+Teleport(players, destination, friendsContinuation?, admissionContinuation?)
 ```
 
 Назначения задаются явно значениями `Public`, `ServerInstance`,
@@ -52,6 +54,19 @@ Teleport(players, destination, friendsContinuation?)
 `GetFriendsContinuation(player)` возвращает только неизменяемый результат
 `Absent`, `Valid` с типизированным продолжением либо `Invalid`; координатор не
 читает платформенные данные телепортации напрямую.
+
+Межсерверный подбор владельцев использует четвёртый необязательный аргумент
+`admissionContinuation` метода `Teleport`: точный `AdmissionTeleportContinuation`
+с полями `Version=1`, `ServerKey`, `Generation`, `SlotId`, `Token`, `Hop`.
+`GetAdmissionContinuation(player)` возвращает `Absent`, `Valid` либо `Invalid`.
+Продолжения `Friends` и `Admission` взаимоисключающие; код доступа резервного
+сервера не передаётся в конверте. Права подтверждает `AdmissionRouting`
+по временному хранилищу, включая точного игрока и срок.
+
+Серверный метод `ReserveServer(placeId)` проверяет политику места и возвращает
+`Ok`, `AccessCode`, `PrivateServerId` либо ошибку. Сам по себе он не подтверждает
+запуск или прибытие. Согласование создания, сроки и выбор цели принадлежат
+[системе межсерверного допуска](AdmissionRouting.md).
 
 Клиентский перечень предоставляет доступную только для чтения проекцию
 `Services.Teleport` с методами:

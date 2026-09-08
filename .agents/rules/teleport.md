@@ -11,6 +11,18 @@ Required context: `docs/Teleport.md`, `docs/TeleportTesting.md`,
 
 ## Mandatory rules
 
+- Межсерверный допуск передаёт отдельное точное продолжение `Admission`:
+  `Version`, `ServerKey`, `Generation`, `SlotId`, `Token`, `Hop`.
+  Оно несовместимо с продолжением `Friends` в одном конверте. Коды резервных
+  серверов не входят в конверт и сообщения. Право на слот подтверждается
+  временным хранилищем, а не данными телепортации.
+- `ReserveServer` принадлежит `TeleportModule`, проверяет разрешённое место
+  и возвращает код только серверному вызывающему. Сроки и повторные попытки
+  предметного подбора принадлежат `AdmissionRouting` и координатору;
+  базовый модуль телепортации не запускает автоматические повторы.
+- При изменении подбора читать [межсерверный допуск](../../docs/AdmissionRouting.md)
+  и выполнять `AdmissionRoutingTestRunner` с проверками координатора.
+
 - The server `TeleportModule` MUST be the only authority that creates or
   continues teleport session IDs and initiates supported teleports.
 - A session ID is correlation data visible to clients, never proof of

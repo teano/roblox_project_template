@@ -38,12 +38,15 @@ function Coordinator.new(deps: any)
 	return setmetatable({
 		_players = deps.PlayersModule, _friends = deps.FriendsModule, _slots = deps.PlayerSlots, _teleport = deps.TeleportModule,
 		_characters = deps.CharacterModule,
+		_routing = deps.AdmissionRouting,
+		_delay = deps.Delay or function(seconds: number, callback: () -> ()) task.delay(seconds, callback) end,
 		_placeId = deps.PlaceId, _spawn = deps.Spawn or function(callback: () -> ()) task.spawn(callback) end,
 		_wait = deps.Wait or function(seconds: number) task.wait(seconds) end,
 		_decodeJson = deps.DecodeJson,
 		_jobId = deps.JobId or game.JobId,
 		_state = "fresh", _controller = nil, _started = {}, _redirects = {}, _admissions = {},
 		_generations = {},
+		_capacityClaims = {}, _arrivals = {}, _classifying = {}, _approved = {},
 		_friendAdmissionsByInviter = {}, _departures = {}, _departuresWaitingFor = {}, _disconnectRequested = {},
 		_localTransfersByTarget = {}, _localTransfersByPlayer = {}, _nextLocalTransferGeneration = 0,
 		_playerLoadedConnection = nil, _playerRemovingConnection = nil, _attemptFailedConnection = nil,
@@ -95,6 +98,21 @@ function Coordinator:_reject(player: Player, reason: string)
 	self._players:DisconnectPlayer(player, reason)
 end
 
+function Coordinator:_routingEnabled(): boolean
+	return self._routing ~= nil and self._routing:IsEnabled()
+end
+
+function Coordinator:_releaseClaim(claim: any)
+	if claim == nil or self._routing == nil then return end
+	self._spawn(function() pcall(function() self._routing:Release(claim) end) end)
+end
+
+function Coordinator:_releaseOwnerClaim(player: Player)
+	local claim = self._capacityClaims[player]
+	self._capacityClaims[player] = nil
+	self:_releaseClaim(claim)
+end
+
 function Coordinator:_removeAdmission(admission: any)
 	if self._admissions[admission.Player] == admission then self._admissions[admission.Player] = nil end
 	if admission.InviterUserId ~= nil then
@@ -112,6 +130,8 @@ function Coordinator:_cancelAdmission(admission: any, disconnectReason: string?)
 	if admission.PlayersOperation ~= nil then self._players:CancelApproval(admission.PlayersOperation) end
 	if admission.SlotsOperation ~= nil then self._slots:CancelAdmission(admission.SlotsOperation) end
 	if admission.FriendsOperation ~= nil then self._friends:CancelAdmission(admission.FriendsOperation) end
+	self:_releaseClaim(admission.CapacityClaim)
+	admission.CapacityClaim = nil
 	self:_removeAdmission(admission)
 	if disconnectReason ~= nil then self:_reject(admission.Player, disconnectReason) end
 end
@@ -122,6 +142,8 @@ function Coordinator:_recordPublicRedirectFailure(player: Player, redirect: any,
 	redirect.Signaled[attemptId] = nil
 	if redirect.CurrentAttemptId == attemptId then redirect.CurrentAttemptId = nil end
 	redirect.Failures += 1
+	self:_releaseClaim(redirect.CapacityClaim)
+	redirect.CapacityClaim = nil
 	if redirect.Kind == "Friend" and redirect.Attempt >= MAX_REDIRECT_ATTEMPTS then
 		self._redirects[player] = nil
 		self:_reject(player, "Не удалось перенаправить приглашённого игрока после трёх попыток.")
@@ -151,8 +173,18 @@ end
 
 function Coordinator:_attemptPublicRedirect(player: Player, redirect: any)
 	if self._state ~= "active" or self._redirects[player] ~= redirect or redirect.CurrentAttemptId ~= nil then return end
+	local request = {}
+	redirect.Request = request
+	self._delay(45, function()
+		if self._state ~= "active" or self._redirects[player] ~= redirect or redirect.Request ~= request then return end
+		self._redirects[player] = nil
+		self:_releaseClaim(redirect.CapacityClaim)
+		redirect.CapacityClaim = nil
+		self:_reject(player, "Время перехода на другой сервер истекло. Подключитесь снова.")
+	end)
 	local destination: any = { Kind = "Public", PlaceId = self._placeId }
 	local continuation: any = nil
+	local admissionContinuation: any = nil
 	if redirect.Kind == "Friend" then
 		local attempt = redirect.Attempt
 		if attempt > MAX_REDIRECT_ATTEMPTS then
@@ -161,9 +193,36 @@ function Coordinator:_attemptPublicRedirect(player: Player, redirect: any)
 			return
 		end
 		destination = { Kind = "ServerInstance", PlaceId = self._placeId, ServerInstanceId = redirect.TargetJobId }
+		if self:_routingEnabled() then
+			local resolveOk, resolved = pcall(function() return self._routing:ResolveFriendDestination(redirect.TargetJobId) end)
+			if self._state ~= "active" or self._redirects[player] ~= redirect then return end
+			if not resolveOk or typeof(resolved) ~= "table" or resolved.Ok ~= true or typeof(resolved.Destination) ~= "table" then
+				self._redirects[player] = nil
+				self:_reject(player, "Сервер приглашения больше недоступен.")
+				return
+			end
+			destination = resolved.Destination
+		end
 		continuation = table.freeze({ Version = 1, Token = redirect.Token, TargetJobId = redirect.TargetJobId, Attempt = attempt })
+	elseif self:_routingEnabled() then
+		local reserveOk, reserved = pcall(function() return self._routing:ReserveDestination(player.UserId, redirect.Continuation) end)
+		if self._state ~= "active" or self._redirects[player] ~= redirect or not self:_presentAndLoaded(player) then
+			if reserveOk and typeof(reserved) == "table" then self:_releaseClaim(reserved.Claim) end
+			return
+		end
+		if not reserveOk or typeof(reserved) ~= "table" or reserved.Ok ~= true
+			or typeof(reserved.Destination) ~= "table" or typeof(reserved.Continuation) ~= "table" or typeof(reserved.Claim) ~= "table" then
+			if reserveOk and typeof(reserved) == "table" then self:_releaseClaim(reserved.Claim) end
+			self._redirects[player] = nil
+			self:_reject(player, "Не удалось подобрать сервер со свободным игровым слотом.")
+			return
+		end
+		destination = reserved.Destination
+		admissionContinuation = reserved.Continuation
+		redirect.Continuation = reserved.Continuation
+		redirect.CapacityClaim = reserved.Claim
 	end
-	local callOk, result = pcall(function() return self._teleport:Teleport({ player }, destination, continuation) end)
+	local callOk, result = pcall(function() return self._teleport:Teleport({ player }, destination, continuation, admissionContinuation) end)
 	if self._state ~= "active" or self._redirects[player] ~= redirect then return end
 	local attemptId = if callOk and typeof(result) == "table" and typeof(result.AttemptId) == "string" then result.AttemptId else `local-{redirect.Failures + 1}`
 	redirect.CurrentAttemptId = attemptId
@@ -242,6 +301,25 @@ end
 
 function Coordinator:_classifyAndAdmit(player: Player)
 	if not self:_presentAndLoaded(player) then return end
+	if self._teleport.GetAdmissionContinuation ~= nil then
+		local arrival = self._teleport:GetAdmissionContinuation(player)
+		if typeof(arrival) ~= "table" or arrival.Status == "Invalid" then
+			self:_reject(player, "Получено недопустимое продолжение подбора сервера.")
+			return
+		end
+		if arrival.Status == "Valid" then
+			if not self:_routingEnabled() then
+				self:_reject(player, "Резерв игрового слота не поддерживается этим сервером.")
+				return
+			end
+			self._arrivals[player] = arrival.Continuation
+			self:_admit(player, table.freeze({ Kind = "Ordinary" }), nil)
+			return
+		elseif arrival.Status ~= "Absent" then
+			self:_reject(player, "Получено недопустимое продолжение подбора сервера.")
+			return
+		end
+	end
 	local result = self._teleport:GetFriendsContinuation(player)
 	if typeof(result) ~= "table" or result.Status == "Invalid" then
 		self:_reject(player, "Получено недопустимое продолжение телепортации.")
@@ -259,9 +337,17 @@ function Coordinator:_classifyAndAdmit(player: Player)
 end
 
 function Coordinator:_admit(player: Player, friendsInput: any, redirect: any?)
-	if not self:_presentAndLoaded(player) or self._admissions[player] ~= nil then return end
+	if not self:_presentAndLoaded(player) or self._admissions[player] ~= nil or self._classifying[player] ~= nil then return end
 	if not finiteNonzeroInteger(player.UserId) then self._redirects[player] = nil; self:_reject(player, "Недопустимый идентификатор подключения."); return end
+	local classification = {}
+	local generation = self._generations[player]
+	self._classifying[player] = classification
 	local friendsResult = self._friends:PrepareAdmission(player, friendsInput)
+	if self._classifying[player] ~= classification or self._generations[player] ~= generation or not self:_presentAndLoaded(player) then
+		if friendsResult.Operation ~= nil then self._friends:CancelAdmission(friendsResult.Operation) end
+		return
+	end
+	self._classifying[player] = nil
 	if friendsResult.Ok ~= true or friendsResult.Operation == nil or friendsResult.SlotContext == nil then
 		self._redirects[player] = nil
 		self:_reject(player, "Не удалось подготовить допуск игрока.")
@@ -282,14 +368,43 @@ function Coordinator:_admit(player: Player, friendsInput: any, redirect: any?)
 		self._friendAdmissionsByInviter[inviterUserId] = byInviter
 		byInviter[player] = admission
 	end
-	local slotsResult = self._slots:PrepareAdmission(player, slotContext)
+	local slotsResult: any
+	local arrival = self._arrivals[player]
+	if slotContext.Kind == "Ordinary" and self:_routingEnabled() then
+		local candidates = if arrival ~= nil then { arrival.SlotId } else self._slots:GetAvailableSlotIds()
+		slotsResult = { Ok = false, Error = "NoSlot" }
+		for _, slotId in candidates do
+			local prepared = self._slots:PrepareAdmission(player, slotContext, slotId)
+			if prepared.Ok ~= true then slotsResult = prepared; continue end
+			admission.SlotsOperation = prepared.Operation
+			local acquireOk, acquired = pcall(function() return self._routing:AcquireLocal(player.UserId, slotId, arrival) end)
+			if not acquireOk or typeof(acquired) ~= "table" then acquired = { Ok = false, Error = "Unavailable" } end
+			if admission.Cancelled or self._admissions[player] ~= admission or self._generations[player] ~= generation or not self:_presentAndLoaded(player) then
+				self:_releaseClaim(acquired.Claim)
+				self:_cancelAdmission(admission, nil)
+				return
+			end
+			if acquired.Ok == true and acquired.Claim ~= nil and self._routing:IsClaimCurrent(acquired.Claim) then
+				admission.CapacityClaim = acquired.Claim
+				slotsResult = prepared
+				break
+			end
+			self:_releaseClaim(acquired.Claim)
+			self._slots:CancelAdmission(prepared.Operation)
+			admission.SlotsOperation = nil
+			slotsResult = { Ok = false, Error = if acquired.Ok == true then "Unavailable" else acquired.Error }
+			if acquired.Error ~= "NoSlot" or arrival ~= nil then break end
+		end
+	else
+		slotsResult = self._slots:PrepareAdmission(player, slotContext)
+	end
 	if slotsResult.Ok ~= true or slotsResult.Operation == nil then
 		self:_cancelAdmission(admission, if slotsResult.Error == "NoSlot" then nil else "Не удалось подготовить слот игрока.")
-		if slotsResult.Error == "NoSlot" and slotContext.Kind == "Ordinary" then
+		if slotsResult.Error == "NoSlot" and slotContext.Kind == "Ordinary" and arrival == nil then
 			if redirect == nil then self:_beginPublicRedirect(player) else self:_attemptPublicRedirect(player, redirect) end
 		else
 			self._redirects[player] = nil
-			if slotsResult.Error == "NoSlot" then self:_reject(player, "Нет доступного слота для подключения друга.") end
+			if slotsResult.Error == "NoSlot" then self:_reject(player, "Зарезервированный игровой слот больше недоступен.") end
 		end
 		return
 	end
@@ -301,11 +416,18 @@ function Coordinator:_admit(player: Player, friendsInput: any, redirect: any?)
 		return
 	end
 	admission.PlayersOperation = playersResult.Operation
+	if admission.CapacityClaim ~= nil and not self._routing:IsClaimCurrent(admission.CapacityClaim) then
+		self:_cancelAdmission(admission, "Срок допуска в игровой слот истёк. Подключитесь снова.")
+		return
+	end
 	-- После этих трёх подготовок вызовы Commit не уступают и не имеют ветви ошибки.
 	self._slots:CommitAdmission(admission.SlotsOperation)
 	self._friends:CommitAdmission(admission.FriendsOperation)
 	self._players:CommitApproval(admission.PlayersOperation)
 	admission.Committed = true
+	self._approved[player] = true
+	if admission.CapacityClaim ~= nil then self._capacityClaims[player] = admission.CapacityClaim end
+	self._arrivals[player] = nil
 	self:_removeAdmission(admission)
 	self._redirects[player] = nil
 	self._slots:EmitAdmissionEvents(admission.SlotsOperation)
@@ -322,7 +444,21 @@ function Coordinator:_start(player: Player)
 	if self._state ~= "active" or self._started[player] then return end
 	self._started[player] = true
 	self._generations[player] = (self._generations[player] or 0) + 1
-	self:_classifyAndAdmit(player)
+	if self:_routingEnabled() then
+		local generation = self._generations[player]
+		self._delay(30, function()
+			if self._state ~= "active" or self._generations[player] ~= generation
+				or self._capacityClaims[player] ~= nil or self._redirects[player] ~= nil
+				or self._slots:GetPlayerSlot(player) ~= nil then return end
+			-- Отключённые слоты не создают назначение: успешный допуск отмечается отдельно.
+			if self._approved[player] then return end
+			self._classifying[player] = nil
+			self._generations[player] = generation + 1
+			self:_cancelAdmission(self._admissions[player], nil)
+			self:_reject(player, "Время допуска в игру истекло. Подключитесь снова.")
+		end)
+		self._spawn(function() self:_classifyAndAdmit(player) end)
+	else self:_classifyAndAdmit(player) end
 end
 
 function Coordinator:_completeDeparture(process: any)
@@ -331,6 +467,7 @@ function Coordinator:_completeDeparture(process: any)
 	self._departures[process.Player] = nil
 	self._friends:CompleteDeparture(process.FriendsOperation)
 	if process.SlotOperation ~= nil then self._slots:CompleteDeparture(process.SlotOperation) end
+	self:_releaseOwnerClaim(process.Player)
 end
 
 function Coordinator:_finishWaitFor(player: Player)
@@ -389,6 +526,7 @@ function Coordinator:_handleLocalRespawnResult(process: any, ok: boolean)
 		self:_removeLocalTransfer(process)
 		return
 	end
+	self:_releaseOwnerClaim(process.Target)
 	self:_removeLocalTransfer(process)
 end
 
@@ -485,7 +623,10 @@ end
 
 function Coordinator:_handleDeparture(player: Player)
 	self._started[player] = nil
+	self._approved[player] = nil
 	self._generations[player] = nil
+	self._classifying[player] = nil
+	self._arrivals[player] = nil
 	self._redirects[player] = nil
 	self:_cancelLocalTransfersFor(player, "TargetIneligible")
 	self:_finishWaitFor(player)
@@ -543,6 +684,11 @@ function Coordinator:Stop()
 	table.clear(self._started); table.clear(self._generations); table.clear(self._redirects); table.clear(self._admissions); table.clear(self._friendAdmissionsByInviter)
 	table.clear(self._departures); table.clear(self._departuresWaitingFor); table.clear(self._disconnectRequested)
 	table.clear(self._localTransfersByTarget); table.clear(self._localTransfersByPlayer)
+	table.clear(self._classifying); table.clear(self._arrivals)
+	-- Занятые места и принятые переходы истекут вместе с записью сервера;
+	-- остановка не освобождает вместимость ещё присутствующих игроков.
+	table.clear(self._capacityClaims)
+	table.clear(self._approved)
 end
 
 return Coordinator

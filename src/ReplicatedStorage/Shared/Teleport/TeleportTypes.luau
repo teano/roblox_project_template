@@ -27,6 +27,24 @@ export type FriendsContinuationResult =
 	| { Status: "Valid", Continuation: FriendsTeleportContinuation }
 	| { Status: "Invalid", Code: string }
 
+export type AdmissionTeleportContinuation = {
+	Version: number,
+	ServerKey: string,
+	Generation: string,
+	SlotId: number,
+	Token: string,
+	Hop: number,
+}
+
+export type AdmissionContinuationResult =
+	{ Status: "Absent" }
+	| { Status: "Valid", Continuation: AdmissionTeleportContinuation }
+	| { Status: "Invalid", Code: string }
+
+export type ReserveServerResult =
+	{ Ok: true, AccessCode: string, PrivateServerId: string }
+	| { Ok: false, Error: string }
+
 export type AttemptSnapshot = {
 	AttemptId: string,
 	State: AttemptState,
