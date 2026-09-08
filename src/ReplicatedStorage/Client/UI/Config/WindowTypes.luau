@@ -106,9 +106,12 @@ export type WindowConstructionContext = {
 	Elements: UiElementContext,
 }
 
-export type WindowDefinition<TView, TViewModel> = {
+export type WindowSource =
+	{ AssetId: number, AssetKey: nil? }
+	| { AssetId: nil?, AssetKey: string }
+
+export type WindowDefinition<TView, TViewModel> = WindowSource & {
 	WindowId: string,
-	AssetId: number,
 	CreateView: (root: GuiObject, context: WindowConstructionContext) -> TView,
 	TryCastView: (view: BaseWindowView) -> TView?,
 	InitializeView: (view: TView, viewModel: TViewModel) -> UiVoidResult,

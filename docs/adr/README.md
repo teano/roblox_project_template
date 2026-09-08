@@ -1,23 +1,26 @@
-# Architecture decision records
+# Архитектурные решения
 
-ADRs preserve durable decisions that materially affect several systems or
-future template/derived-project compatibility. Routine edits and ordinary
-template updates do not require an ADR.
+ADR сохраняют долговечные решения, влияющие на несколько систем или
+совместимость шаблона с производными играми. Обычные правки и обновления
+не требуют отдельного ADR.
 
-| Namespace | Index | Owner |
+| Пространство | Указатель | Владелец |
 |---|---|---|
-| Template | [template/README.md](template/README.md) | Reusable template |
-| Project | `project/README.md` | One derived game, when it needs ADRs |
+| Шаблон | [template/README.md](template/README.md) | Сопровождающие шаблона |
+| Проект | `project/README.md`, если создан | Сопровождающие одной производной игры |
 
-Template ADRs are upstream history and must not be edited by a derived project.
-A derived project may create `docs/adr/project/` for its own durable decisions;
-the template intentionally does not track that directory. Namespace numbering
-is independent, so use `template/ADR-####` or `project/ADR-####` when an ID is
-ambiguous.
+Игра не редактирует решения шаблона и его указатель. Шаблон не добавляет
+проектные решения. Номера независимы; при неоднозначности указывать
+`template/ADR-####` или `project/ADR-####`.
 
-Before changing an active durable decision, read the relevant Accepted ADRs in
-the owning index. Accepted bodies remain historical: add a new ADR that
-supersedes the old decision and update only status metadata and the owning
-index. Copy [_template.md](_template.md) as a starting point. Do not create an
-ADR merely to explain a local path conflict; the atomic template updater and
-normal review own that decision at update time.
+Принятые обоснования сохраняются. Изменение решения требует нового ADR,
+ссылки на заменяемое решение и обновления его состояния. Исправление ссылок
+и служебного происхождения без изменения смысла допускается по
+[правилу сопровождения](../../.agents/rules/architecture-decisions.md).
+
+Для систем, полученных извне, поле `Происхождение` связывает ADR с
+[журналом миграций](../Migrations/README.md). Там указаны точные источники,
+состав переносов и действия для существующих игр. Журнал не заменяет
+архитектурных обоснований и не требует читать исходные планы при обычной работе.
+
+Форма нового решения: [_template.md](_template.md).

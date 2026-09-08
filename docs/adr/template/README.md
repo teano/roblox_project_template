@@ -52,17 +52,28 @@ Repositories derived from the template receive these records from their
 | [ADR-0042](0042-bind-studio-audio-qa-through-existing-bootstraps.md) | Bind Studio Audio QA through existing bootstraps | Accepted |
 | [ADR-0043](0043-fixed-spatial-anchor-composition.md) | Use one fixed SpatialAnchor composition | Accepted |
 | [ADR-0044](0044-bound-feature-lifecycle-work.md) | Bound feature lifecycle work and recover context lazily | Superseded by ADR-0046 |
-| [ADR-0045](0045-client-ui-system-boundaries.md) | Keep client UI ownership behind one manifest-composed root | Accepted |
+| [ADR-0045](0045-client-ui-system-boundaries.md) | Keep client UI ownership behind one manifest-composed root | Superseded by ADR-0050 |
 | [ADR-0046](0046-simplify-template-project-workflow.md) | Use direct template tooling and optional work records | Accepted |
 | [ADR-0047](0047-route-feature-intent-through-thin-user-skills.md) | Route feature intent through thin user skills | Accepted |
 | [ADR-0048](0048-create-originless-clients-from-exact-snapshots.md) | Create originless clients from exact template snapshots | Accepted |
+| [ADR-0049](0049-player-slots-characters-and-admission.md) | Разделить платформенных игроков, персонажей, слоты и составной допуск | Принято |
+| [ADR-0050](0050-stock-physical-windows-and-dual-sources.md) | Поставлять физические окна приглашений с общим выбором источника | Принято |
+| [ADR-0051](0051-local-group-offers-and-external-admission.md) | Разделить локальные предложения группы и внешние приглашения | Заменено ADR-0052 |
+| [ADR-0052](0052-separate-invite-attempt-and-reservation-deadlines.md) | Разделить срок попытки приглашения и срок полного резерва | Принято |
 
 ## Ownership and numbering
 
 - Template ADRs use the next available four-digit number in this directory.
 - Template changes update this index and never the project ADR index.
 - Derived projects treat this directory as upstream-owned.
-- Accepted ADR bodies are historical records. Supersede a decision with a new
-  template ADR instead of rewriting it.
+- Смысл принятых ADR сохраняется; его изменение оформляется новым решением.
+  Исправление ссылок и служебного происхождения допускается по
+  [правилу сопровождения](../../../.agents/rules/architecture-decisions.md).
 
 Copy `../_template.md` when creating a template ADR.
+
+## Происхождение перенесённых решений
+
+Решения ADR-0049–0052 связаны с [MIG-0001](../../Migrations/MIG-0001-find-a-baby.md).
+Запись содержит точный исходный коммит, соответствие решений и действия
+для существующих игр; принятые решения остаются владельцами обоснований.

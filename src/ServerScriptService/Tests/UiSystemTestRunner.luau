@@ -121,7 +121,7 @@ end
 
 local function TS_TEST_001_RootHostsOwnership(scope: TestHarness.Scope)
 	local playersModule, playerGui = makePlayersModule(scope)
-	local ui = UiSystem.new({ PlayersModule = playersModule })
+	local ui = UiSystem.new({ PlayersModule = playersModule, TemplateWindowDefinitions = {} })
 	scope:Defer(function()
 		ui:Destroy()
 	end)
@@ -178,7 +178,7 @@ end
 
 local function TS_TEST_013_ControllerIdentityEvents(scope: TestHarness.Scope)
 	local playersModule = makePlayersModule(scope)
-	local ui = UiSystem.new({ PlayersModule = playersModule })
+	local ui = UiSystem.new({ PlayersModule = playersModule, TemplateWindowDefinitions = {} })
 	scope:Defer(function()
 		ui:Destroy()
 	end)
@@ -474,6 +474,7 @@ local function TS_TEST_013_ControllerIdentityEvents(scope: TestHarness.Scope)
 
 	local invalidCatalogUi = UiSystem.new({
 		PlayersModule = playersModule,
+		TemplateWindowDefinitions = {},
 		DerivedActionEntries = {
 			{ Name = "InvalidTrailingDot", Id = "game.invalid." },
 		},
@@ -484,6 +485,7 @@ local function TS_TEST_013_ControllerIdentityEvents(scope: TestHarness.Scope)
 
 	local duplicateCatalogUi = UiSystem.new({
 		PlayersModule = playersModule,
+		TemplateWindowDefinitions = {},
 		DerivedActionEntries = {
 			{ Name = "GameOpened", Id = "game.inventory.opened" },
 			{ Name = "GameOpenedAgain", Id = "game.inventory.opened" },
@@ -495,6 +497,7 @@ local function TS_TEST_013_ControllerIdentityEvents(scope: TestHarness.Scope)
 
 	local derivedUi = UiSystem.new({
 		PlayersModule = playersModule,
+		TemplateWindowDefinitions = {},
 		DerivedActionEntries = {
 			{ Name = "GameOpened", Id = "game.inventory.opened" },
 		},
@@ -638,6 +641,7 @@ local function TS_TEST_015_ClientBootstrapComposition(scope: TestHarness.Scope)
 	local wrongClassPlayers = makePlayersModule(scope)
 	assertDerivedActionFailure(UiSystem.new({
 		PlayersModule = wrongClassPlayers,
+		TemplateWindowDefinitions = {},
 		DerivedActionRoot = wrongClassRoot,
 	}))
 
@@ -646,6 +650,7 @@ local function TS_TEST_015_ClientBootstrapComposition(scope: TestHarness.Scope)
 	local requireCalls = 0
 	assertDerivedActionFailure(UiSystem.new({
 		PlayersModule = throwingPlayers,
+		TemplateWindowDefinitions = {},
 		DerivedActionRoot = throwingRoot,
 		RequireModule = function(source: ModuleScript)
 			requireCalls += 1
@@ -825,6 +830,118 @@ local function TS_TEST_016_LocalWindowAssetFixture(scope: TestHarness.Scope)
 	scope:Defer(function() rejectingLoader:Destroy() end)
 	local rejected, rejectedError = rejectingLoader:GetTemplate(WindowAssetFixtureDefinition, 3)
 	assert(rejected == nil and rejectedError.Code == "ForbiddenExecutableDescendant")
+
+	local physicalOwner = scope:Track(Instance.new("Folder")) :: Folder
+	local physicalOriginal = fixtureRoot:Clone() :: GuiObject
+	physicalOriginal:SetAttribute("DesignerMarker", "studio-owned")
+	physicalOriginal.Parent = physicalOwner
+	local physicalLookups = 0
+	local physicalPreloads = 0
+	local physicalDefinition = table.clone(WindowAssetFixtureDefinition) :: any
+	physicalDefinition.WindowId = "ui.test.physical-window"
+	physicalDefinition.AssetId = nil
+	physicalDefinition.AssetKey = "ui.test.physical-window"
+	local physicalConfig, physicalConfigError = WindowConfigCompiler.compile({ physicalDefinition }, {})
+	assert(physicalConfig ~= nil and physicalConfigError == nil)
+	local physicalLoader = WindowAssetLoader.new({
+		AssetRegistry = {
+			RequireByKey = function(_self: any, key: string, expectedClass: string)
+				physicalLookups += 1
+				assert(key == "ui.test.physical-window" and expectedClass == "GuiObject")
+				return physicalOriginal
+			end,
+		},
+		ContentPreloader = {
+			Preload = function(_self: any, targets: { Instance }, options: any)
+				physicalPreloads += 1
+				assert(#targets == 1 and targets[1] ~= physicalOriginal and options.FailurePolicy == "Fail")
+				return { Failed = 0 }
+			end,
+		},
+		Clock = function() return 0 end,
+		Spawn = function(callback: () -> ()) callback() end,
+		Delay = function(_seconds: number, callback: () -> ()) callback() end,
+	})
+	scope:Defer(function() physicalLoader:Destroy() end)
+	local physicalTemplate, physicalError = physicalLoader:GetTemplate(physicalDefinition, 3)
+	assert(physicalTemplate ~= nil and physicalError == nil and physicalTemplate ~= physicalOriginal)
+	local physicalCached, physicalCachedError = physicalLoader:GetTemplate(physicalDefinition, 3)
+	assert(physicalCached == physicalTemplate and physicalCachedError == nil)
+	assert(physicalLookups == 1 and physicalPreloads == 1,
+		"a physical source must resolve, clone, preload, and cache exactly once")
+	assert(physicalOriginal.Parent == physicalOwner
+		and physicalOriginal:GetAttribute("DesignerMarker") == "studio-owned",
+		"physical source lookup must not move, destroy, or mutate the catalog original")
+
+	local uncloneableOriginal = fixtureRoot:Clone() :: GuiObject
+	uncloneableOriginal.Archivable = false
+	uncloneableOriginal.Parent = physicalOwner
+	local uncloneableLoader = WindowAssetLoader.new({
+		AssetRegistry = {
+			RequireByKey = function() return uncloneableOriginal end,
+		},
+		ContentPreloader = { Preload = function() error("uncloneable source must not preload") end },
+		Clock = function() return 0 end,
+		Spawn = function(callback: () -> ()) callback() end,
+		Delay = function(_seconds: number, callback: () -> ()) callback() end,
+	})
+	scope:Defer(function() uncloneableLoader:Destroy() end)
+	local uncloneableTemplate, uncloneableError = uncloneableLoader:GetTemplate(physicalDefinition, 3)
+	assert(uncloneableTemplate == nil and uncloneableError.Code == "PrefabMalformed",
+		"an uncloneable physical source must fail with the stable prefab classification")
+
+	local validBackend = { LoadAssetAsync = function() return fixtureRoot:Clone() end }
+	local validRegistry = { RequireByKey = function() return physicalOriginal end }
+	local preloader = { Preload = function() return { Failed = 0 } end }
+	for _, malformedDependencies in {
+		{ AssetBackend = {}, AssetRegistry = validRegistry },
+		{ AssetBackend = validBackend, AssetRegistry = {} },
+	} do
+		local constructed = pcall(function()
+			WindowAssetLoader.new({
+				AssetBackend = malformedDependencies.AssetBackend,
+				AssetRegistry = malformedDependencies.AssetRegistry,
+				ContentPreloader = preloader,
+			})
+		end)
+		assert(not constructed, "loader construction must reject every malformed provided source dependency")
+	end
+
+	local function initializeMixed(assetBackend: any?, assetRegistry: any?): any
+		local players = makePlayersModule(scope)
+		local pooling = PoolModule.new()
+		pooling:Initialize()
+		scope:Defer(function() pooling:Destroy() end)
+		local ui = UiSystem.new({
+			PlayersModule = players,
+			TemplateWindowDefinitions = { WindowAssetFixtureDefinition, physicalDefinition },
+			Pooling = pooling,
+			ContentPreloader = preloader,
+			AssetBackend = assetBackend,
+			AssetRegistry = assetRegistry,
+		})
+		scope:Defer(function() ui:Destroy() end)
+		return ui:Initialize()
+	end
+
+	local missingRegistryResult = initializeMixed(validBackend, nil)
+	assert(missingRegistryResult.Kind == "Error"
+		and missingRegistryResult.Error.Code == "WindowDependenciesMissing",
+		"a physical definition must require the injected AssetRegistry even when a cloud backend exists")
+	local missingBackendResult = initializeMixed(nil, validRegistry)
+	assert(missingBackendResult.Kind == "Error"
+		and missingBackendResult.Error.Code == "WindowDependenciesMissing",
+		"a cloud definition must require its backend even when the physical registry exists")
+	local malformedBackendResult = initializeMixed({}, validRegistry)
+	assert(malformedBackendResult.Kind == "Error"
+		and malformedBackendResult.Error.Code == "WindowDependenciesMissing",
+		"a valid registry must not mask a malformed cloud backend in a mixed-source config")
+	local malformedRegistryResult = initializeMixed(validBackend, {})
+	assert(malformedRegistryResult.Kind == "Error"
+		and malformedRegistryResult.Error.Code == "WindowDependenciesMissing",
+		"a valid cloud backend must not mask a malformed registry in a mixed-source config")
+	local validMixedResult = initializeMixed(validBackend, validRegistry)
+	assert(validMixedResult.Kind == "Success", "mixed-source config must initialize when both source ports are valid")
 end
 
 local function TS_TEST_002_003_011_FirstWindowRuntime(scope: TestHarness.Scope)
@@ -848,6 +965,25 @@ local function TS_TEST_002_003_011_FirstWindowRuntime(scope: TestHarness.Scope)
 	malformedDefinition.AssetId = 0
 	local malformedConfig, malformedError = WindowConfigCompiler.compile({ malformedDefinition }, {})
 	assert(malformedConfig == nil and malformedError.Code == "WindowConfigMalformed")
+
+	local bothSources = table.clone(destroyDefinition)
+	bothSources.AssetKey = "ui.inventory"
+	local bothConfig, bothError = WindowConfigCompiler.compile({ bothSources }, {})
+	assert(bothConfig == nil and bothError.Code == "WindowConfigMalformed",
+		"a window definition must not combine cloud and physical sources")
+
+	local missingSource = table.clone(destroyDefinition)
+	missingSource.AssetId = nil
+	local missingConfig, missingError = WindowConfigCompiler.compile({ missingSource }, {})
+	assert(missingConfig == nil and missingError.Code == "WindowConfigMalformed",
+		"a window definition must declare exactly one source")
+
+	local malformedKey = table.clone(destroyDefinition)
+	malformedKey.AssetId = nil
+	malformedKey.AssetKey = "bad/key"
+	local malformedKeyConfig, malformedKeyError = WindowConfigCompiler.compile({ malformedKey }, {})
+	assert(malformedKeyConfig == nil and malformedKeyError.Code == "WindowConfigMalformed",
+		"physical window keys must obey the AssetKey contract")
 
 	local playersModule, playerGui = makePlayersModule(scope)
 	local pooling = PoolModule.new()
@@ -2095,6 +2231,59 @@ local function TS_TEST_006_NavigationOwnership(scope: TestHarness.Scope)
 	assertSuccess(view:Clear())
 	assert(selected.SelectedObject == nil and thirdRoot.Selectable, "Clear must restore authored navigation baseline")
 
+	local dynamicRoot = scope:Track(Instance.new("Frame")) :: Frame
+	local dynamicView = BaseWindowView.new(dynamicRoot, "navigation-dynamic", "ui.window/navigation-dynamic", makeIdentityContext())
+	dynamicView:_SetNavigatorBinding({}, table.freeze({
+		CanEmitAction = function() return true end,
+		GetGuiService = function() return selected end,
+	}))
+	local closeRoot = scope:Track(Instance.new("TextButton")) :: TextButton
+	local refreshRoot = scope:Track(Instance.new("TextButton")) :: TextButton
+	local authoredDisabledRoot = scope:Track(Instance.new("TextButton")) :: TextButton
+	closeRoot.NextSelectionRight = closeRoot
+	authoredDisabledRoot.Selectable = false
+	authoredDisabledRoot.Interactable = false
+	local closeController = FrameController.new(closeRoot, "navigation-dynamic/close", true, dynamicView._context)
+	local refreshController = FrameController.new(refreshRoot, "navigation-dynamic/refresh", true, dynamicView._context)
+	local disabledController = FrameController.new(authoredDisabledRoot, "navigation-dynamic/disabled", true, dynamicView._context)
+	assertSuccess(dynamicView:AddNestedUiElement(closeController, closeRoot))
+	assertSuccess(dynamicView:AddNestedUiElement(refreshController))
+	assertSuccess(dynamicView:AddNestedUiElement(disabledController))
+	assertSuccess(dynamicView:ConfigureNavigation(closeRoot, {
+		{ From = closeRoot, Direction = "Right", To = refreshRoot },
+	}))
+	assertSuccess(dynamicView:Initialize(nil))
+	dynamicView:_SetNavigationActive(true)
+	assert(selected.SelectedObject == closeRoot and closeRoot.NextSelectionRight == refreshRoot)
+	selected.SelectedObject = refreshRoot
+	assert(dynamicView._navigationRegistry:SetMemberEligibility(refreshRoot, false, false))
+	assert(selected.SelectedObject == closeRoot,
+		"disabling the selected member must move focus to the eligible default")
+	assert(not refreshRoot.Selectable and not refreshRoot.Interactable
+		and closeRoot.NextSelectionRight == closeRoot,
+		"disabled member must be excluded from the override while preserving the authored fallback direction")
+	dynamicView:_SetNavigationActive(false)
+	dynamicView:_SetNavigationActive(true)
+	assert(selected.SelectedObject == closeRoot, "pause/resume must not reselect a disabled last member")
+	assert(dynamicView._navigationRegistry:SetMemberEligibility(authoredDisabledRoot, true, true))
+	assert(not authoredDisabledRoot.Selectable and not authoredDisabledRoot.Interactable,
+		"dynamic true must not override authored-disabled properties")
+	assert(dynamicView._navigationRegistry:SetMemberEligibility(refreshRoot, true, true))
+	assert(refreshRoot.Selectable and refreshRoot.Interactable and closeRoot.NextSelectionRight == refreshRoot)
+	selected.SelectedObject = refreshRoot
+	dynamicView:_SetNavigationActive(false)
+	dynamicView:_SetNavigationActive(true)
+	assert(selected.SelectedObject == refreshRoot, "eligible last selection must survive pause/resume")
+	dynamicView:_SetNavigationActive(false)
+	assert(dynamicView._navigationRegistry:SetMemberEligibility(refreshRoot, false, false))
+	dynamicView:_SetNavigationActive(true)
+	assert(selected.SelectedObject == closeRoot, "disabled paused last selection must fall back to the default")
+	assertSuccess(dynamicView:Clear())
+	assert(refreshRoot.Selectable and refreshRoot.Interactable
+		and not authoredDisabledRoot.Selectable and not authoredDisabledRoot.Interactable
+		and closeRoot.NextSelectionRight == closeRoot,
+		"Clear must restore exact authored flags and directions and discard dynamic state")
+
 	local overrideRoot = scope:Track(Instance.new("Frame")) :: Frame
 	local overrideView = BaseWindowView.new(
 		overrideRoot,
@@ -2129,7 +2318,91 @@ local function TS_TEST_006_NavigationOwnership(scope: TestHarness.Scope)
 	overrideView:_SetNavigationActive(true)
 	assert(fromA.NextSelectionDown == target and fromB.NextSelectionDown == target,
 		"same-name authored controls are distinct override sources by exact Instance identity")
+	local foreignHud = scope:Track(Instance.new("TextButton")) :: TextButton
+	overrideView:_SetNavigationActive(false)
+	selected.SelectedObject = foreignHud
+	overrideView:_SetNavigationActive(true)
+	assert(selected.SelectedObject == fromA, "activating a window must take navigation focus from a foreign HUD")
+	selected.SelectedObject = target
+	overrideView:_SetNavigationActive(false)
+	selected.SelectedObject = foreignHud
+	overrideView:_SetNavigationActive(true)
+	assert(selected.SelectedObject == target, "resuming must restore the window's own last focus rather than a foreign HUD")
+	selected.SelectedObject = foreignHud
+	assert(overrideView._navigationRegistry:SetMemberEligibility(fromB, true, true))
+	assert(selected.SelectedObject == foreignHud, "ordinary presentation updates must not repeatedly steal unrelated focus")
 	assertSuccess(overrideView:Clear())
+end
+
+local function TS_TEST_017_VisibleBeforeSelection(scope: TestHarness.Scope)
+	local host: Frame? = nil
+	local selected: GuiObject? = nil
+	local assignments = 0
+	local guiService = setmetatable({}, {
+		__index = function(_self, key)
+			assert(key == "SelectedObject")
+			return selected
+		end,
+		__newindex = function(_self, key, value)
+			assert(key == "SelectedObject")
+			if value ~= nil then
+				assert(host ~= nil and value:IsDescendantOf(host), "selection target must already be parented to the window host")
+				assert(value.Selectable and value.Interactable, "selection target must already be eligible")
+				local ancestor = value
+				while ancestor ~= nil do
+					if ancestor:IsA("GuiObject") then
+						assert(ancestor.Visible, "selection target and every ancestor must be visible before SelectedObject is assigned")
+					end
+					if ancestor == host then break end
+					ancestor = ancestor.Parent
+				end
+				assignments += 1
+			end
+			selected = value
+		end,
+	})
+	local defaults = {}
+	local alternatives = {}
+	local function hiddenDefinition(id: string): any
+		local definition = makeWindowDefinition(id, "Destroy", { Constructed = 0, Initialized = 0 })
+		definition.CreateView = function(root: GuiObject, context: any)
+			root.Visible = false
+			local default = Instance.new("TextButton")
+			default.Parent = root
+			local alternative = Instance.new("TextButton")
+			alternative.Parent = root
+			local view = BaseWindowView.new(root, id, `ui.window/{id}`, context.Elements)
+			assertSuccess(view:AddNestedUiElement(FrameController.new(default, `{id}/default`, true, context.Elements)))
+			assertSuccess(view:AddNestedUiElement(FrameController.new(alternative, `{id}/alternative`, true, context.Elements)))
+			assertSuccess(view:ConfigureNavigation(default, {}))
+			defaults[id] = default
+			alternatives[id] = alternative
+			return view
+		end
+		return definition
+	end
+	local lower = hiddenDefinition("visible-lower")
+	local modal = hiddenDefinition("visible-modal")
+	local replacement = hiddenDefinition("visible-replacement")
+	modal.VisibilityPolicy = "HideBelow"
+	replacement.VisibilityPolicy = "HideBelow"
+	local navigator, windowHost = makeNavigatorFixture(scope, { lower, modal, replacement }, { GuiService = guiService })
+	host = windowHost
+	local openedLower = navigator:AddExternal(lower.WindowId, nil)
+	assertSuccess(openedLower)
+	assert(selected == defaults[lower.WindowId], "initial hidden template must become selectable after being shown")
+	guiService.SelectedObject = alternatives[lower.WindowId]
+	local lowerView = openedLower.Value:GetView().Value
+	local openedModal = lowerView:AddWindowAsync(modal.WindowId, nil)
+	assertSuccess(openedModal)
+	assert(not lowerView.Root.Visible and selected == defaults[modal.WindowId])
+	local replaced = openedModal.Value:GetView().Value:CloseWindowAsync(replacement.WindowId, nil)
+	assertSuccess(replaced)
+	assert(selected == defaults[replacement.WindowId], "replacement must be visible before taking focus")
+	assertSuccess(replaced.Value:GetView().Value:CloseWindowAsync())
+	assert(lowerView.Root.Visible and selected == alternatives[lower.WindowId],
+		"a hidden lower window must be shown before its last focus is restored")
+	assert(assignments >= 5, "visibility assertions must cover add, replace, and resume focus assignments")
 end
 
 function UiSystemTestRunner.runAll()
@@ -2149,6 +2422,7 @@ function UiSystemTestRunner.runAll()
 		{ Name = "TS-TEST-004/005/008 multi-window lifecycle", Callback = TS_TEST_004_005_008_MultiWindowLifecycle },
 		{ Name = "TS-TEST-008 sync hook error, yield, and paused custom method partitions", Callback = TS_TEST_008_SyncHookPartitions },
 		{ Name = "TS-TEST-006 navigation ownership", Callback = TS_TEST_006_NavigationOwnership },
+		{ Name = "TS-TEST-017 visible windows before navigation selection", Callback = TS_TEST_017_VisibleBeforeSelection },
 		{ Name = "TS-TEST-013 controller identity events", Callback = TS_TEST_013_ControllerIdentityEvents },
 		{ Name = "TS-TEST-015 client bootstrap composition", Callback = TS_TEST_015_ClientBootstrapComposition },
 	}, 8)

@@ -1,106 +1,183 @@
-# Communication rules
+# Правила связи
 
-## Scope
+## Область действия
 
-Apply to client/server communication modules, protocols, serializers, remotes, batching, priorities, sequencing, epochs, rate limits, client patches, and resync.
+Применять к клиентским и серверным модулям связи, протоколам,
+сериализаторам, удалённым объектам, пакетированию, приоритетам,
+последовательностям, эпохам, ограничениям частоты, клиентским изменениям и
+повторной синхронизации.
 
-Required context: `docs/InitializationAndSaveSystem.md`.
+Обязательный контекст: `docs/InitializationAndSaveSystem.md` и шаблонное
+ADR-0052 для сообщений приглашений друзей.
 
-## Mandatory rules
+## Обязательные правила
 
-- Ordinary runtime messages MUST use `CommunicationServer`/`CommunicationClient`, not direct gameplay RemoteEvents.
-- The shared `Signal` contract is side-local and MUST NOT be described or used
-  as client/server transport; Roblox `RemoteEvent` and `RemoteFunction`
-  instances remain the network boundary.
-- RemoteEvents are batched once per Heartbeat and preserve queue order.
-- The initial full snapshot and explicit resync use the dedicated snapshot RemoteFunction.
-- Message handlers MUST be registered before the client requests its first snapshot.
-- Every client-originated message type MUST have server validation before domain mutation.
-- Server-bound validators are mandatory and MUST execute behind a protected
-  boundary. A validator or handler exception MUST be contained and force
-  snapshot recovery before further domain mutation.
-- Batch message collections MUST be dense arrays and MUST NOT rely on `#` until
-  their shape has been validated.
-- Messages MUST be bounded by count and estimated bytes.
-- Server inbound rate limiting MUST account for both message count and bytes.
-- Server inbound invocation budgets MUST be charged before deep validation, so
-  malformed envelopes and payloads cannot bypass rate limiting.
-- Sustained inbound and outbound rates MUST use continuously refilled budgets,
-  not fixed time windows that permit a double burst at a boundary.
-- The client MUST pace legitimate outgoing batches within the corresponding
-  authoritative server invocation, message-count, and estimated-byte budgets.
-- The server MUST pace outgoing batches and estimated bytes independently per
-  player without removing unsent messages or advancing sequence numbers.
-- Repeated invalid-input and rate-limit diagnostics MUST be bounded per player
-  and diagnostic cooldown.
-- Request IDs MUST be bounded and treated as untrusted.
-- Communication serialization MUST be separate from DataStore serialization.
-- Safe value types such as `Vector3` and `CFrame` MAY cross the network only
-  when all numeric components are finite; `Instance`, cycles, mixed or sparse
-  tables, unsupported types, and non-finite numbers MUST be rejected.
-- Communication inspection MUST bound depth, visited nodes, reported issues,
-  and estimated bytes.
-- Synchronous server-read startup requests MUST use the bounded request API
-  owned by `CommunicationServer`/`CommunicationClient`, with a registered
-  validator and response-size enforcement.
-- The synchronous request API MUST NOT replace batched messages for ordinary
-  gameplay mutations or notifications.
+- Обычные сообщения времени исполнения используют
+  `CommunicationServer`/`CommunicationClient`, а не прямые предметные
+  `RemoteEvent`.
+- Общий контракт `Signal` является боковым и не описывается и не используется
+  как транспорт между клиентом и сервером; сетевой границей остаются
+  `RemoteEvent` и `RemoteFunction` Roblox.
+- `RemoteEvent` объединяются в пакет один раз за `Heartbeat` и сохраняют
+  порядок очереди.
+- Исходный полный снимок и явная повторная синхронизация используют отдельный
+  снимковый `RemoteFunction`.
+- Обработчики сообщений регистрируются до первого запроса снимка клиентом.
+- Каждый тип сообщения от клиента имеет серверную проверку до предметного
+  изменения.
+- Серверные проверяющие функции обязательны и выполняются за защищённой
+  границей. Исключение проверяющей функции или обработчика изолируется и
+  требует восстановления снимка до следующего предметного изменения.
+- Коллекции сообщений пакета являются плотными массивами и не используют `#`
+  до проверки формы.
+- Число и оценочный размер сообщений ограничены.
+- Ограничение входящего потока сервера учитывает и число сообщений, и байты.
+- Бюджет входящего вызова списывается до глубокой проверки, поэтому неверный
+  конверт или нагрузка не обходят ограничение частоты.
+- Постоянные входящие и исходящие скорости используют непрерывно пополняемые
+  бюджеты, а не фиксированные окна, допускающие двойной всплеск на границе.
+- Клиент распределяет допустимые исходящие пакеты внутри соответствующих
+  серверных бюджетов вызовов, числа сообщений и оценочных байтов.
+- Сервер независимо распределяет исходящие пакеты и оценочные байты для каждого
+  игрока, не удаляя неотправленные сообщения и не продвигая их номера.
+- Повторные сообщения о неверном вводе и ограничении частоты ограничены для
+  каждого игрока и периода диагностики.
+- Идентификаторы запросов ограничены и считаются недоверенными.
+- Сетевая сериализация отделена от сериализации хранилища данных.
+- Безопасные значения вроде `Vector3` и `CFrame` пересекают сеть только с
+  конечными числовыми составляющими; `Instance`, циклы, смешанные и разреженные
+  таблицы, неподдерживаемые типы и неконечные числа отклоняются.
+- Исследование нагрузки ограничивает глубину, посещённые узлы, число сообщений
+  о проблемах и оценочные байты.
+- Синхронные серверные запросы чтения при запуске используют ограниченный
+  интерфейс запросов `CommunicationServer`/`CommunicationClient` с
+  зарегистрированной проверкой и ограничением размера ответа.
+- Синхронный интерфейс запросов не заменяет пакетные сообщения обычных игровых
+  изменений или уведомлений.
 
-## Runtime synchronization
+## Синхронизация времени исполнения
 
-- Normal state changes MUST use compact semantic messages.
-- A message SHOULD describe the operation/change needed by the client instead of replacing a full provider table.
-- Client handlers MUST verify expected old state when order matters.
-- A handler mismatch or failure MUST trigger full resync.
-- Server batches MUST carry a snapshot epoch and sequence.
-- Stale older-epoch packets MUST be ignored.
-- Current-epoch sequence gaps MUST trigger resync.
-- A failed client resync handler MUST retry with bounded exponential backoff while the client remains paused; it MUST NOT leave recovery permanently dormant after one transient failure.
-- In-flight resync completions and delayed retry callbacks MUST be scoped to
-  their recovery generation; stale work after snapshot resume, `Stop`, or a
-  newer recovery MUST NOT mutate or block the active recovery state.
-- While paused for resync, the client MUST neither accept nor flush ordinary
-  outbound messages derived from the stale baseline.
-- `ClientReady` MUST acknowledge the exact active snapshot epoch before the
-  server resumes buffered delivery.
-- Snapshot handling MUST allow at most one in-flight request per player,
-  enforce a retry cooldown, and bound the complete response envelope with a
-  network-specific estimated-byte limit that is independent of DataStore
-  serialization limits.
-- A snapshot MUST pass network validation before `BeginSnapshot` changes the
-  epoch or clears the outgoing queue, and every request exit MUST release its
-  in-flight guard.
-- Replacing a snapshot MUST retire pending correlated work from the previous
-  epoch, including an unacknowledged client-authority patch.
+- Обычные изменения состояния используют компактные семантические сообщения.
+- Сообщение описывает нужную клиенту операцию или изменение, а не заменяет
+  целую таблицу поставщика.
+- Клиентский обработчик проверяет ожидаемое предыдущее состояние, когда важен
+  порядок.
+- Несовпадение или ошибка обработчика требует полного снимка.
+- Серверные пакеты несут эпоху снимка и номер последовательности.
+- Пакеты старой эпохи игнорируются.
+- Пропуск номера в текущей эпохе требует повторной синхронизации.
+- После ошибки клиентского обработчика снимка повтор выполняется с ограниченной
+  показательной задержкой, пока клиент приостановлен; одна временная ошибка не
+  оставляет восстановление навсегда бездействующим.
+- Результаты выполняющейся синхронизации и отложенные повторы принадлежат её
+  поколению; устаревшая работа после возобновления снимка, `Stop` или нового
+  восстановления не изменяет и не блокирует текущее состояние.
+- Пока клиент приостановлен для восстановления, он не принимает и не отправляет
+  обычные сообщения, полученные из устаревшей основы.
+- Если клиентский обработчик сообщения ожидает внешнюю операцию, перед
+  продолжением доставки проверяются прежние поколение и эпоха пакета. Начало
+  восстановления, применение нового снимка или остановка отменяют оставшиеся
+  сообщения старого пакета; поздняя ошибка старого обработчика не запускает
+  повторное восстановление и не публикует устаревшую диагностику.
+- Пока клиентский обработчик ожидает, следующие проверенные пакеты той же
+  эпохи сохраняются в ограниченной последовательной очереди и не обгоняют
+  оставшиеся сообщения текущего пакета. До сохранения проверяются весь
+  конверт, форма сообщений, допустимость значений и размер. Очередь учитывает
+  активный пакет в пределах числа сообщений и байтов; число пакетов, включая
+  пустые, также ограничено. Переполнение запрашивает восстановление снимка.
+  Восстановление, замена снимка и остановка очищают очередь; старый обработчик
+  не может освободить или продолжить очередь нового поколения.
+- `ClientReady` подтверждает точную активную эпоху до возобновления
+  буферизованной доставки сервером.
+- Для одного игрока выполняется не более одного снимкового запроса; применяется
+  задержка повтора, а полный конверт ответа ограничен отдельным сетевым пределом
+  оценочных байтов.
+- Снимок проходит сетевую проверку до того, как `BeginSnapshot` меняет эпоху
+  или очищает исходящую очередь; каждый выход из запроса освобождает блокировку.
+- Замена снимка завершает ожидающую связанную работу прежней эпохи, включая
+  неподтверждённое изменение с полномочием клиента.
 
-## Backpressure
+## Обратное давление
 
-- Every queued message MUST declare or inherit `Critical`, `State`, or `Presentation` priority.
-- Presentation messages are the first eviction candidates.
-- Critical or State overflow MUST collapse the queue to one `ResyncRequired` message.
-- Once resync is required, additional state messages MUST be refused until `BeginSnapshot`.
-- A single message MUST fit below the configured single-message limit.
+- Каждое сообщение очереди объявляет или наследует приоритет `Critical`,
+  `State` либо `Presentation`.
+- Сообщения представления удаляются первыми.
+- Переполнение критического сообщения или состояния сворачивает очередь в одно
+  `ResyncRequired`.
+- После требования повторной синхронизации дополнительные сообщения состояния
+  отклоняются до `BeginSnapshot`.
+- Отдельное сообщение укладывается в настроенный предел одного сообщения.
 
-## Authority
+## Полномочия
 
-- Wallet mutations and every provider declared with server authority are
-  server-authoritative.
-- The client sends intentions or explicitly client-authority mementos, never
-  authoritative Wallet values.
-- The server MUST ignore and log unexpected providers or message types.
+- Изменения кошелька и каждого поставщика с заявленным серверным полномочием
+  авторитетны на сервере.
+- Клиент отправляет намерения или явно разрешённые клиентские снимки, а не
+  авторитетные значения кошелька.
+- Сервер игнорирует и записывает неизвестных поставщиков или типы сообщений.
 
-## Forbidden patterns
+## Приглашения друзей
 
-- MUST NOT use `FireClient`/`FireServer` directly from domain modules.
-- MUST NOT send ModuleScripts, functions, metatables, Instances, or cyclic tables.
-- MUST NOT send an entire provider table for a small runtime change.
-- MUST NOT use batched RemoteEvents where a synchronous RemoteFunction result is required.
-- MUST NOT create a domain-owned RemoteFunction when the bounded communication
-  request API can represent the synchronous read.
-- MUST NOT reuse `SaveSerialize` for runtime communication.
-- MUST NOT drop state silently when resync can restore consistency.
+- `Friends.RequestInvite`, `Friends.PlatformResult` и
+  `Friends.RespondLocalOffer` являются недоверенными клиентскими намерениями.
+  Их точная форма проверяется до обращения к `FriendsModule`; игрок-отправитель
+  всегда берётся из транспортной границы, а не из нагрузки.
+- `Friends.RequestInvite` несёт только положительный `TargetUserId`.
+  `Friends.RespondLocalOffer` несёт только ограниченный `OfferId` и решение
+  `Accept` либо `Decline`. Сервер применяет ответ только к точному открытому
+  `IncomingOffer` этого игрока; посторонняя цель и повтор не изменяют состояние.
+- Ответ на локальное предложение отправляется с приоритетом `Critical`.
+  Снимки, запрос приглашения, состояние системного окна и результаты используют
+  установленный приоритет состояния. Ошибка постановки в очередь требует
+  повторной синхронизации и не считается принятым действием.
+- `Friends.PromptClosed` сохраняет прежнюю строго проверяемую форму только
+  для совместимости. `HandlePromptClosed` не изменяет состояние.
+  `GameInvitePromptClosed` не содержит идентификатора попытки; клиент
+  не использует его для блокировки или резерва и не пересылает как действие.
+- Попытка блокирует повтор не более 10 секунд от `RequestInvite`, включая
+  проверку дружбы и внешние ожидания. Предварительное место ограничено тем же
+  сроком. Принятый `PromptRequested` создаёт или продлевает полноценный
+  резерв на `reserveLifetimeSeconds`; при текущей конфигурации это 120 секунд.
+  Успех не перезапускает десятисекундную блокировку. Ошибка либо срок повтора
+  не удаляют прежний полноценный резерв.
+- `CanSendGameInviteAsync` и `PromptGameInvite` выполняются вне
+  последовательного обработчика пакетов. Продолжения проверяют точную попытку,
+  поколение и срок после каждого ожидания. Устаревшие результаты не меняют
+  новую попытку; уход и остановка отзывают принадлежащую им работу.
+- `Friends.SnapshotChanged` является авторитетным серверным источником
+  `Reserves`, `ConnectedUserIds` и единственного `IncomingOffer`. Клиентский
+  обратный вызов результата не закрывает локальное окно и не подтверждает
+  перенос; интерфейс ждёт удаления предложения из авторитетного снимка.
+- После `Accept` сервер переводит точное предложение в `Processing` и
+  асинхронно повторяет проверку дружбы до вызова обработчика локального
+  переноса. Продолжение проверяет то же поколение, предложение, участников и
+  сторожевой срок; устаревший результат, ошибка или исчезнувшая дружба не
+  достигают `PlayerAdmissionCoordinator`.
+- `Friends.OpenPrompt` выдаётся только для отсутствующей после серверной
+  проверки дружбы цели и несёт ограниченные `Generation`, `TargetUserId` и
+  `LaunchData`. Присутствующая, но непригодная цель не переводится на внешний
+  путь.
+- Серверная внешняя возможность допуска не передаётся отдельным клиентским
+  правом: клиент получает только непрозрачные `LaunchData` для системного окна,
+  а возможность проверяется и расходуется сервером при фактическом допуске.
 
-## Positive example
+## Запрещённые приёмы
+
+- Не вызывать `FireClient`/`FireServer` напрямую из предметных модулей.
+- Не отправлять модули, функции, метатаблицы, `Instance` или циклические
+  таблицы.
+- Не отправлять целую таблицу поставщика ради небольшого изменения.
+- Не использовать пакетный `RemoteEvent`, когда требуется синхронный результат
+  `RemoteFunction`.
+- Не создавать предметный `RemoteFunction`, если запрос можно выразить
+  существующим ограниченным интерфейсом связи.
+- Не использовать `SaveSerialize` для связи времени исполнения.
+- Не терять состояние молча, когда повторная синхронизация может его
+  восстановить.
+- Не принимать от клиента идентичность приглашающего, целевого сервера, слота,
+  отношения, возможности допуска или результат локального переноса.
+
+## Положительный пример
 
 ```lua
 communication:Queue(player, WalletConfig.MessageTypes.Changed, change, nil, {
@@ -108,26 +185,34 @@ communication:Queue(player, WalletConfig.MessageTypes.Changed, change, nil, {
 })
 ```
 
-## Negative example
+## Отрицательный пример
 
 ```lua
 walletRemote:FireClient(player, walletModule:GetMemento(player))
 ```
 
-This bypasses ordering/backpressure and replaces client runtime identity.
+Этот вызов обходит порядок и обратное давление и заменяет идентичность
+клиентского состояния времени исполнения.
 
-## Audio hybrid boundary
+## Граница смешанного звука
 
-Audio hybrid uses only exact versioned Intent and Presentation entries in the
-existing registry. Both remain installed before `ClientReady` even when audio
-startup is disabled; disabled handlers exact-decode then return
-`AudioDisabled` without playback, fanout, retry, replay, or resync state.
-Client Queue rejection preserves predicted local playback, logs
-`HybridQueueRejected`, and does not retry. See ADR-0041 and
+Смешанный звук использует только точные версионированные записи намерения и
+представления в существующем реестре. Оба обработчика устанавливаются до
+`ClientReady`, даже если звук отключён; отключённые обработчики точно
+декодируют запрос и возвращают `AudioDisabled` без воспроизведения, рассылки,
+повтора или состояния повторной синхронизации. Отклонение клиентской очереди
+сохраняет предсказанное местное воспроизведение, записывает
+`HybridQueueRejected` и не повторяет запрос. См. ADR-0041 и
 `.agents/rules/audio.md`.
 
-## Verification
+## Проверка
 
-- `ProductionIntegrationTestRunner`.
-- Test Vector3 through queue and batch flush, not only serializer validation.
-- Clean Play test for real client/server resync or protocol changes.
+- `ProductionIntegrationTestRunner`, `FriendsModuleTestRunner` и
+  `PlayerAdmissionCoordinatorTestRunner`.
+- Проверить `Vector3` через очередь и отправку пакета, а не только проверку
+  сериализатора.
+- Проверить точную форму и корреляцию сообщений приглашения, поддельный и
+  повторный ответ, отсутствие поля получателей при закрытии системного окна и
+  восстановление после отклонённой очереди.
+- После изменения протокола или повторной синхронизации выполнить чистый запуск
+  клиента и сервера.

@@ -1186,7 +1186,16 @@ function StatisticsTestRunner.runAll()
 		controller:MarkDirty(player, statistics.Id)
 		assertTrue(controller:FlushDirty(player), "restored Statistics runtime could not be recaptured")
 		assertTrue(controller:ForceSave(player, "RollbackVerification").Ok)
-		assertTrue(TableUtil.deepEqual(memory:Read("StatisticsRollback_92"), beforeDocument), "rollback changed persisted document")
+		local afterDocument = memory:Read("StatisticsRollback_92")
+		-- A real save refreshes these storage timestamps even when provider data is unchanged.
+		assertTrue(afterDocument.Metadata.UpdatedAt >= beforeDocument.Metadata.UpdatedAt,
+			"save timestamp moved backwards")
+		assertTrue(afterDocument.Session.LastHeartbeatAt >= beforeDocument.Session.LastHeartbeatAt,
+			"session heartbeat moved backwards")
+		local expectedDocument = TableUtil.deepCopy(beforeDocument)
+		expectedDocument.Metadata.UpdatedAt = afterDocument.Metadata.UpdatedAt
+		expectedDocument.Session.LastHeartbeatAt = afterDocument.Session.LastHeartbeatAt
+		assertTrue(TableUtil.deepEqual(afterDocument, expectedDocument), "rollback changed persisted content or lock identity")
 	end)
 
 	test("client projection strips internals and request protocol has no mutation surface", function(scope)

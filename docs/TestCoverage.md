@@ -1,94 +1,110 @@
-# Production test coverage
+# Покрытие производственных проверок
 
-## Purpose
 
-This document is the traceability matrix and release gate for the reusable
-template. It records behavioral coverage, not a line-coverage percentage.
-Production-ready means that critical contracts have positive, negative, and
-boundary coverage; isolated tests are deterministic and failure-safe; and a
-clean server/client bootstrap succeeds.
+Результаты проверок при переносе, их редакции и ограничения собраны в
+[MIG-0001](Migrations/MIG-0001-find-a-baby.md). Этот документ описывает
+покрываемые контракты; исторический результат запуска не подтверждает
+работоспособность последующих изменений.
 
-## Test contract
+## Назначение
 
-- Tests exercise public module contracts. Transport adapters may be injected,
-  but private fields and private methods are not assertions.
-- Every isolated test is run by `TestHarness` with a finite timeout.
-- A test that creates a connection, controller, worker, lock, signal, or
-  Instance registers cleanup with its scope. Cleanup runs after success,
-  failure, and timeout, in reverse registration order.
-- Time, waits, task spawning, randomness, storage, Roblox services, and
-  communication transports are injected where they affect correctness.
-- Fresh instances and fakes isolate tests. Suite order is stable and a test
-  must not depend on state left by an earlier test.
-- Intentional failure diagnostics are part of the assertion or the expected
-  diagnostics below. Any other error or warning in server or client output is
-  a release-gate failure.
+Этот документ является матрицей трассировки и условием выпуска
+переиспользуемого шаблона. Он описывает покрытие поведения, а не процент
+покрытых строк. Готовность к выпуску означает, что критические контракты имеют
+положительные, отрицательные и граничные проверки, изолированные проверки
+детерминированы и безопасно завершаются при ошибке, а чистый запуск сервера и
+клиента проходит успешно.
 
-## Contract-to-suite matrix
+## Контракт проверки
 
-| Production contract | Positive coverage | Negative coverage | Boundary and concurrency coverage | Primary suite |
+- Проверки используют общедоступные контракты модулей. Транспортные переходники
+  разрешено внедрять, но закрытые поля и методы не являются предметом проверки.
+- Каждую изолированную проверку выполняет `TestHarness` с конечным сроком.
+- Проверка, создающая соединение, контроллер, исполнителя, блокировку, сигнал
+  или `Instance`, регистрирует очистку в своей области. Очистка выполняется
+  после успеха, ошибки и истечения срока в обратном порядке регистрации.
+- Время, ожидание, запуск задач, случайность, хранилище, службы Roblox и
+  транспорт связи внедряются там, где они влияют на правильность.
+- Свежие экземпляры и подставные реализации изолируют проверки. Порядок наборов
+  устойчив, а проверка не должна зависеть от состояния, оставленного предыдущей
+  проверкой.
+- Намеренные диагностические сообщения об ошибках входят в утверждение или в
+  список ожидаемых сообщений ниже. Любая другая ошибка или предупреждение в
+  выводе сервера либо клиента запрещает выпуск.
+
+## Матрица контрактов и наборов
+
+| Производственный контракт | Положительное покрытие | Отрицательное покрытие | Границы и параллельность | Основной набор |
 |---|---|---|---|---|
-| Structured logging | severity routing, child context | hostile values and failing sinks | field and line caps, control characters | `LoggerTestRunner` |
-| Object pools and leases | warmup, acquire/release, adapters | stale/foreign/double release, adapter failures | active/idle caps, re-entry, forced removal | `ResourceManagementTestRunner` |
-| Immutable asset catalog | paths, keys, tags, metadata, typed lookup | duplicates, overlaps, invalid scopes and types | empty/dot/control path segments, key length | `AssetRegistryTestRunner` |
-| Content preloading | catalog selectors, keys, raw IDs, caching | invalid IDs, keys, policies, backend failures | empty targets, duplicates, concurrent same-name request | `ContentPreloaderTestRunner` |
-| Audio startup and catalog (TF-0005 gate) | protected module load, exact normalized config/catalog, paths, selection, plus the enabled production preload command | physical Sounds-root absence/class mismatch, registry query faults, invalid/non-positive rows, profiles/routing, duplicate keys, and preload backend failure | profile/path/ID boundaries, client/server config parity, sorted unique preload IDs, exact request identity, Warn continuation, sticky reuse, full-domain tiny/huge order and zero/smallest-positive selection, huge-equal exact midpoint, representable high-sample tiny tail, reversed catalog order, anti-repeat, and small-weight parity | `AudioCatalogTestRunner`, `ContentPreloaderTestRunner` |
-| Audio graph, pools and playback (TF-0005 gate) | ordinary playback, fixed four-object `SpatialAnchor` composition, static Point, full-transform Attached through one side registry, native one-server-lease delivery, and all Music transition phases | target/readiness/transform loss, invalid regions/profiles, partial construction, unregister-first cleanup, stop/end during transitions and late frame/playback callbacks | FIFO hard capacity, LIFO rejection, exact object ceiling, one subscription per side, zero Point registration, generation authorization, phase mutations and StopAll | `AudioPlaybackTestRunner` |
-| Audio integration and settings (TF-0005 gate) | exact client graph/listener lifecycle, hybrid prediction/fanout, real save-controller snapshot/patch/rollback paths | graph failure, every client preflight gate, Queue rejection, hook false/exception and malformed settings | atomic recipient enqueue rollback, exact pair reuse and two independent settings controllers | `AudioIntegrationTestRunner` |
-| Collaborative Audio Studio QA (TF-0005 gate) | all public Audio capabilities and `PRD-AC-001..079` mapped to deterministic or collaborative evidence; exact live playback uses CartoonBubble, OldCarEngine, and PrayerRiver through production bootstrap services; public preload evidence uses exactly `AudioCatalog.Preload.v1` and exposes only counts plus failure `ContentId`/`Status` | wrong/missing exact catalog pair, asset ID, descriptor path/SoundId, unknown bridge request, bare human boolean, objective observation, or required operator statement cannot pass; `Bridge.Invoke` rejects unsafe caller data before transport; raw Bindable evidence proves cycles are engine-rejected, while Roblox strips metatable/frozen state, normalizes coroutines and mixed/sparse keys, copies tables, and does not execute `__iter`; every representable unsafe raw argument and every unsafe handler result rejects before handler dispatch; non-Studio and unavailable topology/backend stay closed/blocked | exact frozen client/server whitelists, side-local placement/schema, actual service-closure binding, raw and wrapped bidirectional deep-copy isolation, cleanup, exact CueId refs, accepted server one-shots without fake handles, explicit rejoin Start, exact `Studio-E2E-AUDIO-05` anchor, exact three-live-asset and 16-scenario identity, report precedence | `AudioManualQaTestRunner`, plus [AudioManualQA.md](AudioManualQA.md) |
-| Experience Config catalog | atomic decode, projection, refresh | missing/unknown/unsafe values, invalid refresh, mandatory Statistics identifier mismatch, impossible dedupe capacity | min/max values, NaN/infinity, oversized projection, accepted Wallet GUID and practical dedupe boundaries | `ConfigCatalogTestRunner` |
-| Side-local signals | connect, once, wait, disconnect, destroy | listener throws and owner destruction | yielding listeners, nested dispatch, nil arguments | `SystemTestRunner` |
-| UI root, authoring, semantic controllers, and window stack | persistent safe-area root/hosts, canonical data-only authoring shape, frozen definition identity, allowlisted data-only load/preload cache, destroy/pool lifecycle, Active-owned add/close/replacement, final-stack visibility, Pause/Resume lifecycle, navigation focus/baselines, all Background policies, blocker tokens, generation handles, command success | malformed/duplicate config or root, executable asset, missing derived config, reserved template project namespace, preload/factory/protected-cast/initialize failure, invalid Background/default or replacement nomination, non-Active mutation, destroy/pooled cleanup failure, duplicate window, stale handle | exact strict UTF-8 derived sequence, eager failure and timeout retry, one unsettled physical attempt, off-tree construction/Initialize, paused valid handles, lower-prefix preservation, pool generation reuse and contaminated-record destruction, transition deadline/quarantine, dynamic navigation attach/detach atomicity, non-blocking root listeners | `UiSystemTestRunner`, `ResourceManagementTestRunner`, `ContentPreloaderTestRunner`, `SystemTestRunner` |
-| Initialization manifests | dependency order, idempotence, catalog composition | missing dependency, duplicate/malformed/out-of-order commands | concurrent callers, sticky failure, non-cancelling watchdog | `SystemTestRunner` |
-| Wallet and base provider rules | initial value and persisted reload | unknown currency, invalid amounts/balances, retained-close public mutation | zero no-op, safe-integer, NaN/fractional limits, normal Loaded admission, real Statistics preparation failure, rejected retained add/spend/no-op without signals/queue, and retry capture/order | `SystemTestRunner`, `StatisticsTestRunner`, `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
-| Statistics snapshots | built-in/custom lifecycle, formulas, both Wallet currencies, Teleport continuation, projected reads | malformed metadata/operations, malformed retention candidates, non-finite and overflow results, invalid lifecycle, rejected Wallet facts, mismatch, private-field and client-mutation rejection | omitted/allow-only/allow-all-except filters, retention 0/N and cross-generation newest-only reconciliation/persistence, exact rollback restart, accepted and failed Teleport source preservation with final facts, atomic byte failure, mandatory Wallet GUID identifier boundary, aggregate dedupe capacity, dedupe across every eligible built-in snapshot, common client fact/read rate policy, no per-operation storage writes, positive-cooldown rapid-close save coalescing, close capture, diagnostic classes/redaction, copy isolation | `StatisticsTestRunner`, `TeleportModuleTestRunner`, `ConfigCatalogTestRunner`, `SystemTestRunner`, `ProductionIntegrationTestRunner` |
-| Save transaction | load/apply/run/save and revision updates | capture, set, run, persistence, rollback-cleanup, unsafe prepared document, prepared size-limit, cancelled-load release, terminal Stop, lock-release failure, close preparation/capture failure, every local/public save failure code, malformed truthy `Ok`, and close wait/save deadlines | complete reverse/forward ordering, pre-mutation persistence gate, concurrent save/close, every Saving/Capturing/Snapshotting/Applying success/failure yield boundary, request/generation-safe deadline withdrawal, exact retained-owner restoration behind refresh, retry-retained preparation/capture/save ownership with preserved save intent and mutation rejection, and save-before-Stop/Release terminal retry | `AudioIntegrationTestRunner`, `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
-| Client-authority patch | accepted provider update | server-authority, unknown, malformed, invalid, busy, closing, and terminally closed patch | lost acknowledgement retired by replacement snapshot, patch-first/close-second provider yield with captured mutation but no post-close acknowledgement, and close-first/patch-second rejection | `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
-| Storage and session locks | owner refresh/release, stale takeover, and bounded teleport handoff acquisition | contention exhaustion, cancellable handoff wait, negative/zero/fractional/NaN/infinite/string/over-cap handoff retry counts, corrupt document, lost ownership, close preparation/save failure, and concurrent close/refresh | minimum and maximum supported retry counts, final `UpdateAsync` transform, same-lock whole-operation retry classification, new-profile marker preservation across refresh, release, and abandoned takeover, exact expiry-boundary refresh, repeated `CloseFailed` refresh after Stop/Release failure, controller-owned departed-player discovery with empty live Players enumeration, controller+opaque-runtime three-attempt budgets, yielded third-attempt unregister/rebuild revocation, real Statistics retry/finalization/rejoin, authoritative loss, retry release, shutdown parity, and no post-release refresh | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
-| Autosave and shutdown | due dirty save, bounded concurrent live/retained close | persistence/preparation failure, exact/expired deadline, removed-controller request rejection | pre-stop identity-deduplicated live plus departed retained target snapshot, one absolute preparation/capture/save/stop/release/retry/finalize deadline, retry inside worker concurrency, not-due/clean exclusion, stop during worker cycle, idle/pending controller unregistration and idempotent cleanup | `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
-| Migrations | complete skipped-version chain plus immediate load/save/reload checkpoint | invalid controller/checkpoint, missing legacy baseline, existing empty pre-checkpoint profile, invalid provider dictionary, post-transform lock loss/release failure, unsafe or oversized output, cyclic replacement | same-version order, raw legacy root reconstruction, synchronous checkpoint capture, registration/replacement isolation, immutable checkpoint, future-version exclusion, oversized empty transition | `ProductionReadinessTestRunner`, `SystemTestRunner` |
-| Communication serialization | supported DTO and Roblox value shapes | malformed, cyclic, unsafe, oversized payloads | work/byte/depth caps and Vector3 batch preservation | `ProductionIntegrationTestRunner` |
-| Communication flow control | queue, request, send, resync and recovery | invalid calls, throwing validators, packet loss, stale epoch | independent player buckets, byte pacing, burst/refill, backpressure | `ProductionIntegrationTestRunner` |
-| Communication cleanup | normal stop and player removal | in-flight resync cancellation | sequence, epoch, queue and limiter reset | `ProductionIntegrationTestRunner` |
-| Version provider | valid snapshot and actual upgrade | malformed semantic version and place version | equal/older version does not emit dirty | `ProductionReadinessTestRunner` |
-| GameData client | ready, provider forwarding, lookup | timeout and duplicate provider | nil payload fields, destroy and singleton cleanup | `ProductionReadinessTestRunner` |
-| Players lifecycle | existing/join/leave/character/lookup, stable public signal surface, bounded delivery | removed membership, acquisition failure, callback failure, stale/duplicate character events, terminal wait cancellation | existing character plus respawn, subscribe-enumerate races, reentrant initialization/stop, idempotent terminal cleanup | `ProductionReadinessTestRunner`, `SystemTestRunner` |
-| Teleport lifecycle | external/continued arrival, public/reserved requests, client bootstrap/events, two-client transport including negative Studio simulated-player UserIds, exact two-place template policy, unpublished zero-identity inert bootstrap, explicit opt-in runtime validation pad and configured routing | untrusted envelope, invalid group/destination, synchronous/late/queue failure, zero/fractional presentation UserId rejection, private-field rejection, post-Stop delivery, unrecorded place in the template Experience, unpublished destination rejection, default-disabled validation, malformed/mismatched/metatable-bearing validation GameId/routes/tester allowlist, unknown validation-config fields, unauthorized touch | unique sessions, three-visit continuity, GameId-gated derived current-place-only policy, immutable yielding group success/failure, pre-return init-failure ordering and exception/removal/Stop/retry retirement, per-player partial failure, stale result correlation, validation-pad touch re-entry/removal/recreation/deterministic lowest-present tester selection/idempotent Stop, repeated cleanup, observable snapshot reconciliation for every lost lifecycle/presentation transition, negative-ID peer departure followed by handler-failure snapshot recovery, maximum configured player capacity, initial queue clearing, handler-failure and backpressure resync | `TeleportModuleTestRunner`, `ProductionIntegrationTestRunner` |
-| Save registries | registered controller construction | duplicate/unknown/malformed registration, permanent terminal Stop failure, and stale object-form removal | single/mixed-bulk retry after failure, exact autosave/runtime/provider/signal/lock retention, successful lifecycle handoff, string-ID compatibility, same-ID replacement survival across server autosave/session-lock and client central dispatch, two simultaneous real-client pending routes, crossed/correct results, survivor removal, same-ID stale-result rejection, and independent server/client registries | `ProductionReadinessTestRunner` |
+| Структурное журналирование | маршрутизация важности, дочерний контекст | враждебные значения и ошибочные приёмники | пределы полей и строк, управляющие символы | `LoggerTestRunner` |
+| Пулы объектов и аренды | прогрев, получение и возврат, переходники | устаревший, внешний и повторный возврат, ошибки переходников | пределы активных и свободных объектов, повторный вход, принудительное удаление | `ResourceManagementTestRunner` |
+| Неизменяемый каталог ресурсов | пути, ключи, метки, дополнительные сведения, типизированный поиск | повторы, пересечения, неверные области и типы | пустые, точечные и управляющие части пути, длина ключа | `AssetRegistryTestRunner` |
+| Предварительная загрузка содержимого | выборки каталога, ключи, исходные идентификаторы, кеширование | неверные идентификаторы, ключи, политики и ошибки поставщика | пустые цели, повторы, одновременный одноимённый запрос | `ContentPreloaderTestRunner` |
+| Запуск звука и каталог, условие TF-0005 | защищённая загрузка модуля, точная нормализованная конфигурация и каталог, пути, выбор, включённая производственная команда предварительной загрузки | отсутствие или неверный класс физического корня `Sounds`, ошибки запросов каталога, неверные или неположительные строки, профили, маршрутизация, повторяющиеся ключи и ошибка поставщика предварительной загрузки | границы профиля, пути и идентификатора, совпадение клиентской и серверной конфигурации, отсортированные уникальные идентификаторы предварительной загрузки, точная идентичность запроса, продолжение `Warn`, устойчивое повторное использование, порядок очень малых и больших значений по всей области, выбор нуля и наименьшего положительного значения, точная середина равных больших значений, представимый хвост малого значения при большой выборке, обратный порядок каталога, защита от повтора и равенство малых весов | `AudioCatalogTestRunner`, `ContentPreloaderTestRunner` |
+| Звуковой граф, пулы и воспроизведение, условие TF-0005 | обычное воспроизведение, постоянная четырёхобъектная композиция `SpatialAnchor`, неподвижный `Point`, полное преобразование `Attached` через один боковой реестр, исходная доставка одной серверной аренды и все стадии перехода `Music` | потеря цели, готовности или преобразования, неверные области и профили, частичное построение, очистка с первым удалением регистрации, остановка или завершение во время переходов и поздние обратные вызовы кадра или воспроизведения | жёсткая ёмкость в порядке поступления, отклонение обратного порядка, точный предел объектов, одна подписка на сторону, отсутствие регистрации `Point`, разрешение поколения, изменения стадий и `StopAll` | `AudioPlaybackTestRunner` |
+| Объединение звука и настройки, условие TF-0005 | точный жизненный цикл клиентского графа и слушателя, смешанное предсказание и рассылка, настоящие пути снимка, изменения и отката контроллера сохранения | ошибка графа, каждое условие предварительной проверки клиента, отклонение `Queue`, ложь или исключение обработчика и неверные настройки | атомарный откат постановки получателей в очередь, точное повторное использование пары и два независимых контроллера настроек | `AudioIntegrationTestRunner` |
+| Совместная проверка звука в Studio, условие TF-0005 | все общедоступные звуковые возможности и `PRD-AC-001..079` сопоставлены с детерминированными или совместными свидетельствами; точное живое воспроизведение использует `CartoonBubble`, `OldCarEngine` и `PrayerRiver` через производственные службы запуска; общедоступное свидетельство предварительной загрузки использует ровно `AudioCatalog.Preload.v1` и раскрывает только количества, а при ошибке — `ContentId` и `Status` | неверная или отсутствующая точная пара каталога, идентификатор ресурса, путь описателя или `SoundId`, неизвестный запрос моста, отдельное человеческое логическое значение, объективное наблюдение либо обязательное утверждение оператора не могут дать успех; `Bridge.Invoke` отклоняет небезопасные данные до транспорта; исходное свидетельство `Bindable` подтверждает, что циклы отклоняются движком, тогда как Roblox удаляет метатаблицу и заморозку, нормализует сопрограммы и смешанные либо разреженные ключи, копирует таблицы и не исполняет `__iter`; каждый представимый небезопасный исходный аргумент и результат обработчика отклоняется до вызова обработчика; вне Studio и при недоступной топологии или поставщике состояние остаётся закрытым либо заблокированным | точные замороженные клиентские и серверные списки разрешений, боковое размещение и схема, настоящая привязка замыкания службы, двунаправленная изоляция глубоким копированием для исходного и обёрнутого пути, очистка, точные ссылки `CueId`, принятые серверные одноразовые звуки без поддельных дескрипторов, явный `Start` после переподключения, точный якорь `Studio-E2E-AUDIO-05`, точная идентичность трёх живых ресурсов и 16 сценариев, приоритет отчёта | `AudioManualQaTestRunner` и [план ручной проверки звука](AudioManualQA.md) |
+| Каталог конфигурации игры | атомарное декодирование, проекция, обновление | отсутствующие, неизвестные и небезопасные значения, неверное обновление, несовпадение обязательного идентификатора статистики, невозможная ёмкость защиты от повторов | минимальные и максимальные значения, `NaN`, бесконечность, слишком большая проекция, принятый `GUID` кошелька и практические границы защиты от повторов | `ConfigCatalogTestRunner` |
+| Боковые сигналы | подключение, однократное ожидание, ожидание, отключение, уничтожение | исключение слушателя и уничтожение владельца | приостанавливающиеся слушатели, вложенная отправка, аргументы `nil` | `SystemTestRunner` |
+| Корень интерфейса, создание, семантические контроллеры и стек окон | сохраняющийся корень и контейнеры с безопасной областью, каноническая форма без исполняемого кода, замороженная идентичность определения, взаимоисключающие облачный `AssetId` и физический `AssetKey`, загрузка или получение через каталог, кеш предварительной загрузки, жизненный цикл уничтожения и пула, принадлежащие активному окну добавление, закрытие и замена, итоговая видимость стека, `Pause` и `Resume`, фокус и исходные значения навигации, все политики `Background`, метки блокировки, дескрипторы поколений, успешная команда | неверная или повторяющаяся конфигурация либо корень, исполняемый ресурс, отсутствие производной конфигурации, зарезервированное проектное пространство шаблона, оба источника или отсутствие источника, ошибка предварительной загрузки, фабрики, защищённого преобразования типа или запуска, неверный фон, исходный элемент или кандидат замены, изменение неактивным окном, ошибка уничтожения либо очистки пула, повторное окно, устаревший дескриптор | точная строгая производная последовательность UTF-8, повтор после ошибки и истечения предварительного срока, одна незавершённая физическая попытка, построение и `Initialize` вне дерева, действительные приостановленные дескрипторы, сохранение нижнего префикса, повторное использование поколения пула и уничтожение загрязнённой записи, срок перехода и карантин, атомарное динамическое присоединение и отсоединение навигации, динамическая допустимость элементов, перенос фокуса и точное восстановление созданных в Studio признаков и направлений, неблокирующие корневые слушатели | `UiSystemTestRunner`, `ResourceManagementTestRunner`, `ContentPreloaderTestRunner`, `SystemTestRunner` |
+| Перечни запуска | порядок зависимостей, повторяемость, сборка каталога | отсутствующая зависимость, повторяющиеся, неверные и расположенные не по порядку команды | одновременные вызывающие стороны, закреплённая ошибка, наблюдатель без отмены | `SystemTestRunner` |
+| Кошелёк и основные правила поставщика | исходное значение и повторная загрузка сохранённого | неизвестная валюта, неверные суммы и остатки, общедоступное изменение при удержанном закрытии | нулевая пустая операция, безопасное целое, границы `NaN` и дробей, обычный допуск `Loaded`, настоящая ошибка подготовки статистики, отклонённые удержанные добавление, трата и пустая операция без сигналов и очереди, захват и порядок повтора | `SystemTestRunner`, `StatisticsTestRunner`, `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
+| Снимки статистики | встроенный и пользовательский жизненный цикл, формулы, обе валюты кошелька, продолжение телепортации, проецируемое чтение | неверные дополнительные сведения и операции, неверные кандидаты удержания, неконечные и переполненные результаты, неверный жизненный цикл, отклонённые факты кошелька, несовпадение, отклонение закрытого поля и клиентского изменения | отсутствующие фильтры, только разрешения и разрешение всего кроме указанного, удержание `0/N`, сверка и сохранение только нового между поколениями, точный перезапуск отката, сохранение источника принятой и ошибочной телепортации с окончательными фактами, атомарная ошибка размера, граница обязательного `GUID` кошелька, общая ёмкость защиты от повторов, защита по каждому допустимому встроенному снимку, общая клиентская политика частоты фактов и чтения, отсутствие записи на каждую операцию, объединение быстрых закрытий при положительной задержке, захват закрытия, классы и сокрытие диагностики, изоляция копий | `StatisticsTestRunner`, `TeleportModuleTestRunner`, `ConfigCatalogTestRunner`, `SystemTestRunner`, `ProductionIntegrationTestRunner` |
+| Транзакция сохранения | загрузка, применение, запуск, сохранение и обновление ревизии | захват, установка, запуск, запись, очистка отката, небезопасный подготовленный документ, предел размера, освобождение отменённой загрузки, окончательный `Stop`, ошибка освобождения блокировки, подготовка и захват закрытия, каждый локальный и общедоступный код ошибки сохранения, неверный истинный `Ok`, сроки ожидания и сохранения при закрытии | полный обратный и прямой порядок, условие записи до изменения, одновременные сохранение и закрытие, каждая успешная и ошибочная точка приостановки `Saving`, `Capturing`, `Snapshotting` и `Applying`, отзыв срока с учётом запроса и поколения, точное восстановление удержанного владельца после обновления, владение подготовкой, захватом и сохранением при удержанном повторе с сохранённым намерением записи и отклонением изменения, сохранение до окончательного повтора `Stop` и `Release` | `AudioIntegrationTestRunner`, `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
+| Изменение с полномочием клиента | принятое обновление поставщика | полномочие сервера, неизвестное, неверно сформированное или недопустимое изменение, занятость, закрытие и окончательно закрытое состояние | потерянное подтверждение отменяется заменяющим снимком, изменение до закрытия с приостановкой поставщика и захваченным изменением без подтверждения после закрытия, отклонение изменения после начавшегося закрытия | `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
+| Хранилище и блокировки сеанса | обновление и освобождение владельца, захват устаревшего состояния, ограниченное получение при передаче телепортации | исчерпание соперничества, отменяемое ожидание передачи, отрицательное, нулевое, дробное, `NaN`, бесконечное, строковое или превышающее предел число повторов, повреждённый документ, потеря владения, ошибка подготовки и сохранения при закрытии, одновременные закрытие и обновление | минимальное и максимальное поддерживаемое число повторов, окончательное преобразование `UpdateAsync`, классификация повтора всей операции одной блокировки, сохранение признака нового профиля при обновлении, освобождении и оставленном захвате, обновление на точной границе срока, повторное обновление `CloseFailed` после ошибки `Stop` или `Release`, обнаружение ушедшего игрока контроллером при пустом перечне живых игроков, три попытки контроллера и непрозрачного исполнения, отзыв регистрации и перестроения на приостановленной третьей попытке, настоящий повтор, завершение и переподключение статистики, потеря полномочия, повтор освобождения, равенство завершения сервера и отсутствие обновления после освобождения | `ProductionIntegrationTestRunner`, `ProductionReadinessTestRunner` |
+| Автосохранение и завершение сервера | сохранение должного грязного состояния, ограниченное параллельное закрытие живых и удержанных записей | ошибка записи или подготовки, точный либо истёкший срок, отклонение запроса удалённого контроллера | снимок живых и ушедших удержанных целей с удалёнными повторами идентичности до остановки, один абсолютный срок подготовки, захвата, сохранения, остановки, освобождения, повтора и завершения, повтор внутри параллельных исполнителей, исключение чистых и ещё не требующих сохранения записей, остановка во время цикла, удаление регистрации свободного или ожидающего контроллера и повторяемая очистка | `ProductionReadinessTestRunner`, `ProductionIntegrationTestRunner` |
+| Переносы формата | полная цепочка пропущенных версий и немедленная точка загрузки, сохранения и повторной загрузки | неверный контроллер или точка, отсутствие исходной старой версии, существующий пустой профиль до точки, неверный словарь поставщиков, потеря блокировки или ошибка освобождения после преобразования, небезопасный или слишком большой результат, циклическая замена | порядок одинаковой версии, восстановление исходного старого корня, синхронный захват точки, изоляция регистрации и замены, неизменяемая точка, исключение будущей версии, слишком большой пустой переход | `ProductionReadinessTestRunner`, `SystemTestRunner` |
+| Сериализация связи | поддерживаемые объекты передачи и формы значений Roblox | неверно сформированные, циклические, небезопасные и слишком большие нагрузки | пределы работы, байтов и глубины, сохранение пакета `Vector3` | `ProductionIntegrationTestRunner` |
+| Управление потоком связи | очередь, запрос, отправка, повторная синхронизация и восстановление | неверные вызовы, исключения проверяющих функций, потеря пакетов, устаревшая эпоха | независимые корзины игроков, распределение байтов, всплеск и пополнение, обратное давление | `ProductionIntegrationTestRunner` |
+| Очистка связи | обычная остановка и удаление игрока | отмена выполняющейся повторной синхронизации | сброс последовательности, эпохи, очереди и ограничителя | `ProductionIntegrationTestRunner` |
+| Поставщик версии | допустимый снимок и настоящее обновление | неверная семантическая версия и версия места | равная или более старая версия не отмечает состояние изменённым | `ProductionReadinessTestRunner` |
+| Клиент `GameData` | готовность, перенаправление поставщика, поиск | срок ожидания и повторный поставщик | поля нагрузки `nil`, уничтожение и очистка единственного экземпляра | `ProductionReadinessTestRunner` |
+| Жизненный цикл игроков | существующий игрок, вход, выход, персонаж, поиск, устойчивая общедоступная поверхность сигналов, ограниченная доставка | удалённое членство, ошибка получения, ошибка обратного вызова, устаревшие и повторные события персонажа, отмена окончательного ожидания | существующий персонаж и возрождение, гонки подписки и перечисления, повторный вход в запуск и остановку, повторяемая окончательная очистка | `ProductionReadinessTestRunner`, `SystemTestRunner` |
+| Система пользовательских слотов | проверенная конфигурация, статический поставщик, владельцы, друзья, снимки и события | неверная конфигурация и данные друзей, отсутствующий владелец, предел друзей, отказ допуска и исчерпание телепортации | атомарные резервы, повторяемость, выход владельца и друзей, точный `AttemptId`, неизменность после смены `Player.Team` | `PlayerSlotModuleTestRunner`, `SystemTestRunner`, `TeleportModuleTestRunner` |
+| Локальное предложение группы | исходная и повторная после `Accept` проверки дружбы, авторитетное предложение, принятие или отказ, атомарный перенос слота, одно явное возрождение и публикация текущего графа друзей | посторонний и повторный ответ, исчезнувшая дружба, ошибка повторной проверки, непригодная или ушедшая цель, зависимые друзья, занятые или заполненные слоты, ошибка фиксации и возрождения | поколение и сторожевой срок повторной проверки, поздний результат после истечения или ухода, отсутствие вызова координатора для устаревшего результата, совместные блокировки исходного и целевого слота, откат команды и точки появления, сохранение несвязанного ухода, отсутствие отключения игрока | `FriendsModuleTestRunner`, `PlayerSlotModuleTestRunner`, `PlayerAdmissionCoordinatorTestRunner`, `CharacterModuleTestRunner`, `ProductionIntegrationTestRunner` |
+| Внешняя возможность приглашения | проверенная дружба отсутствующей цели, устойчивый жетон допуска и системное окно с точными данными запуска | присутствующая непригодная цель, не друг, поздний результат после ухода, неверная цель, сервер или жетон, клиентское заявление о получателе или результате | независимость возможности от срока краткого резерва, возврат после отмены подготовки, однократное расходование успешным допуском, ограниченная память и защита от повтора | `FriendsModuleTestRunner`, `PlayerAdmissionCoordinatorTestRunner`, `ProductionIntegrationTestRunner` |
+| Жизненный цикл телепортации | внешнее и продолженное прибытие, общедоступные и резервные запросы, запуск и события клиента, двухклиентный транспорт, точная политика двух мест, бездействующий неопубликованный запуск, разрешённая площадка проверки, типизированное продолжение друзей и переход к `TargetJobId` | недоверенный конверт, неверное продолжение друзей, неверная группа или назначение, синхронная или поздняя ошибка, номер продолжения вне `1..3`, попытка чтения платформенных данных координатором, ошибочные входные данные запуска, попытка после остановки | уникальные сеансы, непрерывность трёх посещений, копирование продолжения только модулем телепортации, ранняя и поздняя корреляция одной попытки, три попытки владельца и друга, отсутствие локальной подготовки резерва на промежуточном сервере, повторная проверка свободного слота, очистка и восстановление снимка | `TeleportModuleTestRunner`, `PlayerAdmissionCoordinatorTestRunner`, `ProductionIntegrationTestRunner` |
+| Реестры сохранения | создание зарегистрированного контроллера | повторная, неизвестная или неверно сформированная регистрация, постоянная окончательная ошибка `Stop`, удаление устаревшей объектной формой | одиночный и смешанный общий повтор после ошибки, точное сохранение автосохранения, исполнения, поставщика, сигнала и блокировки, успешная передача жизненного цикла, совместимость строковых идентификаторов, выживание замены с тем же идентификатором в серверном автосохранении, блокировке сеанса и центральной клиентской доставке, два одновременных ожидающих маршрута настоящего клиента, перекрёстные и правильные результаты, удаление выжившего, отклонение устаревшего результата с тем же идентификатором и независимые клиентский и серверный реестры | `ProductionReadinessTestRunner` |
 
-## Template tooling gate
+## Условие проверки средств шаблона
 
-Template workflow behavior is verified independently from Roblox runtime
-behavior. `scripts/tests/template-tools.tests.ps1` covers Windows PowerShell
-5.1 and PowerShell 7, empty-origin one-command initialization, no implicit
-push, legacy bootstrap, compatibility repair with an unpublished absent-tuple
-fixture and a complete project-owned identity fixture, partial/template
-identity rejection, protected content preservation and rollback,
-check/apply/no-op updates, project namespaces, configured `servePort`
-preservation, conflict rollback, second-update idempotence,
-staged-versus-committed structural equivalence, and independence from malformed
-or missing root `/tests` artifacts. Feature-tool tests cover optional
-`open|done` records and lossless legacy sidecars. The same gate verifies that
-the four user-facing feature skills exist, allow natural-language implicit
-routing, call only the current `feature.ps1` backend, and do not restore the
-retired feature-workflow module or pipeline.
+Поведение рабочего процесса шаблона проверяется независимо от поведения Roblox
+во время исполнения. `scripts/tests/template-tools.tests.ps1` охватывает
+`Windows PowerShell 5.1` и `PowerShell 7`, однооперационную инициализацию без
+исходного удалённого репозитория, отсутствие неявной отправки, запуск старого
+формата, восстановление совместимости на неопубликованном образце без набора
+идентичности и на образце с полной проектной идентичностью, отклонение
+частичной или шаблонной идентичности, сохранение защищённого содержимого и
+откат, проверку, применение и отсутствие изменения при повторе, проектные
+пространства имён, сохранение настроенного `servePort`, откат столкновения,
+повторяемость второго обновления, структурное равенство подготовленного и
+зафиксированного состояния и независимость от неверных или отсутствующих
+корневых материалов `/tests`. Проверки средств возможностей охватывают
+необязательные записи `open|done` и сохранение старых сопутствующих файлов без
+потерь. То же условие подтверждает наличие четырёх пользовательских навыков
+возможностей, неявную маршрутизацию естественного языка, использование только
+текущего `feature.ps1` и отсутствие удалённых модуля жизненного цикла
+возможностей и конвейера.
 
-The generic repository validator is intentionally bounded to cheap structural
-checks and a small changed-path ownership denylist. It does not scan unchanged
-runtime source or parse feature prose, PRDs, specifications, runner identities,
-or historical pipeline output. Focused Roblox suites below remain the authority
-for runtime contracts. Studio Play is not part of this tooling gate because the
-workflow refactor does not change Roblox source or the DataModel.
+Общая проверка репозитория намеренно ограничена дешёвыми структурными
+проверками и небольшим запретительным перечнем владения для изменённых путей.
+Она не исследует неизменённые исходники времени исполнения и не разбирает текст
+возможностей, требования, спецификации, идентичности исполнителей или
+исторический вывод конвейера. Направленные наборы Roblox ниже остаются
+источником истины для контрактов времени исполнения. Запуск Studio не входит в
+это условие средств, поскольку само переустройство рабочего процесса не меняет
+исходники Roblox или модель данных.
 
-## Deterministic Studio gate
+## Детерминированное условие Studio
 
-Start a fresh Studio Play session and run from the server:
+Запустить свежую игровую сессию Studio и выполнить на сервере:
 
 ```lua
 require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 ```
 
-`AllTestsRunner` invokes these suites in a fixed order:
+`AllTestsRunner` вызывает наборы в устойчивом порядке:
 
 1. `AudioCatalogTestRunner`
 2. `AudioPlaybackTestRunner`
@@ -102,147 +118,315 @@ require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 10. `ConfigCatalogTestRunner`
 11. `StatisticsTestRunner`
 12. `TeleportModuleTestRunner`
-13. `SystemTestRunner`
-14. `ProductionIntegrationTestRunner`
-15. `ProductionReadinessTestRunner`
+13. `PlayerSlotModuleTestRunner`
+14. `FriendsModuleTestRunner`
+15. `FriendsClientRecoveryTestRunner`
+16. `FriendInvitationsUiTestRunner`
+17. `PlayerAdmissionCoordinatorTestRunner`
+18. `CharacterModuleTestRunner`
+19. `SystemTestRunner`
+20. `ProductionIntegrationTestRunner`
+21. `ProductionReadinessTestRunner`
 
-`AllTestsRunner` registers `AudioCatalogTestRunner`, `AudioPlaybackTestRunner`,
-and `AudioIntegrationTestRunner` before `AudioManualQaTestRunner` and the broad
-suites. The manual-plan runner validates coverage/report contracts only; it
-does not replace the two-client run in [AudioManualQA.md](AudioManualQA.md).
-Registration is not passing evidence; focused, plan, aggregate, and
-collaborative runs must succeed on the recorded exact source revision.
+`AllTestsRunner` регистрирует `AudioCatalogTestRunner`,
+`AudioPlaybackTestRunner` и `AudioIntegrationTestRunner` до
+`AudioManualQaTestRunner` и широких наборов. Исполнитель ручного плана проверяет
+только контракты покрытия и отчёта; он не заменяет двухклиентский запуск из
+[плана ручной проверки звука](AudioManualQA.md). Регистрация не является
+свидетельством успеха: направленные, плановые, общие и совместные запуски должны
+завершиться успешно на точно записанной ревизии исходников.
 
-The exact `AudioCatalog/StartupPreloadSet` fixture remains in
-`ContentPreloaderTestRunner`, because only that runner executes the real
-`StartupContentPreloadCommand -> ContentPreloader -> ContentProvider` path. It
-asserts ordered temporary unparented, non-playing `Sound` targets with exact
-`SoundId` values, per-content callback accounting, actual destroyed state,
-exceptional cleanup/rethrow, and one backend call across repeated command
-initialization after the sticky result completes.
+### Трассировка F-0003: игровой интерфейс и приглашения друзей
 
-The aggregate and every suite must report `failed = 0`. Before release, also
-run:
+Идентификаторы ниже взяты из текущих имён проверок
+`FriendInvitationsUiTestRunner`; отсутствующие номера не считаются
+существующими проверками.
+
+| Идентификатор проверки | Проверяемый результат | Владелец доказательства |
+|---|---|---|
+| `TS-FI-004` | Физическая кнопка постоянного интерфейса следует только снимку владельца и показывает вместимость | `FriendInvitationsUiTestRunner` |
+| `TS-FI-005` | Полная атомарная загрузка, сортировка и общий для повторного открытия сессионный кеш списка друзей | `FriendInvitationsUiTestRunner` |
+| `TS-FI-006` | Подключение имеет приоритет над попыткой и резервом; повтор доступен после исходных 10 секунд независимо от закрытия Roblox, полный резерв сохраняет свой отсчёт | `FriendInvitationsUiTestRunner` |
+| `TS-FI-007` | Каноническое типизированное определение использует только `AssetKey=game.ui.window.invite-friends`, не содержит облачный `AssetId`, получает физическое окно через `AssetRegistry` и открывает его в `WindowHost` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-008` | Физическая кнопка `Next` переводит окно на следующую страницу | `FriendInvitationsUiTestRunner` |
+| `TS-FI-009` | Фоновое обновление перерисовывает замену без повторной перерисовки кеша | `FriendInvitationsUiTestRunner` |
+| `TS-FI-010` | Резерв `Native` сохраняет отсчёт и допускает повтор до авторитетного удаления; новый срок пересчитывает отсчёт, а удаление возвращает обычное состояние строки | `FriendInvitationsUiTestRunner` |
+| `TS-FI-011` | Успешная регистрация строки отображает отдельные признаки присутствия в сети и вне сети | `FriendInvitationsUiTestRunner` |
+| `TS-FI-012` | Повторная ошибка открытия окна создаёт одно точное диагностическое сообщение | `FriendInvitationsUiTestRunner` |
+| `TS-FI-013` | Ошибка запуска представления сохраняет классификацию ошибки физического шаблона | `FriendInvitationsUiTestRunner` |
+| `TS-FI-016` | Столкновение физической идентичности сохраняет `DuplicateUIElementId` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-018` | Физическая разметка остаётся созданной в Studio, а строки возникают только как клоны физического `FriendRowTemplate` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-019` | Отсутствующий вложенный физический элемент отклоняется с `PrefabMalformed` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-020` | Повтор обязательного физического элемента отклоняется с `PrefabMalformed` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-023` | Клон физической кнопки сохраняет созданные свойства, а `Stop` уничтожает только клон и сохраняет исходник каталога | `FriendInvitationsUiTestRunner` |
+| `TS-FI-024` | Неверно сформированный или исполняемый физический шаблон кнопки отклоняется до присоединения к дереву и регистрации | `FriendInvitationsUiTestRunner` |
+| `TS-FI-025` | Неклонируемый физический шаблон окна или строки отклоняется с устойчивой классификацией `PrefabMalformed` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-026` | Друг вне сети не получает доступную кнопку приглашения, а программный запрос не достигает `FriendsClient.RequestInvite` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-027` | Физическая кнопка `Refresh` видна во всех состояниях и недоступна при начальной и фоновой загрузке | `FriendInvitationsUiTestRunner` |
+| `TS-FI-028` | Фоновое обновление с готовым кешем сначала запрещает, а после завершения снова разрешает ту же кнопку `Refresh` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-029` | Физические заголовок, сводная строка, растягиваемый список и нижняя строка страниц не перекрываются; вертикальная прокрутка сохраняется при обычной перерисовке и сбрасывается только при явной смене страницы | `FriendInvitationsUiTestRunner` |
+| `TS-FI-030` | Горизонтальная прокрутка или ненулевая собственная высота контейнера строк отклоняется с `PrefabMalformed` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-031` | Резервы `Native` и `SameServer`, занятое приглашение и заполненный слот получают разные явные нейтральные состояния строки | `FriendInvitationsUiTestRunner` |
+| `TS-FI-032` | Успешное явное обновление через `FriendsClient` очищает локальное состояние `Unavailable` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-033` | Строки сохраняются по `UserId`; пересортировка меняет только `LayoutOrder`, а неизвестное присутствие обновляет тот же физический экземпляр | `FriendInvitationsUiTestRunner` |
+| `TS-FI-034` | Физическое `GroupInviteWindow`, определение `game.group-invite`, ключ `game.ui.window.group-invite`, структура, действия и исходная навигация совпадают с контрактом | `FriendInvitationsUiTestRunner` |
+| `TS-FI-035` | Авторитетное предложение открывает модальное окно; ответ остаётся в обработке, а окно закрывается только после удаления предложения снимком | `FriendInvitationsUiTestRunner` |
+| `TS-FI-036` | Удаление предложения при приостановленном модальном окне откладывает закрытие до `Resume` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-037` | Физическая компоновка локального предложения помещается в узкую мобильную ширину и сохраняет две кнопки рядом | `FriendInvitationsUiTestRunner` |
+| `TS-FI-038` | Любая загрузка присутствия переводит все сохранённые строки в `Refreshing`, а обработчик приглашения повторно проверяет загрузку | `FriendInvitationsUiTestRunner` |
+| `TS-FI-039` | Выход подключённого друга немедленно заменяет устаревший `Online` на недоступный `Checking status`, затем ограниченное обновление устанавливает `Offline` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-040` | Ошибка обновления после выхода сохраняет неизвестное недоступное состояние и не возвращает разрешение из устаревшего `Online` | `FriendInvitationsUiTestRunner` |
+| `TS-FI-041` | Устаревший результат уже выполняющейся проверки присутствия отбрасывается, после чего один последовательный повтор обновляет тот же физический экземпляр | `FriendInvitationsUiTestRunner` |
+| `TS-FI-042` | Ошибка последовательного восстановления не создаёт бесконечный цикл повторов и сохраняет строку недоступной | `FriendInvitationsUiTestRunner` |
+| `TS-FI-043` | Новое приглашение учитывает серверное право; потеря владения немедленно запрещает действие уже существующей строки | `FriendInvitationsUiTestRunner` |
+| `TS-FI-044` | Заполненная вместимость с резервом `Native` разрешает его повтор, но потеря владения и локальное предложение по-прежнему запрещают действие | `FriendInvitationsUiTestRunner` |
+| `MANUAL-SLICE-001-STUDIO-CLEAN` | Чистый запуск сервера и клиента в выбранном сеансе Studio | ручная проверка |
+| `MANUAL-SLICE-001-STUDIO-DESKTOP` | Компьютерный макет, безопасная область, физические кнопка и окно, список и отсутствие заметного зависания | ручная проверка |
+| `MANUAL-SLICE-001-STUDIO-MOBILE` | Мобильный макет, касание, прокрутка и поглощение фона | ручная проверка |
+| `MANUAL-SLICE-001-STUDIO-STATE-MATRIX` | Загрузка, ошибка, пустой список, резервы, подключение, выход, вместимость и обратный отсчёт | ручная проверка |
+| `MANUAL-SLICE-001-PUBLISHED-E2E` | Непрерывное приглашение двумя учётными записями, перенаправление, слот, персонаж и выход друга | опубликованная ручная проверка |
+
+`FriendsModuleTestRunner`, `ProductionIntegrationTestRunner` и
+`SystemTestRunner` дополнительно проверяют серверные сроки, восстановление
+снимка, порядок запуска и производственную сборку, но их текущие имена проверок
+не объявляют идентификаторы `TS-FI-001`–`TS-FI-003`. `SystemTestRunner` также
+проверяет физические пути
+`Client/UI/FriendInvitations/InviteFriends` и
+`Client/UI/FriendInvitations/InviteFriendsWindow`, оба точных `AssetKey`,
+отсутствие старой серверной команды облачной публикации и отсутствие
+конкурирующих шаблонов в прежних путях Rojo и времени исполнения.
+
+Текущее поведение внешнего приглашения разделяет десятисекундную попытку
+и полноценный резерв. Проверяются запрос с задержанной дружбой, зависшие
+`CanSendGameInviteAsync` и `PromptGameInvite`, освобождение кнопки по
+исходной границе 10 секунд, предварительное место и полный срок
+`reserveLifetimeSeconds` только после `PromptRequested`.
+
+Проверки повторного запроса должны доказать продление единственного резерва
+при успехе и сохранение предыдущего полного резерва при ошибке или истечении
+новой попытки. Поздние таймеры и результаты не изменяют новую попытку.
+`GameInvitePromptClosed` любого происхождения инертен; совместимое
+`Friends.PromptClosed` не меняет серверное состояние. Поле `IsOpen`
+отсутствует, а `PromptRequested` не является доказательством показа окна.
+
+Отдельно проверяется, что ожидание платформы не удерживает последовательный
+обработчик пакетов: последующие авторитетные сообщения продолжают применяться.
+Друг вне сети недоступен для приглашения. Права, вместимость, уход и
+остановка по-прежнему проверяются сервером.
+
+Если проверенный друг уже находится в том же сервере, системное окно Roblox и
+`LaunchData` не создаются. Сервер публикует целевому игроку одно
+`IncomingOffer`, а приглашающему — резерв `SameServer` со статусом
+`Waiting for response`. Точный целевой игрок может принять либо отклонить
+предложение в физическом `GroupInviteWindow`. Принятие остаётся в
+`Processing`, пока сервер асинхронно повторяет проверку дружбы для того же
+поколения и сторожевого срока. Только сохранённая дружба и повторная проверка
+участников допускают вызов координатора, который атомарно переносит слот,
+запрашивает одно возрождение и публикует новые отношения. Устаревший результат,
+ошибка или исчезнувшая дружба не достигают координатора; клиентский ответ сам
+не закрывает окно. Ошибка или уход откатывает операцию без отключения игрока.
+
+Единственная операция повторной загрузки — физическая кнопка `Refresh`. Она
+всегда видима, недоступна на время начальной или фоновой загрузки и снова
+становится доступной после завершения. Отдельный физический элемент `Retry` не
+входит в обязательную структуру и не используется во время исполнения.
+
+Физическая компоновка окна показывает вместимость прямо в `Title` и не имеет
+отдельного оконного элемента `Capacity`. Под заголовком находится
+`SummaryRow` с `FriendsOnline` и встроенной `Refresh`. `FriendsList`
+растягивается от сводной строки до нижней `Pages`, использует только
+вертикальную прокрутку и `AutomaticCanvasSize=Y`; его `Rows` увеличивается по
+содержимому. Обычная перерисовка сохраняет положение прокрутки, а явный переход
+страницы возвращает список к началу. `Pages` остаётся нижней строкой окна.
+
+`TS-TEST-006` в `UiSystemTestRunner` проверяет динамическую допустимость
+навигации: недоступный выбранный элемент передаёт фокус допустимому исходному,
+не возвращается после приостановки, созданный в Studio недоступный элемент не
+может быть разрешён динамически, а `Clear` точно восстанавливает исходные
+`Selectable`, `Interactable` и направленные связи. Элементы с одинаковыми
+именами различаются по точной идентичности `Instance`.
+
+`TS-TEST-017` проверяет показ физического корня до установки выбранного
+элемента навигации при открытии, замене и возобновлении окна. Фокус
+передаётся в действующее окно, а не остаётся на постоянной кнопке под ним.
+
+`FriendsClientRecoveryTestRunner` проверяет отмену прежних намерений,
+границу попытки, устаревшие результаты и независимость от неидентифицированного
+закрытия. Новый направленный запуск завершился результатом 10/10; прежний
+набор из восьми проверок относится к прошлому контракту.
+`ProductionIntegrationTestRunner` дополнительно проверяет последовательную
+ограниченную очередь пакетов при ожидающем обработчике, смене эпохи и
+остановке. Направленные серверные наборы проверяют входящую связь при
+`Current=0`, стабильную роль во время переноса, ограниченное восстановление
+персонажа и публикацию всех исходов асинхронной проверки дружбы.
+
+### Трассировка системы пользовательских слотов
+
+| Обязательная идентичность | Связанные критерии приёмки |
+|---|---|
+| `AUTO-PLAYER-SLOTS-UNIT` | `PRD-AC-001`–`PRD-AC-034`, `PRD-AC-054`–`PRD-AC-070`, `PRD-AC-075`–`PRD-AC-109`, `PRD-AC-115`–`PRD-AC-139` |
+| `AUTO-PLAYER-SLOTS-PLAYERS-LIFECYCLE` | `PRD-AC-006`, `PRD-AC-035`–`PRD-AC-053`, `PRD-AC-071`–`PRD-AC-074`, `PRD-AC-089` |
+| `AUTO-PLAYER-SLOTS-TELEPORT-REGRESSION` | `PRD-AC-004`, `PRD-AC-101`–`PRD-AC-109` |
+| `AUTO-PLAYER-SLOTS-AGGREGATE` | `PRD-AC-001`–`PRD-AC-139` |
+| `AUTO-PLAYER-SLOTS-ROJO` | `PRD-AC-054`–`PRD-AC-090`, `PRD-AC-125`–`PRD-AC-131` |
+| `AUTO-PLAYER-SLOTS-DOCS` | `PRD-AC-001`–`PRD-AC-139` |
+| `AUTO-PLAYER-SLOTS-DIFF` | `PRD-AC-001`–`PRD-AC-139` |
+| `MANUAL-PLAYER-SLOTS-SCENE-CONFIG` | `PRD-AC-021`, `PRD-AC-054`–`PRD-AC-070`, `PRD-AC-075`–`PRD-AC-090`, `PRD-AC-125`–`PRD-AC-131` |
+| `MANUAL-PLAYER-SLOTS-MAX-PLAYERS` | `PRD-AC-021`, `PRD-AC-125`–`PRD-AC-127` |
+| `MANUAL-PLAYER-SLOTS-FIRST-SPAWN` | `PRD-AC-006`, `PRD-AC-035`, `PRD-AC-075`, `PRD-AC-078`, `PRD-AC-089` |
+| `MANUAL-PLAYER-SLOTS-RESPAWN` | `PRD-AC-041`–`PRD-AC-044` |
+| `MANUAL-PLAYER-SLOTS-OUTPUT-CLEAN` | `PRD-AC-001`–`PRD-AC-139` |
+
+Направленные наборы подтверждают чистые серверные контракты. Фактические
+модели `Workspace.PlayerSlots`, команды, стандартное появление и возрождение,
+значение `Players.MaxPlayers` и чистый вывод обеих сторон подтверждаются только
+свежим запуском в доказанно выбранном совпадающем сеансе Studio.
+
+Точный образец `AudioCatalog/StartupPreloadSet` остаётся в
+`ContentPreloaderTestRunner`, потому что только этот исполнитель проходит
+настоящий путь `StartupContentPreloadCommand -> ContentPreloader ->
+ContentProvider`. Он проверяет упорядоченные временные, неприсоединённые и
+невоспроизводящиеся объекты `Sound` с точными `SoundId`, учёт обратных вызовов
+для каждого содержимого, настоящее уничтоженное состояние, очистку и повторное
+исключение при ошибке и один вызов поставщика при повторном запуске команды
+после закрепления результата.
+
+Общий и каждый отдельный набор должны сообщить `failed = 0`. Перед выпуском
+также выполнить:
 
 ```powershell
 rojo build default.project.json --output $env:TEMP\roblox-template-validation.rbxlx
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/template-project.ps1 validate -RepositoryPath $PWD.Path -RepositoryRole Template
 ```
 
-`TS-TEST-014` covers the focused runtime data-only authoring fixture.
-Repository structure and initialized-derived ownership are separate bounded
-tooling checks. `TS-TEST-016` uses the checked-in data-only fixture, fixed
-test definition, production `WindowConfigCompiler`, and production
-`WindowAssetLoader` with an injected clone-only local backend. Read-only
-`AllowInsertFreeAssets=false` evidence remains a separate exact-place gate.
-The production cloud path remains available, but its smoke is conditional on
-an already-approved external fixture/AssetId and otherwise is recorded as not
-run.
+`TS-TEST-014` охватывает направленный образец создания без исполняемого кода во
+время исполнения. Структура репозитория и владение инициализированного
+производного проекта проверяются отдельными ограниченными средствами.
+`TS-TEST-016` использует сохранённый в исходниках образец без исполняемого кода,
+фиксированное проверочное определение, производственные
+`WindowConfigCompiler` и `WindowAssetLoader` с внедрённым локальным поставщиком,
+который только клонирует объект. Отдельное свидетельство точного места считывает
+`AllowInsertFreeAssets=false`. Производственный облачный путь остаётся
+доступным для переиспользуемого шаблона, но его проверка зависит от заранее
+разрешённого внешнего образца и `AssetId`, а иначе отмечается как
+невыполненная. Штатные физические шаблоны приглашений вместо этого проходят
+через `AssetRegistry` по `AssetKey` и канонический `place.rbxl`.
 
-For the current SLICE-004 candidate, the latest focused `UiSystemTestRunner`
-result was 17 passed and 0 failed and `AllTestsRunner` reported 397 passed,
-0 failed across 15 suites in the canonical template place
-(`PlaceId=91045933836846`, `GameId=10596427617`). One fresh Xbox One Play
-proved pointer activation and blocking, keyboard navigation/activation,
-Studio Virtual Controller gamepad navigation, CoreUISafeInsets projection,
-respawn persistence, empty production hosts, and complete fixture/focus/cache
-cleanup. `TS-STATIC-001` used Studio Script Analysis version
-`0.735.0.7351131` with `Display only current script`: the positive fixture
+Для исторического кандидата `SLICE-004` последний результат
+`UiSystemTestRunner` составлял 17 успешных и 0 ошибочных проверок, а
+`AllTestsRunner` сообщил 397 успешных и 0 ошибочных проверок в 15 наборах
+канонического шаблонного места (`PlaceId=91045933836846`,
+`GameId=10596427617`). Один свежий запуск с макетом `Xbox One` подтвердил
+нажатие указателем и блокировку, навигацию и нажатие клавиатурой, навигацию
+виртуальным игровым контроллером Studio, проекцию `CoreUISafeInsets`,
+сохранение при возрождении, пустые производственные контейнеры и полную очистку
+образца, фокуса и кеша.
+
+`TS-STATIC-001` использовал анализ сценариев Studio версии
+`0.735.0.7351131` с режимом `Display only current script`. Положительный образец
 `src/ReplicatedStorage/Client/UI/TestFixtures/StaticAnalysis/TypedNavigationPositiveFixture.luau`
-(SHA-256 `7a29b2dad69540bf00a6246bb1f1bd247ca7c7a70e86d954c2342f5e5a853a0d`,
-marked lines 7/8) had zero diagnostics; the Add-negative fixture
+с `SHA-256=7a29b2dad69540bf00a6246bb1f1bd247ca7c7a70e86d954c2342f5e5a853a0d`
+и отмеченными строками 7 и 8 не имел сообщений. Отрицательный образец добавления
 `src/ReplicatedStorage/Client/UI/TestFixtures/StaticAnalysis/TypedNavigationAddNegativeFixture.luau`
-(SHA-256 `a072327e7ffb7905d783d6fa4c0b2f606c67e36f070700077eee28179eb345ca`,
-marked line 6) had exactly raw `Type Error: (6,54) Expected this to be 'nil',
-but got 'string'`; the replacement-negative fixture
+с `SHA-256=a072327e7ffb7905d783d6fa4c0b2f606c67e36f070700077eee28179eb345ca`
+и отмеченной строкой 6 имел ровно исходное сообщение
+`Type Error: (6,54) Expected this to be 'nil', but got 'string'`.
+Отрицательный образец замены
 `src/ReplicatedStorage/Client/UI/TestFixtures/StaticAnalysis/TypedNavigationReplacementNegativeFixture.luau`
-(SHA-256 `9eef92c3578ecca0514550acae19ebd99ef7f92394f1adcf8493e65d2e47f26d`,
-marked line 6) had exactly raw `Type Error: (6,62) Expected this to be 'nil',
-but got '{ TS_STATIC_001_REPLACEMENT_MISMATCH: boolean }'`. All three paths
-were deleted from disk and the synchronized Edit DataModel. Ordinary-tree
-reanalysis of `ReplicatedStorage.Client.UI.Config.WindowTypes` had zero
-current-script diagnostics; the overall Studio warning count fell from 10493
-to the unrelated pre-existing 10491, proving zero fixture/current-UI
-diagnostics introduced or retained. Read-only
-Experience Settings inspection showed “Allow Loading Third Party Assets” off.
-The passing focused suite also executed the deterministic `TS-TEST-009`
-post-yield Open/Close partitions for expired deadlines and navigator
-destruction, so the owner/generation/deadline fix has executable Studio Play
-evidence rather than static-only evidence. The then-current repository
-tooling and temporary Rojo build returned zero for that historical candidate.
-This evidence claims no
-publish, deployment, attachment, cloud load, or settings mutation.
+с `SHA-256=9eef92c3578ecca0514550acae19ebd99ef7f92394f1adcf8493e65d2e47f26d`
+и отмеченной строкой 6 имел ровно исходное сообщение
+`Type Error: (6,62) Expected this to be 'nil', but got '{ TS_STATIC_001_REPLACEMENT_MISMATCH: boolean }'`.
 
-Then start one additional clean Play session without manually requiring test
-modules. Verify the server and client bootstraps complete and the client
-publishes `ClientInitialized=true`.
+Все три пути были удалены с диска и из синхронизированной модели данных
+редактирования. Повторный анализ обычного дерева
+`ReplicatedStorage.Client.UI.Config.WindowTypes` не обнаружил сообщений для
+текущего сценария; общее число предупреждений Studio снизилось с 10493 до
+несвязанных ранее существовавших 10491, что доказывает отсутствие добавленных
+или оставленных сообщений образца и текущего интерфейса. Чтение настроек игры
+показало, что «разрешить загрузку сторонних ресурсов» отключено. Успешный
+направленный набор также выполнил детерминированные части `TS-TEST-009` после
+приостановки для открытия, закрытия, истёкших сроков и уничтожения навигатора,
+поэтому исправление владельца, поколения и срока имеет свидетельство исполнения
+в Studio, а не только статическое свидетельство. Действовавшие тогда средства
+репозитория и временная сборка Rojo завершились с нулевым кодом. Эти
+исторические свидетельства не утверждают публикацию, развёртывание,
+прикрепление, облачную загрузку или изменение настроек.
 
-A clean or fresh Play session is a stop/start cycle inside the same explicitly
-selected Studio instance when a matching project session is already open. A
-published session must have exact nonzero project-recorded `game.PlaceId` and
-`game.GameId`, matching `default.project.json` `placeId`/`gameId`, and an
-allowing `servePlaceIds` entry before Play begins. If MCP cannot determine
-whether a matching session exists, the gate is blocked: do not launch Studio
-or reopen the place from incomplete connector data.
+Затем запустить ещё одну чистую игровую сессию без ручного подключения модулей
+проверок. Убедиться, что серверная и клиентская точки запуска завершились и
+клиент опубликовал `ClientInitialized=true`.
 
-## Expected diagnostics during tests
+Чистая или свежая игровая сессия означает цикл остановки и запуска внутри того
+же явно выбранного экземпляра Studio, если совпадающий сеанс проекта уже
+открыт. Опубликованный сеанс до запуска должен иметь точные ненулевые
+`game.PlaceId` и `game.GameId`, совпадающие с проектными `placeId` и `gameId` в
+`default.project.json`, а `servePlaceIds` должен разрешать это место. Если
+соединитель не может определить наличие совпадающего сеанса, условие
+заблокировано: не запускать Studio и не открывать место заново по неполным
+данным соединителя.
 
-The deterministic suites intentionally exercise error paths. Warnings or
-errors are acceptable only when the owning test asserts the corresponding
-behavior, including:
+## Ожидаемые диагностические сообщения при проверках
 
-- an isolated signal listener failure;
-- rejected malformed or rate-limited communication traffic;
-- injected save, autosave, lock-refresh, lock-release, migration, and rollback
-  failures;
-- rejected invalid or oversized configuration, asset, preload, and serialized
-  payloads;
-- injected resync handler failures before a successful retry.
-- asserted audio config/catalog/profile/graph failures, `AudioDisabled`,
-  `HybridQueueRejected`, rate/fanout rejection, readiness/region/target loss,
-  stale generations, Music capacity, AudioSettings envelope-hook
-  false/exception, missing-provider/known-field reconciliation, and invalid
-  present AudioSettings without mutation.
+Детерминированные наборы намеренно проходят ошибочные пути. Предупреждение или
+ошибка допустимы только тогда, когда соответствующее поведение проверяется
+владельцем, в том числе:
 
-Diagnostic volume must remain bounded by the tested cooldown and deduplication
-contracts. A diagnostic outside the currently executing negative test, an
-unbounded repeat, a stack trace from an uncaught task, or any bootstrap
-diagnostic is unexpected and fails the gate.
+- ошибка изолированного слушателя сигнала;
+- отклонённый неверно сформированный или ограниченный по частоте обмен;
+- внедрённые ошибки сохранения, автосохранения, обновления и освобождения
+  блокировки, переноса формата и отката;
+- отклонённые неверные или слишком большие конфигурация, ресурс,
+  предварительная загрузка и сериализованная нагрузка;
+- внедрённая ошибка обработчика повторной синхронизации до успешного повтора;
+- проверяемые ошибки звуковых конфигурации, каталога, профиля и графа,
+  `AudioDisabled`, `HybridQueueRejected`, отклонение частоты или рассылки,
+  потеря готовности, области или цели, устаревшие поколения, ёмкость `Music`,
+  ложь или исключение обработчика конверта `AudioSettings`, сверка отсутствующего
+  поставщика или известного поля и недопустимые присутствующие `AudioSettings`
+  без изменения.
 
-## Real DataStore gate
+Объём диагностики должен оставаться ограниченным проверяемыми контрактами
+задержки и удаления повторов. Сообщение вне выполняющейся отрицательной
+проверки, неограниченный повтор, стек необработанной задачи или любое сообщение
+точки запуска являются неожиданными и запрещают выпуск.
 
-`RealDataStoreSmokeTest` is deliberately not part of `AllTestsRunner`. Run it
-only in the dedicated published integration Experience described in
-[IntegrationTesting.md](IntegrationTesting.md), with Studio API access enabled
-and the non-production `PlayerData_IntegrationTests_v1` store. It passes only
-when both `Ok = true` and `CleanupOk = true`. If the environment has not been
-verified safe, record the smoke test as **not run**, never as passed.
+## Условие настоящего хранилища данных
 
-## Release evidence
+`RealDataStoreSmokeTest` намеренно не входит в `AllTestsRunner`. Выполнять его
+только в отдельной опубликованной площадке объединительной проверки, описанной
+в [проверке объединения](IntegrationTesting.md), с разрешённым доступом Studio
+к программному интерфейсу и непроизводственным хранилищем
+`PlayerData_IntegrationTests_v1`. Успех возможен только при одновременных
+`Ok = true` и `CleanupOk = true`. Если безопасность среды не подтверждена,
+отмечать проверку как **невыполненную**, а не успешную.
 
-Record this evidence in the release task or pull request:
+## Свидетельства выпуска
 
-- source commit SHA and UTC timestamp;
-- selected Studio instance, canonical place identity, stable
-  `PlaceId`/`GameId` when published, and Rojo project identity;
-- for the template multi-place gate, both exact PlaceIds, their shared GameId,
-  the same session GUID across visits, and the supported terminal-failure recovery;
-- for an enabled validation harness, the exact temporary config revision,
-  tester allowlist, forward/return and rapid-repeat evidence, followed by a
-  fresh-server check after restoring and publishing `Enabled=false`;
-- Rojo build and bounded structural/tooling results;
-- aggregate suite count, test count, passed count, and failed count;
-- clean bootstrap result and server/client output inspection;
-- for TF-0005, exact reviewed specification hash, all 79 acceptance identities,
-  the exact CartoonBubble/OldCarEngine/PrayerRiver catalog and physical
-  descriptor identity gate,
-  and `Studio-E2E-AUDIO-01..05` multi-client graph/replication/settings/Music/
-  canonical-acoustic observations, including the exported collaborative report
-  described in [AudioManualQA.md](AudioManualQA.md);
-- integration `PlaceId`/`GameId`, smoke result, and cleanup result when the
-  real DataStore gate was authorized;
-- every omitted check with its concrete reason.
+Записать в задаче выпуска или запросе изменений:
 
-The evidence applies only to the recorded source state. Any subsequent source
-or test change invalidates the prior test counts and requires the relevant gate
-to be rerun.
+- точный идентификатор фиксации исходников и отметку времени UTC;
+- выбранный экземпляр Studio, идентичность канонического места, устойчивые
+  `PlaceId` и `GameId` для опубликованного места и идентичность проекта Rojo;
+- для шаблонного многоместного условия — оба точных `PlaceId`, общий `GameId`,
+  один `GUID` сеанса между посещениями и поддерживаемое восстановление после
+  окончательной ошибки;
+- для включённого средства проверки — точную временную ревизию конфигурации,
+  список разрешённых проверяющих, свидетельства перехода, возврата и быстрого
+  повтора, а затем проверку свежего сервера после восстановления и публикации
+  `Enabled=false`;
+- результаты сборки Rojo и ограниченных структурных средств;
+- число наборов, общее число проверок, число успехов и ошибок;
+- результат чистого запуска и проверку вывода сервера и клиента;
+- для TF-0005 — точный проверенный хеш спецификации, все 79 идентичностей
+  приёмки, точный каталог `CartoonBubble`, `OldCarEngine` и `PrayerRiver`,
+  физическую идентичность описателя и `Studio-E2E-AUDIO-01..05`: наблюдения
+  многоклиентского графа, репликации, настроек, `Music` и канонической акустики,
+  включая выгруженный совместный отчёт из
+  [плана ручной проверки звука](AudioManualQA.md);
+- `PlaceId` и `GameId` площадки объединения, результат быстрой проверки и
+  очистки, когда условие настоящего хранилища данных было разрешено;
+- каждую пропущенную проверку с конкретной причиной.
+
+Свидетельства относятся только к записанному состоянию исходников. Любое
+последующее изменение исходников или проверок отменяет прежние количества и
+требует повторить соответствующее условие.

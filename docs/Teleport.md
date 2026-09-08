@@ -1,46 +1,60 @@
-# Teleport lifecycle
+# Жизненный цикл телепортации
 
-## Boundary
+## Граница ответственности
 
-`TeleportModule` is the server-authoritative boundary for teleport session
-continuity inside one Roblox Experience. An external arrival receives a new
-canonical GUID. A target arrival continues a GUID only when the official
-`SourcePlaceId`, the module envelope source, the allowed-place policy, and the
-arriving user's envelope entry all validate.
+`TeleportModule` — авторитетный серверный владелец непрерывности сеанса
+телепортации внутри одной игры Roblox. Внешнее прибытие получает новый
+канонический GUID. Прибытие в целевое место продолжает существующий GUID,
+только если проверку проходят официальное значение `SourcePlaceId`, источник
+конверта модуля, правило разрешённых мест и запись прибывающего пользователя
+в конверте.
 
-The identifier is client-visible correlation data. It is not a credential and
-must never authorize currency, progress, inventory, rewards, or other
-protected state.
+Идентификатор виден клиенту и служит для сопоставления событий. Он не является
+удостоверением права и никогда не должен разрешать изменение валюты,
+прогресса, инвентаря, наград или другого защищённого состояния.
 
-`PlayersModule` remains the only wrapper that subscribes directly to Roblox
-player arrival and removal. `TeleportModule` observes that wrapper and owns
-only its session and active-attempt records. It does not persist them.
+`PlayersModule` остаётся единственной обёрткой, которая непосредственно
+подписывается на подключение и удаление игроков Roblox. `TeleportModule`
+наблюдает эту обёртку и владеет только записями своих сеансов и действующих
+попыток. Он не сохраняет их в хранилище.
 
-## Public services
+## Общедоступные службы
 
-The server manifest exposes `Services.Teleport` with:
+Серверный перечень предоставляет `Services.Teleport` с методами:
 
 ```lua
 GetSession(player)
 GetAttempt(player)
-Teleport(players, destination)
+GetFriendsContinuation(player)
+Teleport(players, destination, friendsContinuation?)
 ```
 
-Destinations are explicit `Public`, `ServerInstance`, `ReservedServer`, or
-`NewReservedServer` values. The complete dense group and destination are
-validated before any attempt is installed. Project composition must explicitly
-allow every source and destination place. The template policy allows exactly
-PlaceIds `91045933836846` and `101736951773632` when the running DataModel has
-`GameId=10596427617`. Any other Experience remains current-place-only, so a
-derived game cannot inherit the template's cross-place trust boundary. An
-unpublished local DataModel with `game.PlaceId=0` and `game.GameId=0` receives
-an empty inert policy: Teleport sessions and client projection still
-initialize for clean local Play, but every teleport destination is rejected
-before a platform call. A mixed zero/nonzero DataModel identity fails closed
-during policy construction instead of being treated as either published or
-unpublished.
+Назначения задаются явно значениями `Public`, `ServerInstance`,
+`ReservedServer` или `NewReservedServer`. Вся группа в виде плотного массива
+и назначение проверяются до создания любой попытки. Сборка проекта должна
+явно разрешать каждое исходное и целевое место. Правило шаблона разрешает
+ровно `PlaceId` со значениями `91045933836846` и `101736951773632`, когда
+работающая модель данных имеет `GameId=10596427617`. Любая другая игра
+ограничена текущим местом, поэтому производная игра не наследует доверие
+шаблона между разными местами. Неопубликованная локальная модель данных с
+`game.PlaceId=0` и `game.GameId=0` получает пустое бездействующее правило:
+сеансы телепортации и клиентская проекция всё равно инициализируются для
+чистого локального запуска в режиме Play, но любое назначение отклоняется
+до обращения к платформе. Сочетание нулевого и ненулевого идентификаторов
+останавливает построение правила с отказом; такая модель не считается ни
+опубликованной, ни неопубликованной.
 
-The client manifest exposes a read-only `Services.Teleport` projection with:
+Необязательное `friendsContinuation` имеет только тип
+`FriendsTeleportContinuation`: `{ Version = 1, Token, TargetJobId, Attempt }`,
+где `Attempt` равен `1`, `2` или `3`. Модуль проверяет точную форму до создания
+попытки и сам добавляет копию продолжения во вложенный конверт. Вызывающая
+система не передаёт `TeleportOptions` или произвольные `TeleportData`.
+`GetFriendsContinuation(player)` возвращает только неизменяемый результат
+`Absent`, `Valid` с типизированным продолжением либо `Invalid`; координатор не
+читает платформенные данные телепортации напрямую.
+
+Клиентский перечень предоставляет доступную только для чтения проекцию
+`Services.Teleport` с методами:
 
 ```lua
 GetLocalArrival()
@@ -48,80 +62,88 @@ GetLocalAttempt()
 GetPresentPlayers()
 ```
 
-It owns subscribable `LocalArrived`, `LocalAttemptStarted`,
-`LocalAttemptAccepted`, `LocalAttemptFailed`, `PlayerAppeared`, and
-`PlayerDeparted` side-local signals. `ProjectionReconciled` fires after every
-successful bootstrap or recovery snapshot has atomically replaced the complete
-projection. Its subscribers re-read `GetLocalArrival()`, `GetLocalAttempt()`,
-and `GetPresentPlayers()`; it does not replay lifecycle transitions that may
-have been lost. Subscriptions are optional and do not affect authoritative
-state transitions.
+Она владеет доступными для подписки локальными сигналами `LocalArrived`,
+`LocalAttemptStarted`, `LocalAttemptAccepted`, `LocalAttemptFailed`,
+`PlayerAppeared` и `PlayerDeparted`. `ProjectionReconciled` вызывается после
+каждого успешного исходного или восстановительного снимка, который атомарно
+заменил всю проекцию. Его подписчики заново читают `GetLocalArrival()`,
+`GetLocalAttempt()` и `GetPresentPlayers()`; потерянные переходы жизненного
+цикла не воспроизводятся. Подписки необязательны и не влияют на авторитетные
+переходы состояния.
 
-## Optional published validation pad
+## Необязательная площадка опубликованной проверки
 
-The server manifest also composes `TeleportValidationPad` after `Players` and
-`Teleport`. It is an operator-only physical surface for a published two-place
-validation loop, not a reusable gameplay destination policy. The reusable
-template injects `TeleportValidationConfig` with `Enabled=false`, `GameId=0`,
-and empty route/tester maps. In this default state the controller does not
-observe players and does not create a `Workspace` object.
+Серверный перечень также собирает `TeleportValidationPad` после `Players` и
+`Teleport`. Это физическая площадка оператора для проверки переходов между
+двумя опубликованными местами. Она не задаёт переиспользуемое игровое правило
+назначений. Шаблон внедряет `TeleportValidationConfig` со значениями
+`Enabled=false`, `GameId=0` и пустыми наборами маршрутов и проверяющих. В этом
+исходном состоянии контроллер не наблюдает игроков и не создаёт объект
+`Workspace`.
 
-An operator temporarily enables the controller with one exact positive GameId,
-directed source-to-destination PlaceId routes, and a positive-UserId boolean
-allowlist. The controller validates the complete immutable configuration,
-rejects any unknown outer field, and fails closed unless the running DataModel
-matches that GameId and one source route. Only while an allowlisted tester is present does it create a visible,
-anchored, touch-enabled Part at runtime. It selects a nearby `SpawnLocation`
-through a deterministic bounded traversal and uses a fixed bounded fallback
-when no spawn is found. The label names the configured destination PlaceId.
+Оператор временно включает контроллер, задавая один точный положительный
+`GameId`, направленные маршруты между исходными и целевыми `PlaceId` и
+логический список разрешённых положительных `UserId`. Контроллер проверяет
+всю неизменяемую конфигурацию, отклоняет любое неизвестное внешнее поле и
+отказывает в работе, если текущая модель данных не соответствует указанному
+`GameId` и одному исходному маршруту. Только при присутствии разрешённого
+проверяющего он создаёт видимую закреплённую деталь `Part` с обработкой
+касания. Детерминированный ограниченный обход выбирает расположенный поблизости
+`SpawnLocation`; если точки появления нет, используется фиксированный
+ограниченный запасной вариант. Надпись содержит настроенный целевой `PlaceId`.
 
-Collision resolves the character through `PlayersModule` and invokes the
-public server `Services.Teleport:Teleport` facade with one `Public`
-destination. One attempt is latched per authorized presence to prevent touch
-re-entry while `TeleportAsync` yields. When several allowlisted testers overlap,
-the lowest present UserId owns the pad regardless of observer delivery order;
-arrival or removal reconciles that owner and replaces the runtime pad when
-needed. Arrival into the other place and repeated `Stop` otherwise destroy or
-recreate the runtime pad deterministically.
-The controller creates no RemoteEvent, logs no session or attempt identifiers,
-and never modifies `place.rbxl` or another canonical scene object.
+При столкновении персонаж определяется через `PlayersModule`, после чего
+вызывается общедоступный серверный интерфейс `Services.Teleport:Teleport`
+с одним назначением `Public`. На каждое присутствие разрешённого игрока
+закрепляется одна попытка, чтобы повторное касание не запускало новую,
+пока `TeleportAsync` ожидает завершения. Если одновременно присутствуют
+несколько разрешённых проверяющих, площадка принадлежит игроку с наименьшим
+`UserId` независимо от порядка доставки событий наблюдателя. Подключение или
+удаление игрока пересчитывает владельца и при необходимости заменяет площадку
+времени исполнения. Прибытие в другое место и повторные вызовы `Stop` также
+детерминированно уничтожают или пересоздают площадку.
+Контроллер не создаёт `RemoteEvent`, не записывает идентификаторы сеансов или
+попыток и никогда не изменяет `place.rbxl` или другой канонический объект сцены.
 
-Validation configuration never expands `TeleportPolicy`; both boundaries must
-independently allow the destination. Follow [TeleportTesting.md](TeleportTesting.md)
-to configure template or derived-project identities, publish both endpoints,
-run forward/return and rapid-repeat Roblox-client checks, and restore
-`Enabled=false` afterward.
+Проверочная конфигурация не расширяет `TeleportPolicy`: обе границы должны
+независимо разрешать назначение. Следуйте
+[процедуре проверки телепортации](TeleportTesting.md), чтобы настроить
+идентичность шаблона или производной игры, опубликовать оба места, проверить
+прямые, обратные и быстрые повторные переходы клиентами Roblox и затем
+восстановить `Enabled=false`.
 
-## Attempt lifecycle
+## Жизненный цикл попытки
 
 ```text
-validate whole group
-  → Started per player
+проверка всей группы
+  → Started для каждого игрока
   → TeleportAsync
-      → synchronous exception: Failed per player, session preserved
-      → return: Accepted per player (not target arrival)
-          → correlated failure received before return: Accepted then Failed
-          → correlated TeleportInitFailed: Failed for that player only
-          → PlayersModule removal: source departure and local cleanup only
+      → синхронное исключение: Failed для каждого игрока, сеанс сохранён
+      → возврат: Accepted для каждого игрока (не прибытие в целевое место)
+          → сопоставленная ошибка до возврата: Accepted, затем Failed
+          → сопоставленный TeleportInitFailed: Failed только для этого игрока
+          → удаление через PlayersModule: только уход из источника и локальная очистка
 ```
 
-One group call shares an attempt ID but keeps separate per-player records.
-`TeleportInitFailed` is matched to the active request's `TeleportOptions`, so
-a stale platform result cannot terminate a newer request. Removal never
-publishes target arrival. Only validated `GetJoinData()` processing on the
-target server publishes `Teleported`.
+Один групповой вызов использует общий идентификатор попытки, сохраняя
+отдельные записи для каждого игрока. `TeleportInitFailed` сопоставляется с
+данными `TeleportOptions` действующего запроса, поэтому устаревший результат
+платформы не завершает новый запрос. Удаление игрока никогда не публикует
+прибытие в целевое место. Только проверенная обработка `GetJoinData()` на
+целевом сервере публикует `Teleported`.
 
-`TeleportAsync` may yield long enough for a matching `TeleportInitFailed` to
-arrive before the call returns. The per-player attempt retains the first such
-failure while it is `Started`. If the call returns successfully, the module
-publishes `Accepted` and then the retained `Failed`, preserving the client
-state-machine order and exactly-once terminal delivery. If the call throws,
-the synchronous `TeleportRequestFailed` is the only terminal result. Removal,
-`Stop`, and a newer attempt retire the old pending failure with the old record.
+`TeleportAsync` может ожидать достаточно долго, чтобы соответствующий
+`TeleportInitFailed` поступил до возврата из вызова. Запись попытки игрока
+сохраняет первую такую ошибку, пока находится в `Started`. Если вызов
+завершается успешно, модуль публикует `Accepted`, затем сохранённый `Failed`,
+соблюдая порядок клиентских состояний и однократную доставку окончательного
+результата. Если вызов бросает исключение, единственным окончательным
+результатом становится синхронный `TeleportRequestFailed`. Удаление игрока,
+`Stop` и новая попытка отменяют старую ожидающую ошибку вместе со старой записью.
 
-## Envelope and privacy
+## Конверт и конфиденциальность
 
-The module creates a fresh `TeleportOptions` and writes only:
+Модуль создаёт новый `TeleportOptions` и записывает только:
 
 ```lua
 {
@@ -132,61 +154,78 @@ The module creates a fresh `TeleportOptions` and writes only:
     SessionsByUserId = {
       [tostring(player.UserId)] = sessionId,
     },
+    Friends = {
+      Version = 1,
+      Token = token,
+      TargetJobId = targetJobId,
+      Attempt = 1,
+    }, -- отсутствует без продолжения друзей
   },
 }
 ```
 
-Incoming dictionaries must be plain, bounded, exactly shaped, and contain
-canonical GUIDs. Invalid or untrusted continuation fails closed to a new
-external session.
+Входящие словари должны быть простыми, ограниченными, иметь точную форму и
+содержать канонические GUID. Недопустимый собственный конверт создаёт новый
+внешний сеанс; недопустимое вложенное продолжение друзей не передаётся как
+обычный вход и возвращается координатору только как `Invalid`, который
+завершает подключение. Дополнительные поля, иные версии, приведение типов и
+номер попытки вне `1..3` не принимаются.
 
-The attempt ID is also the correlation token for `TeleportInitFailed`.
-Roblox supplies that event with a newly created `TeleportOptions` instance,
-not the original object, so object identity cannot safely distinguish a stale
-failure from a newer request.
+Идентификатор попытки также служит жетоном сопоставления для
+`TeleportInitFailed`. Roblox передаёт этому событию заново созданный
+экземпляр `TeleportOptions`, а не исходный объект, поэтому идентичность
+объекта не позволяет надёжно отличить устаревшую ошибку от нового запроса.
 
-Own lifecycle messages contain the local player's session and attempt data.
-Other-player appearance contains only `UserId`, `EntryKind`, and an optional
-validated source place; departure contains only `UserId`. Other-player DTOs
-never include session IDs, attempts, server selectors, reserved access codes,
-or failure details.
+Сообщения собственного жизненного цикла содержат данные сеанса и попытки
+локального игрока. Появление другого игрока содержит только `UserId`,
+`EntryKind` и необязательное проверенное исходное место; уход содержит только
+`UserId`. Данные о других игроках никогда не включают идентификаторы сеансов,
+попытки, указатели серверов, коды доступа к резервным серверам или подробности
+ошибок.
 
-## Communication and recovery
+## Связь и восстановление
 
-All network delivery uses the existing communication module. Own lifecycle
-messages use `State`; other-player appearance and departure use
-`Presentation`. The client registers handlers during construction, then makes
-the bounded `Teleport.Bootstrap` request after communication initialization.
-Bootstrap atomically establishes the current local arrival, optional attempt,
-and safe current-player appearances. An invalid payload or impossible attempt
-transition throws inside the registered handler so communication recovery can
-request a fresh baseline.
+Вся сетевая доставка использует существующий модуль связи. Сообщения
+собственного жизненного цикла имеют приоритет `State`, а появления и ухода
+других игроков — `Presentation`. Клиент регистрирует обработчики при создании,
+затем после инициализации связи выполняет ограниченный запрос
+`Teleport.Bootstrap`. Исходная загрузка атомарно устанавливает текущее
+локальное прибытие, необязательную попытку и безопасные сведения о
+присутствующих игроках. Недопустимая нагрузка или невозможный переход попытки
+вызывает исключение внутри зарегистрированного обработчика, чтобы
+восстановление связи могло запросить новую основу.
 
-The later global snapshot generation also includes that complete Teleport
-projection. The server captures save and Teleport snapshots before
-`BeginSnapshot` clears the old queue. The client validates Teleport first,
-applies the save transaction, installs the prepared Teleport projection, and
-fires `ProjectionReconciled` only after that complete installation; only then
-does it resume the epoch and acknowledge `ClientReady`. The same path runs
-after a sequence gap, handler failure, or backpressure resync, so discarded
-Started, Accepted, Failed, arrival, or presentation messages cannot leave
-either projection state or subscribers on an older baseline. A failed
-own-player State queue explicitly requires that recovery.
+Последующее поколение общего снимка также включает полную проекцию
+телепортации. Сервер снимает состояние сохранения и телепортации до того,
+как `BeginSnapshot` очистит старую очередь. Клиент сначала проверяет
+телепортацию, применяет транзакцию сохранения, устанавливает подготовленную
+проекцию телепортации и только после полной установки вызывает
+`ProjectionReconciled`. Затем он возобновляет эпоху и подтверждает
+`ClientReady`. Тот же путь выполняется после пропуска последовательности,
+ошибки обработчика или повторной синхронизации из-за переполнения очереди.
+Поэтому отброшенные сообщения `Started`, `Accepted`, `Failed`, прибытия или
+представления не оставляют проекцию или подписчиков на старой основе. Отказ
+очереди собственного сообщения `State` явно требует такого восстановления.
 
-The bootstrap and recovery validators accept safe appearances up to the
-injected `Players.MaxPlayers - 1` peer capacity. This presentation-snapshot
-bound is independent of the 50-participant `TeleportAsync` group cap. The
-existing complete-response network byte and node limits remain authoritative,
-so a capacity-valid but oversized snapshot still fails before `BeginSnapshot`.
+Проверяющие функции исходной загрузки и восстановления принимают безопасные
+сведения о других игроках в пределах внедрённой вместимости
+`Players.MaxPlayers - 1`. Этот предел снимка представления не зависит от
+ограничения группы `TeleportAsync` в 50 участников. Существующие сетевые
+ограничения полного ответа по байтам и узлам сохраняют силу, поэтому снимок,
+допустимый по числу игроков, но превышающий размер, всё равно отклоняется
+до `BeginSnapshot`.
 
-`Stop` clears projection and signals and is terminal. Communication handlers
-are intentionally registered for the communication object's lifetime, but
-their stopped guard makes every later delivery a no-op.
+`Stop` очищает проекцию и сигналы и является окончательной остановкой.
+Обработчики связи намеренно зарегистрированы на всё время жизни объекта
+связи, но проверка остановки превращает любую последующую доставку в
+бездействие.
 
-## Verification
+## Проверка
 
-Run `TeleportModuleTestRunner` and the aggregate deterministic gates documented
-in [TestCoverage.md](TestCoverage.md). A real successful teleport cannot be
-proved by ordinary Studio Play; a production-ready verdict also requires a
-published Roblox-client multi-place E2E that records the same session GUID on
-the target and a supported failure returning the client projection to normal.
+Запустите `TeleportModuleTestRunner` и общие детерминированные наборы,
+описанные в [покрытии проверками](TestCoverage.md). Обычный запуск Studio
+в режиме Play не доказывает настоящий успешный переход. Для заключения о
+готовности к эксплуатации также нужна опубликованная сквозная проверка
+клиентами Roblox между несколькими местами, которая фиксирует тот же GUID
+сеанса в целевом месте и поддерживаемую ошибку с возвратом клиентской
+проекции в нормальное состояние.

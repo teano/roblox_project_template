@@ -1,48 +1,111 @@
-# Players lifecycle rules
+# Правила жизненного цикла игроков
 
-## Scope
+## Область действия
 
-Apply to player joins/leaves, character spawn/removal, player lookup, character lookup, and cleanup tied to Roblox `Players`.
+Применять к подключению и выходу игроков, созданию и удалению персонажей,
+поиску игроков и персонажей, а также к очистке, связанной со службой Roblox
+`Players`.
 
-## Mandatory rules
+## Обязательные правила
 
-- Server systems MUST consume player and character lifecycle through `ServerScriptService.Modules.Players.PlayersModule`.
-- Client systems MUST consume local player and character lifecycle through `ReplicatedStorage.Client.Players.PlayersModule`.
-- `PlayersModule` is the only project wrapper that subscribes directly to platform player/character lifecycle events.
-- `ObservePlayers` consumers MUST handle players already present at subscription time.
-- Existing-player enumeration MUST confirm that a player is still present before delivery.
-- Observer membership MUST be cleared on player removal even when the consumer does not request an `onRemoving` callback.
-- Player removal cleanup MUST be idempotent because shutdown and removal paths may overlap.
-- Character-bound resources MUST be disconnected or destroyed on character removal/destruction.
-- Save loading and closing remain subscribers of `PlayersModule`; they do not belong inside the wrapper.
+- Серверные системы получают события игроков и персонажей только через
+  `ServerScriptService.Modules.Players.PlayersModule`.
+- Клиентские системы получают локального игрока и жизненный цикл персонажа
+  через `ReplicatedStorage.Client.Players.PlayersModule` и `CharacterClient`.
+- `PlayersModule` остаётся единственным проектным адаптером, который напрямую
+  подписывается на платформенные события игроков и персонажей.
+- `PlayersModule:Initialize` переводит серверный экземпляр в подготовленное
+  состояние без платформенных подписок, перечисления игроков и записи
+  `Players.CharacterAutoLoads`.
+- Только `CharacterModule` вызывает `SetCharacterAutoLoads(false)`, сначала
+  подключает свои боковые подписки и затем ровно один раз вызывает
+  `StartPlatformObservation`.
+- `ObservePlayers` не запускает платформенное наблюдение. До первого успешного
+  запуска он завершается ошибкой `PlayersModuleObservationNotStarted`, а после
+  запуска учитывает уже присутствующих игроков.
+- При перечислении уже присутствующих игроков до доставки обязательно повторно
+  проверять, что игрок всё ещё присутствует.
+- Членство каждого наблюдателя очищается при выходе игрока, даже если
+  наблюдатель не запросил обработчик выхода.
+- Система игроков владеет только непрозрачной подготовкой, фиксацией и отменой
+  допуска. Операция не содержит слот, роль, владельца, сведения о друге или
+  другие предметные данные.
+- После общей фиксации `EmitConnectionApproved` публикуется последним и не
+  служит причиной отката. Создание персонажа начинается отложенно в
+  `CharacterModule` после этого события.
+- `PlayerAdmissionCoordinator` является единственным владельцем составного
+  переноса уже подключённого игрока между слотами после принятия локального
+  предложения группы. `PlayersModule` не получает сведения о предложении,
+  слоте или дружеской связи и не участвует в этой операции.
+- Обработчик переноса координатора может быть вызван только `FriendsModule`
+  после повторной асинхронной проверки дружбы для того же поколения
+  `Processing`. Устаревший, ошибочный или отрицательный результат этой проверки
+  не начинает подготовку переноса; координатор затем независимо повторно
+  проверяет присутствие, загрузку и допустимость участников.
+- Локальный перенос разрешён только для присутствующей и полностью загруженной
+  цели, которая владеет другим слотом и не имеет зависимых друзей. Приглашающий
+  также должен оставаться присутствующим владельцем, оба слота должны быть
+  открыты и не заняты другой операцией, а целевой слот — иметь свободное место.
+- Координатор подготавливает и фиксирует системы друзей и слотов, после чего
+  запрашивает у `CharacterModule` ровно одно явное возрождение перенесённого
+  игрока. Только успешное завершение возрождения завершает и публикует перенос.
+- Ошибка, уход участника, остановка или истечение срока отменяет ожидающее
+  возрождение и откатывает подготовленные либо зафиксированные предметные
+  операции. Отказ, отклонение или ошибка локального предложения не отключает
+  игрока и не вызывает `Player:Kick()`.
+- До окончательного завершения переноса снимки системы друзей сохраняют
+  опубликованную роль игрока, даже если физическое назначение слота уже
+  изменено. Полный снимок и изменение личной вместимости во время ожидания
+  возрождения не меняют основу последующих сообщений.
+- Отмена явного возрождения действует и между возвратом `LoadCharacterAsync`
+  и отложенным завершением: новая модель удаляется вместе с подписками.
+  Если прежнего персонажа уже нет, разрешена одна восстановительная
+  последовательность из не более трёх попыток. Её окончательная ошибка не
+  отключает игрока и не запускает новую последовательность автоматически;
+  последующий явный `RequestRespawn` остаётся доступен.
+- `CharacterModule` владеет удалением раннего персонажа до допуска, первым
+  созданием, возрождением, задержкой из конфигурации места, ограничением трёх
+  попыток, текущей моделью и поколением подключения.
+- Смерть и `CharacterRemoving` объединяются в одну последовательность
+  возрождения. Одновременно для одного подключения работает не более одной
+  последовательности создания.
+- Выход игрока и `CharacterModule:Stop` делают поколение недействительным,
+  прекращают продолжения и удаляют оставшийся либо поздно созданный персонаж.
+- Предметные серверные потребители запрашивают отключение через
+  `PlayersModule:DisconnectPlayer`. Отдельная команда `GlobalSave` может
+  напрямую вызвать `Player:Kick()` только после окончательной ошибки загрузки
+  профиля до допуска; это не игровой исход и не путь локального переноса.
 
-## Forbidden patterns
+## Запрещённые решения
 
-- MUST NOT scatter new `Players.PlayerAdded` or `PlayerRemoving` connections across modules.
-- MUST NOT assume the initialization command subscribes before the first player exists.
-- MUST NOT use character ancestry alone as player identity when `GetPlayerFromCharacter` is available.
-- MUST NOT place save, Wallet, another domain provider, or gameplay logic
-  inside `PlayersModule`.
+- Не добавлять подписки на `Players.PlayerAdded`, `Players.PlayerRemoving`,
+  `Player.CharacterAdded` или `Player.CharacterRemoving` вне `PlayersModule`.
+- Не считать порядок команд инициализации по имени файла, дочернему объекту или
+  сканированию каталога.
+- Не хранить сохранение, кошелёк, слот, дружескую связь или игровую логику в
+  `PlayersModule`.
+- Не передавать в систему игроков сведения о слоте, роли, владельце, резерве
+  или друге.
+- Не создавать персонажа, не вызывать `LoadCharacterAsync` и не планировать
+  возрождение в `PlayersModule`.
+- Не переносить игрока между слотами из `PlayersModule`, `FriendsModule`,
+  клиентского сообщения или обработчика интерфейса в обход
+  `PlayerAdmissionCoordinator`.
+- Не использовать `DisconnectPlayer`, `Player:Kick()`, телепортацию или новое
+  подключение как способ выполнить либо откатить локальное предложение группы.
+- Не получать в `AudioGraphClient` персонажа или его события через клиентский
+  `PlayersModule`.
 
-## Positive example
+## Проверка
 
-```lua
-playersModule.CharacterAdded:Connect(function(player, character)
-	attachRuntime(player, character)
-end)
-```
-
-## Negative example
-
-```lua
-game:GetService("Players").PlayerAdded:Connect(function(player)
-	loadSaveAndStartGameplay(player)
-end)
-```
-
-This duplicates lifecycle ownership and couples unrelated systems.
-
-## Verification
-
-- Test existing players, join, leave, character respawn, and repeated cleanup.
-- Run save/shutdown integration tests when player removal behavior changes.
+- Проверить подготовленное состояние до `StartPlatformObservation`, первый и
+  повторный запуск, игроков до запуска, подключение, выход и идемпотентную
+  очистку.
+- Проверить удаление раннего персонажа, единственное первое создание после
+  `ConnectionApproved`, ограничение трёх попыток, задержку из конфигурации,
+  объединение смерти с удалением, выход во время ожидания и позднюю модель.
+- Проверить клиентские `GetCharacter`, `WaitForCharacter`, `CharacterAdded` и
+  `CharacterRemoving` только через `CharacterClient`.
+- Проверить единственное явное возрождение успешного локального переноса,
+  отсутствие отключения, откат при ошибке возрождения, уходе и остановке, а
+  также отказ цели с зависимыми друзьями или занятой операцией.

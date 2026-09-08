@@ -1,39 +1,40 @@
-# ADR-XXXX: Decision title
+# ADR-XXXX: Название решения
 
-- Status: Proposed
-- Date: YYYY-MM-DD
-- Deciders: Project maintainers
-- Supersedes: None
-- Superseded by: None
+- Состояние: Предложено
+- Дата: YYYY-MM-DD
+- Участники решения: сопровождающие проекта
+- Заменяет: нет
+- Заменено: нет
+- Происхождение: ссылка на MIG-####, если решение связано с переносом; иначе удалить поле
 
-## Context
+## Контекст
 
-Describe the problem, constraints, and forces that make the decision necessary.
-Do not describe only the chosen implementation.
+Описать проблему, ограничения и причины принятия решения, а не только
+выбранную реализацию.
 
-## Decision
+## Решение
 
-State the durable decision and its architectural boundary.
+Зафиксировать долговечное решение, его область действия и архитектурную границу.
 
-## Alternatives considered
+## Рассмотренные варианты
 
-### Alternative name
+### Название варианта
 
-Explain why this plausible option was not selected.
+Объяснить, почему этот допустимый вариант не выбран.
 
-## Consequences
+## Последствия
 
-### Positive
+### Положительные
 
-- List the benefits.
+- Преимущества решения.
 
-### Negative
+### Отрицательные
 
-- List the accepted costs and limitations.
+- Принятые затраты и ограничения.
 
-## Enforcement
+## Обеспечение выполнения
 
-- Agent rules:
-- Current documentation:
-- Code boundaries:
-- Tests:
+- Действующие правила:
+- Системные руководства:
+- Границы в коде:
+- Проверки:

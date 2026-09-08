@@ -1,99 +1,128 @@
 ---
 name: window-authoring
-description: Author one project-owned cloud UI window from the repository data-only template and bind it to the canonical typed UI definition/config contract. Use when the user explicitly invokes `$window-authoring` or asks to add a concrete UI System window.
+description: Создание одного конкретного физического окна проекта в Studio, его сохранение в каноническом place.rbxl и привязка к типизированному контракту системы интерфейса.
 ---
 
-# Author a UI window
+# Создание физического окна интерфейса
 
-Create only the requested concrete window. Read `AGENTS.md`,
-`.agents/rules/index.md`, `.agents/rules/ui.md`, `docs/UiSystem.md`, and the
-current repository's `.agents/rules/template-workflow.md` only when project
-initialization or an upstream update is actually involved. Read ADRs only when
-the requested window changes a still-active durable decision.
+Создать только запрошенное конкретное физическое окно. Если пользователь явно
+не указал иное, выбрать локальный физический источник через `AssetKey`.
+Облачный `AssetId` разрешён только при явном выборе пользователя; наличие
+его поддержки в системе не является таким выбором. Исходную разметку окна
+и всех его элементов создавать физически в Studio и сохранять в проекте.
+В коде описывать только логику и привязку к готовой разметке; генерация окон
+и элементов во время исполнения требует отдельного явного указания пользователя.
+Клонирование заранее свёрстанных физических шаблонов разрешено.
+Полные правила и границы исключений находятся в `.agents/rules/ui.md`.
+Прочитать `AGENTS.md`,
+`.agents/rules/index.md`, `.agents/rules/ui.md`, `.agents/rules/assets.md`,
+`.agents/rules/rojo-project.md`, `docs/UiSystem.md` и шаблонное ADR-0050.
+Правило `.agents/rules/template-workflow.md` читать только при фактической
+инициализации проекта или обновлении из шаблона. Другие архитектурные решения
+читать только тогда, когда окно меняет всё ещё действующее долговечное решение.
 
-## Resolve ownership and identity
+## Определить владельца и идентичность
 
-1. Determine the repository role with the repository rules. In the reusable
-   template, definitions belong under
-   `src/ReplicatedStorage/Client/UI/Config/Definitions/` and are listed by
-   `TemplateWindowConfig.luau`. In an initialized derived project, definitions
-   belong under `src/ReplicatedStorage/Project/Client/UI/Definitions/` and are
-   listed only by the exact project-owned
+1. Определить вид репозитория по правилам проекта. В переиспользуемом шаблоне
+   определения находятся под
+   `src/ReplicatedStorage/Client/UI/Config/Definitions/` и перечисляются в
+   `TemplateWindowConfig.luau`. В инициализированной производной игре определения
+   находятся под `src/ReplicatedStorage/Project/Client/UI/Definitions/` и
+   перечисляются только в точном проектном
    `src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau`.
-2. Require one stable `WindowId`, a positive verified cloud `AssetId`, the
-   concrete ViewModel contract, and the approved lifecycle, visibility,
-   background, preload, and (for `Pool`) pool-budget decisions. Do not invent
-   an AssetId or publish/attach an asset without explicit authorization.
-3. Project actions may be added only at
-   `src/ReplicatedStorage/Project/Client/UI/DerivedUiActionIds.luau`. Do not
-   create that optional file when no `game.*` action is required.
+2. Для нового окна согласовать устойчивые `WindowId`, `AssetKey`,
+   контракт модели представления и правила жизненного цикла, видимости, фона,
+   предварительной загрузки и, для `Pool`, объёма пула. Не придумывать значения
+   и не публиковать облачный ресурс.
+3. Проектные действия разрешено добавлять только в
+   `src/ReplicatedStorage/Project/Client/UI/DerivedUiActionIds.luau`. Не создавать
+   необязательный файл, если действие `game.*` не требуется.
 
-## Author the data-only asset
+## Создать физический шаблон в Studio
 
-1. Copy `.agents/templates/window-authoring/WindowTemplate.model.json` into a
-   project-owned GUI asset. Preserve one `GuiObject` root and the named
-   controlled-content container `Content`. Keep or remove the optional direct
-   `Background` `GuiButton` according to `BackgroundPolicy`.
-2. For input blocking, optionally add one direct `ObjectValue` named
-   `BlockObjectRef` and point it to one full-screen transparent `GuiObject`
-   input sink that remains a descendant of that exact same window root. Give
-   the sink display/Z placement above every interactive descendant of the
-   window so `InputSink = All` can actually intercept their input. Do not add
-   a second blocker or a global input interceptor.
-3. Keep the complete asset data-only: no `Script`, `LocalScript`,
-   `ModuleScript`, or other `LuaSourceContainer`. Repo-owned Luau supplies all
-   constructors, controllers, and behavior.
-4. Give the intended owner/group load permission, keep the Experience setting
-   `AllowInsertFreeAssets=false`, and record the exact approved AssetId. These
-   are deployment evidence; runtime does not claim cloud-owner verification.
+1. Непосредственно перед первой операцией в Studio выполнить обязательную
+   предварительную проверку Rojo, перечислить сеансы и явно выбрать уже открытый
+   канонический сеанс текущего проекта. Не открывать другой или дублирующий
+   сеанс.
+2. Создать один физический объект `GuiObject` под
+   `ReplicatedStorage.Assets.Client.UI.<Подсистема>` в Studio и назначить ему
+   уникальный `AssetKey`. Все статические дочерние элементы, ограничения,
+   декоративные объекты и шаблоны повторяемых элементов также создать физически
+   внутри этого объекта.
+3. Не создавать соответствующий `.model.json`, другой файл разметки в `src/`
+   или облачный ресурс. Единственным источником истины является точный объект в
+   каноническом `place.rbxl`; сохранить сцену штатной операцией Studio.
+4. Сохранить весь шаблон без исполняемого кода: внутри не должно быть `Script`,
+   `LocalScript`, `ModuleScript` или другого `LuaSourceContainer`.
+5. Для блокировки ввода при необходимости добавить один прямой `ObjectValue`
+   с именем `BlockObjectRef`, указывающий на один полноэкранный прозрачный
+   `GuiObject` внутри того же корня. Разместить поглотитель выше всех
+   интерактивных потомков, чтобы режим `InputSink = All` действительно
+   перехватывал их ввод. Не добавлять второй поглотитель или общий перехватчик.
+6. Сохранить предусмотренный политикой прямой `GuiButton` с именем
+   `Background` и прямой контейнер управляемого содержимого `Content`.
 
-## Create the concrete repo-owned view
+## Создать проектное представление
 
-1. Create one Rojo-synchronized `--!strict` ModuleScript for the concrete
-   window view. Derive its class from `BaseWindowView`, construct the base with
-   the authored root, stable `WindowId`, final window `UIElementId`, and the
-   injected `WindowConstructionContext.Elements`, and keep the concrete view
-   as the owner of its runtime state and child controllers.
-2. Define the concrete ViewModel type and validate its runtime shape in the
-   view's `Initialize`. Build owned controllers and connect authored controls
-   there; publish only approved semantic events through the inherited ownership
-   chain. `Clear` must release the view's state, controllers, and connections.
-3. Implement only the approved window behavior: override `Open`/`Close` for
-   authored transitions, `Pause`/`Resume` for runtime behavior that must stop
-   while covered, and use the inherited Add/Close APIs for navigation requests.
-   Configure the authored default and directional navigation contracts before
-   base initialization. Keep the base no-op lifecycle hooks when no override is
-   required.
+1. Создать один синхронизируемый Rojo модуль `--!strict` для представления
+   конкретного окна. Унаследовать его от `BaseWindowView`, передать физический
+   корень, устойчивый `WindowId`, окончательный `UIElementId` окна и внедрённый
+   `WindowConstructionContext.Elements`. Представление владеет только состоянием
+   исполнения и дочерними контроллерами.
+2. Описать тип модели представления и проверить её форму в `Initialize`.
+   Найти и проверить все обязательные физические элементы, создать для них
+   контроллеры и соединения и публиковать только согласованные семантические
+   события через существующую цепочку владения. `Clear` освобождает состояние,
+   контроллеры и соединения представления.
+3. Не создавать разметку через `Instance.new`. Для повторяемых элементов
+   клонировать только соответствующий физический шаблон из исходного окна,
+   после чего привязывать данные и поведение.
+4. Реализовать только согласованное поведение окна: переопределять
+   `Open`/`Close` для переходов, `Pause`/`Resume` для поведения, которое должно
+   останавливаться под другим окном, и использовать унаследованные операции
+   добавления и закрытия для навигации. Настроить исходную и направленную
+   навигацию до базовой инициализации.
 
-## Bind one canonical typed definition
+## Привязать одно каноническое типизированное определение
 
-1. Create exactly one `--!strict` per-window definition ModuleScript in the
-   owner-specific `Definitions` directory. It returns the one
-   `WindowDefinition<TView, TViewModel>` table containing `WindowId`, `AssetId`,
-   repo-owned `CreateView`, `TryCastView`, and `InitializeView`, plus the
-   approved policies and optional pool options. Bind those functions directly
-   to the concrete module above: `CreateView` constructs that concrete view,
-   `TryCastView` returns it only when its concrete runtime witness matches, and
-   `InitializeView` invokes that view's typed `Initialize(viewModel)` exactly
-   once and returns its result.
-2. Add the exact returned table to the correct duplicate-preserving authoring
-   sequence by directly requiring that module. Never substitute a copy,
-   wrapper, map, dynamic lookup, second config, registry, or manifest.
-3. Every typed caller directly requires the same per-window definition module
-   and passes that same returned table to `AddWindowTypedAsync` or the typed
-   replacement API. The compiler freezes that table in place.
-4. Use `BaseWindowView` and the injected `UiElementContext`; do not create a
-   bootstrap, remote, persistence path, HUD/toast registry, or runtime asset-ID
-   input.
+1. Создать ровно один модуль определения окна `--!strict` в принадлежащем
+   владельцу каталоге `Definitions`. Таблица `WindowDefinition<TView,
+   TViewModel>` содержит `WindowId`, устойчивый `AssetKey`, `CreateView`,
+   `TryCastView`, `InitializeView`, согласованные политики и необязательные
+   параметры пула. Для физического определения не добавлять одновременно облачный `AssetId`.
+2. Не выполнять второй прямой поиск ресурса из модуля определения.
+   `UiSystem` передаёт `AssetKey` своему `WindowAssetLoader`, который получает
+   физический исходник через внедрённый клиентский `AssetRegistry` с операцией
+   `RequireByKey` и ожидаемым классом, клонирует его, а представление проверяет
+   полную структуру клона до присоединения и любой наблюдаемой публикации.
+   Исходник каталога никогда не изменяется.
+3. Добавить точную возвращаемую таблицу в правильную сохраняющую повторы
+   последовательность прямым подключением модуля. Не подменять её копией,
+   оболочкой, словарём, динамическим поиском, второй конфигурацией, реестром или
+   перечнем запуска.
+4. Каждый типизированный вызывающий модуль напрямую подключает тот же модуль
+   определения и передаёт ту же таблицу в `AddWindowTypedAsync` или
+   типизированную операцию замены.
+5. Использовать `BaseWindowView` и внедрённый `UiElementContext`; не создавать
+   точку запуска, удалённое сообщение, сохранение, реестр постоянного интерфейса
+   или уведомлений либо ввод идентичности ресурса во время исполнения.
 
-## Verify
+## Проверить
 
-Run the repository-mandated Rojo preflight immediately before Studio or
-live-sync work; ordinary filesystem edits do not require it. Then run the
-focused config identity, data-only prefab, factory/cast/
-Initialize, lifecycle, pool, event, blocker/background, and navigation cases in
-`UiSystemTestRunner`, followed by every release gate required by
-`.agents/rules/ui.md` and `.agents/rules/testing.md`. Use only the already-open,
-explicitly selected canonical Studio instance for Play or cloud evidence.
-Record unavailable manual/cloud evidence as unavailable; do not replace it
-with fake or build evidence.
+Штатные `game.invite-friends` и `game.group-invite` уже зарегистрированы в
+`TemplateWindowConfig`. Не добавлять их копии в `DerivedWindowConfig`.
+Сохранять три ключа `game.ui.*` штатных ресурсов. Переход прежних регистраций
+описан в `docs/Migrations/MIG-0001-find-a-baby.md`.
+
+Выполнить проверки конфигурационной идентичности, каталога ресурсов,
+физического шаблона без исполняемого кода, фабрики, преобразования типа,
+`Initialize`, жизненного цикла, пула, событий, блокировки, фона и навигации.
+Затем выполнить все проверки выпуска из `.agents/rules/ui.md`,
+`.agents/rules/assets.md` и `.agents/rules/testing.md`.
+
+В уже открытом явно выбранном каноническом сеансе Studio доказать, что исходник
+находится под точным клиентским корнем каталога и переживает синхронизацию Rojo,
+а окно открывается из физической кнопки и клонирует физический шаблон
+повторяемого элемента. Сохранить точный канонический `place.rbxl`. Недоступные
+ручные или облачные свидетельства записать как недоступные; не заменять их
+поддельным результатом или свидетельством сборки.

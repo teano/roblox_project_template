@@ -6,6 +6,8 @@ local ContentProvider = game:GetService("ContentProvider")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local SocialService = game:GetService("SocialService")
 local Workspace = game:GetService("Workspace")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
@@ -13,6 +15,7 @@ local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
 local ContentPreloader = require(ReplicatedStorage.Shared.ContentPreloading.ContentPreloader)
 local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 local PlayersModule = require(ReplicatedStorage.Client.Players.PlayersModule)
+local CharacterClient = require(ReplicatedStorage.Client.Characters.CharacterClient)
 local CommunicationClient = require(ReplicatedStorage.Client.Communication.CommunicationClient)
 local TeleportClient = require(ReplicatedStorage.Client.Teleport.TeleportClient)
 local ClientConfigCatalog = require(ReplicatedStorage.Client.Config.ClientConfigCatalog)
@@ -21,18 +24,24 @@ local SaveModule = require(ReplicatedStorage.Client.Save.SaveModule)
 local VersionClient = require(ReplicatedStorage.Client.Version.VersionClient)
 local WalletClient = require(ReplicatedStorage.Client.Wallet.WalletClient)
 local StatisticsClient = require(ReplicatedStorage.Client.Statistics.StatisticsClient)
+local FriendsSnapshotClientProvider = require(ReplicatedStorage.Client.Friends.FriendsSnapshotClientProvider)
+local FriendsClient = require(ReplicatedStorage.Client.Friends.FriendsClient)
 local AudioGraphClient = require(ReplicatedStorage.Client.Audio.AudioGraphClient)
 local OrdinarySoundClient = require(ReplicatedStorage.Client.Audio.OrdinarySoundClient)
 local HybridOneShotClientController = require(ReplicatedStorage.Client.Audio.HybridOneShotClientController)
 local MusicClient = require(ReplicatedStorage.Client.Audio.MusicClient)
 local AudioSettingsClient = require(ReplicatedStorage.Client.Audio.AudioSettingsClient)
 local UiSystem = require(ReplicatedStorage.Client.UI.UiSystem)
+local FriendInvitationsUiController = require(ReplicatedStorage.Client.UI.FriendInvitations.FriendInvitationsUiController)
+local FriendInvitationsUiInitializationCommand =
+	require(ReplicatedStorage.Client.Initialization.Commands.FriendInvitationsUiInitializationCommand)
 
 local Commands = script.Parent.Commands
 local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
 local StartupContentPreloadCommand = require(Commands.StartupContentPreloadCommand)
 local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
+local CharacterInitializationCommand = require(Commands.CharacterInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
 local TeleportInitializationCommand = require(Commands.TeleportInitializationCommand)
 local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand)
@@ -73,6 +82,7 @@ local contentPreloader = ContentPreloader.new({
 })
 local poolModule = PoolModule.new()
 local playersModule = PlayersModule.new()
+local characterClient = CharacterClient.new(playersModule)
 local communication = CommunicationClient.new()
 local teleportClient = TeleportClient.new({
 	Communication = communication,
@@ -88,10 +98,16 @@ local saveModule = SaveModule.new(communication)
 local versionClient = VersionClient.new()
 local walletClient = WalletClient.new(communication)
 local statisticsClient = StatisticsClient.new(communication)
+local friendsSnapshotProvider = FriendsSnapshotClientProvider.new()
+local friendsClient = FriendsClient.new(friendsSnapshotProvider, {
+	Communication = communication,
+	SocialService = SocialService,
+	LocalPlayer = Players.LocalPlayer,
+})
 local audioGraph = AudioGraphClient.new({
 	RuntimeParent = ReplicatedStorage,
 	LocalPlayer = Players.LocalPlayer,
-	PlayersModule = playersModule,
+	CharacterClient = characterClient,
 	Workspace = Workspace,
 	GetCurrentCameraCFrame = function()
 		local camera = Workspace.CurrentCamera
@@ -118,6 +134,7 @@ local uiSystem = UiSystem.new({
 	DerivedWindowConfigRoot = ReplicatedStorage,
 	Pooling = poolModule,
 	ContentPreloader = contentPreloader,
+	AssetRegistry = assetRegistry,
 	AssetBackend = {
 		LoadAssetAsync = function(_self, assetId: number)
 			return AssetService:LoadAssetAsync(assetId)
@@ -125,6 +142,17 @@ local uiSystem = UiSystem.new({
 	},
 	GuiService = GuiService,
 	Logger = Logger.new("UI.Client", "info"),
+})
+local friendInvitationsUiController = FriendInvitationsUiController.new({
+	UI = uiSystem,
+	Assets = assetRegistry,
+	Friends = friendsClient,
+	PlayersModule = playersModule,
+	PlayersService = Players,
+	StarterGui = StarterGui,
+	Workspace = Workspace,
+	FrameSignal = RunService.RenderStepped,
+	Logger = Logger.new("FriendInvitations.UI", "info"),
 })
 local sharedRoot = ReplicatedStorage:FindFirstChild("Shared")
 local configsRoot = if sharedRoot then sharedRoot:FindFirstChild("Configs") else nil
@@ -135,6 +163,7 @@ local services = {
 	ContentPreloader = contentPreloader,
 	Pooling = poolModule,
 	Players = playersModule,
+	Characters = characterClient,
 	Communication = communication,
 	Teleport = teleportClient,
 	Config = configCatalog,
@@ -142,6 +171,7 @@ local services = {
 	Version = versionClient,
 	Wallet = walletClient,
 	Statistics = statisticsClient,
+	Friends = friendsClient,
 	AudioGraph = audioGraph,
 	OrdinarySound = ordinarySound,
 	Music = music,
@@ -158,6 +188,7 @@ return {
 		StartupContentPreloadCommand.new(contentPreloader),
 		PoolingInitializationCommand.new(poolModule),
 		PlayersInitializationCommand.new(playersModule),
+		CharacterInitializationCommand.new(characterClient),
 		UiInitializationCommand.new(uiSystem),
 		CommunicationInitializationCommand.new(communication),
 		AudioGraphInitializationCommand.new(audioGraph),
@@ -178,8 +209,11 @@ return {
 			Config = configCatalog,
 			Teleport = teleportClient,
 			Version = versionClient,
-			Wallet = walletClient,
-			AudioSettings = audioSettings,
-		}),
+		Wallet = walletClient,
+		AudioSettings = audioSettings,
+		FriendsSnapshotProvider = friendsSnapshotProvider,
+		FriendsClient = friendsClient,
+	}),
+		FriendInvitationsUiInitializationCommand.new(friendInvitationsUiController),
 	},
 }

@@ -1340,7 +1340,7 @@ function Runner.runAll()
 				local graph = AudioGraphClient.new({
 					RuntimeParent = runtime,
 					LocalPlayer = assert(game:GetService("Players"):GetPlayers()[1]),
-					PlayersModule = { CharacterAdded = signal, CharacterRemoving = signal, GetCharacter = function() return nil end },
+					CharacterClient = { CharacterAdded = signal, CharacterRemoving = signal, GetCharacter = function() return nil end },
 					Workspace = workspace, GetCurrentCameraCFrame = function() return nil end,
 					ListenerFrameDriver = signal, Logger = makeLogger({}),
 				})

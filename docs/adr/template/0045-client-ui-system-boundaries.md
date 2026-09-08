@@ -1,10 +1,10 @@
 # ADR-0045: Keep client UI ownership behind one manifest-composed root
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-08-22
 - Deciders: Project maintainers
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR-0050
 
 ## Context
 

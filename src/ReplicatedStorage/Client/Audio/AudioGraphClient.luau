@@ -76,7 +76,7 @@ function AudioGraphClient:_updateListener()
 	local listener = self._listener
 	local anchor = self._listenerAnchor
 	if listener == nil or anchor == nil then return end
-	local character = self._dependencies.PlayersModule:GetCharacter()
+	local character = self._dependencies.CharacterClient:GetCharacter()
 	local humanoidRoot = if character then character:FindFirstChild("HumanoidRootPart") else nil
 	local cameraCFrame = self._dependencies.GetCurrentCameraCFrame()
 	if humanoidRoot ~= nil and humanoidRoot:IsA("BasePart") and cameraCFrame ~= nil then
@@ -138,13 +138,13 @@ function AudioGraphClient:Initialize(startup: any): any
 		self._listenerAnchor = anchor
 		self._localGraph = localGraph
 		frameConnection = self._dependencies.ListenerFrameDriver:Connect(function() self:_updateListener() end)
-		table.insert(characterConnections, self._dependencies.PlayersModule.CharacterRemoving:Connect(function()
+		table.insert(characterConnections, self._dependencies.CharacterClient.CharacterRemoving:Connect(function()
 			if self._listener ~= nil then
 				self._listener.PositionInstance = nil
 				self._listener.Parent = self._localGraph
 			end
 		end))
-		table.insert(characterConnections, self._dependencies.PlayersModule.CharacterAdded:Connect(function()
+		table.insert(characterConnections, self._dependencies.CharacterClient.CharacterAdded:Connect(function()
 			self:_updateListener()
 		end))
 		self:_updateListener()

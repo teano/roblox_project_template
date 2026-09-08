@@ -244,7 +244,7 @@ function Runner.runAll()
 		local graph = AudioGraphClient.new({
 			RuntimeParent = runtime,
 			LocalPlayer = fakePlayer,
-			PlayersModule = playersModule,
+			CharacterClient = playersModule,
 			Workspace = workspace,
 			GetCurrentCameraCFrame = function() return cameraCFrame end,
 			ListenerFrameDriver = frame,
@@ -285,7 +285,7 @@ function Runner.runAll()
 		local dependencies = {
 			RuntimeParent = runtime,
 			LocalPlayer = player,
-			PlayersModule = { CharacterAdded = noCharacterSignal, CharacterRemoving = noCharacterSignal, GetCharacter = function() return nil end },
+			CharacterClient = { CharacterAdded = noCharacterSignal, CharacterRemoving = noCharacterSignal, GetCharacter = function() return nil end },
 			Workspace = workspace,
 			GetCurrentCameraCFrame = function() return nil end,
 			ListenerFrameDriver = makeSignal(),
@@ -1414,7 +1414,7 @@ function Runner.runAll()
 		local serverCommands = {}; for _, command in ServerManifest.Commands do serverCommands[command.Id] = command end
 		local clientCommands = {}; for _, command in ClientManifest.Commands do clientCommands[command.Id] = command end
 		assert(table.concat(serverCommands.AudioGraph.DependsOn, ",") == "AudioStartup,Players")
-		assert(table.concat(clientCommands.AudioGraph.DependsOn, ",") == "AudioStartup,Players")
+		assert(table.concat(clientCommands.AudioGraph.DependsOn, ",") == "AudioStartup,Characters")
 		local modules = clientCommands.DomainData._modules
 		assert(modules[1].Id == "Wallet" and modules[2].Id == "AudioSettings" and modules[3].Id == "Version")
 	end)
@@ -1452,7 +1452,7 @@ function Runner.runAll()
 		local graph = AudioGraphClient.new({
 			RuntimeParent = runtime,
 			LocalPlayer = player,
-			PlayersModule = { CharacterAdded = emptySignal, CharacterRemoving = emptySignal, GetCharacter = function() return nil end },
+			CharacterClient = { CharacterAdded = emptySignal, CharacterRemoving = emptySignal, GetCharacter = function() return nil end },
 			Workspace = workspace,
 			GetCurrentCameraCFrame = function() return nil end,
 			ListenerFrameDriver = emptySignal,
@@ -1527,7 +1527,7 @@ function Runner.runAll()
 		local serverCommands = {}; for _, command in ServerManifest.Commands do serverCommands[command.Id] = command end
 		local clientCommands = {}; for _, command in ClientManifest.Commands do clientCommands[command.Id] = command end
 		assert(table.concat(serverCommands.AudioGraph.DependsOn, ",") == "AudioStartup,Players")
-		assert(table.concat(clientCommands.AudioGraph.DependsOn, ",") == "AudioStartup,Players")
+		assert(table.concat(clientCommands.AudioGraph.DependsOn, ",") == "AudioStartup,Characters")
 		assert(table.concat(clientCommands.StartupContentPreload.DependsOn, ",") == "AudioStartup")
 	end)
 

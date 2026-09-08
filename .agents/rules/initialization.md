@@ -1,74 +1,52 @@
-# Initialization rules
+# Правила инициализации
 
-## Scope
+## Область действия
 
-Apply to `InitializationRunner`, server/client manifests, commands, bootstraps, loading completion, and startup dependencies.
+Применять к `InitializationRunner`, серверному и клиентскому перечням запуска,
+командам, точкам запуска и завершению загрузки.
 
-Required context: `docs/InitializationAndSaveSystem.md`.
+Обязательный контекст: `docs/InitializationAndSaveSystem.md`.
 
-## Mandatory rules
+## Обязательные правила
 
-- The server and client MUST keep separate manifests and bootstrap entry points.
-- Both sides MUST use the shared `InitializationRunner`.
-- Every command MUST declare a unique `Id`, explicit `DependsOn`, and `Initialize(context)`.
-- Dependencies MUST appear earlier in the same manifest.
-- Commands MUST execute sequentially through the runner.
-- A command MUST NOT decide whether the global bootstrap continues after its failure; thrown errors stop the runner.
-- Optional background initialization is owned by the specific module. Its command MAY return after deliberately starting background work.
-- The 30-second watchdog logs slow commands but MUST NOT cancel them.
-- Repeated runner initialization MUST share the active result and remain idempotent after completion.
-- `ClientInitialized` MUST be set only after the complete client manifest, including initial snapshot application, succeeds.
-- `ClientInitializationFailed` MUST be set when client bootstrap fails.
+- Сервер и клиент сохраняют отдельные перечни запуска и отдельные точки
+  запуска.
+- Обе стороны используют общий `InitializationRunner`.
+- Каждая команда объявляет уникальный `Id`, явный `DependsOn` и
+  `Initialize(context)`.
+- Каждая зависимость располагается раньше самой команды в том же перечне.
+- Команды выполняются последовательно. Ошибка команды останавливает перечень и
+  не может быть скрыта как успешная загрузка.
+- Повторная инициализация исполнителя совместно использует выполняющийся
+  результат и после завершения остаётся идемпотентной.
+- `ClientInitialized` устанавливается только после успешного полного
+  клиентского перечня, включая применение исходного снимка. При ошибке
+  устанавливается `ClientInitializationFailed`.
+- Новая долгоживущая система создаётся один раз в соответствующем перечне,
+  получает зависимости явным конструктором, имеет отдельную команду и попадает
+  в `context.Services`, только когда это требуется последующим командам.
+- Серверная команда `Characters` зависит от `Players` и `Config`. Она запускает
+  платформенное наблюдение после загрузки задержки персонажей.
+- Команды `Teleport`, `TeleportValidationPad` и `GlobalSave` имеют прямую
+  зависимость `Characters`, чтобы их прежнее `ObservePlayers` выполнялось
+  только после успешного наблюдения платформы.
+- Клиентская команда `Characters` зависит от `Players`; клиентская команда
+  `AudioGraph` зависит от `AudioStartup` и `Characters`.
 
-## Forbidden patterns
+## Запрещённые решения
 
-- MUST NOT add critical/deferred groups to the runner.
-- MUST NOT initialize a module by requiring it from an unrelated Script.
-- MUST NOT infer ordering from filesystem names, child order, tags, or discovery scanning.
-- MUST NOT silently catch a command failure and report bootstrap success.
-- MUST NOT start snapshot-dependent gameplay or presentation before the global
-  snapshot is atomically applied.
+- Не добавлять отдельные критические или отложенные группы команд.
+- Не запускать модуль простым `require` из несвязанного сценария.
+- Не выводить порядок из имени файла, порядка дочерних объектов, меток или
+  поиска по каталогам.
+- Не начинать игру или представление, зависящее от снимка, до его атомарного
+  применения.
+- Не делать косвенную зависимость `Characters` заменой явной зависимости в
+  командах сохранения или телепортации.
 
-## Adding a module
+## Проверка
 
-1. Construct the module in the side manifest.
-2. Add it to the service table if another command needs it.
-3. Create a focused initialization command.
-4. Declare the minimum real dependency set.
-5. Place the command after all declared dependencies.
-6. Test manifest validation, bootstrap success, and failure behavior.
-
-## Positive example
-
-```lua
-return setmetatable({
-	Id = "Inventory",
-	DependsOn = { "GlobalSave" },
-	_module = inventoryModule,
-}, Command)
-```
-
-## Negative example
-
-```lua
-script.Parent.Name = "07_Inventory"
-require(script.Parent.InventoryModule):Initialize()
-```
-
-Filename ordering is not an initialization contract.
-
-## Audio initialization
-
-Audio manifests use the exact relative order and dependencies in the approved
-technical specification: `Assets -> AudioStartup`, then preload/pooling/player/
-communication owners before graph and playback. Raw audio ModuleScripts are
-loaded only inside protected `AudioStartup.Initialize`. Enabled and disabled
-hybrid handlers register after `Communication` and before `ClientReady`; a
-disabled handler is a protocol-compatible no-op/reject boundary, not a second
-bootstrap. See ADR-0041 and `.agents/rules/audio.md`.
-
-## Verification
-
-- `SystemTestRunner`.
-- Clean Play session with complete server and client command logs.
-- Loading screen disappears only after `ClientInitialized`.
+- Проверить уникальность команд, существование и порядок каждой зависимости в
+  обоих перечнях запуска.
+- Проверить `SystemTestRunner`, направленные проверки затронутых систем и
+  чистый серверно-клиентский запуск в выбранном сеансе Studio.

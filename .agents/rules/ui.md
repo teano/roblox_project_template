@@ -1,66 +1,175 @@
-# UI system rules
+# Правила системы интерфейса
 
-## Scope
+## Область действия
 
-Apply to `ReplicatedStorage/Client/UI/**`, UI initialization, UI actions,
-controller identity, ownership bubbling, window navigation, and UI authoring.
+Применять к `ReplicatedStorage/Client/UI/**`, запуску интерфейса, действиям
+интерфейса, идентичности контроллеров, подъёму событий по дереву владения,
+навигации окон и созданию интерфейса.
 
-Required context: `docs/UiSystem.md`, `docs/InitializationAndSaveSystem.md`,
-ADR-0045, and the rules for every injected subsystem whose contract is used.
+Обязательный контекст: `docs/UiSystem.md`,
+`docs/InitializationAndSaveSystem.md`, шаблонные ADR-0050
+и ADR-0052, а также правила каждой внедрённой подсистемы, контракт которой
+используется.
 
-## Mandatory rules
+## Создание интерфейса по умолчанию
 
-- `UiSystem` is the single client owner of `UiRoot`, `WindowHost`, window
-  navigation, the immutable action/config catalogs, and the root event stream.
-- `UiRoot` is one `ScreenGui` with `ResetOnSpawn=false` and safe-area
-  projection. Its direct hosts remain `HudHost < ToastHost < WindowHost`.
-- Project systems own the concrete HUD and toast content they place in the
-  injected hosts. UI must not introduce a HUD registry or toast scheduler.
-- UI modules use `--!strict`, constructor injection, and the existing client
-  manifest. Do not create another bootstrap or standalone `LocalScript`.
-- A reusable UI controller owns its direct children, connections, and final
-  `UIElementId`; it must not store a containing `WindowId`.
-- Identity registration and dynamic subtree attachment/detachment must be
-  collision-checked before observable publication. Never auto-suffix an ID.
-- Ownership bubbling is synchronous child-to-parent. `BaseWindowView` adds
-  `WindowId` at the window boundary; only the root publishes through the
-  private side-local `Signal`.
-- Root subscribers receive only `Connect` and `Once`. A yielded or failed
-  subscriber must not block publication or other subscribers.
-- Root event payloads must pass the existing communication serializer's
-  bounded value inspection and must never contain `Instance`, functions,
-  cycles, or TextBox text.
-- `Clear` is synchronous, idempotent, recursively attempts every child and
-  owned resource, and reports aggregate cleanup failure without choosing a
-  root window's destroy/pool policy.
-- Player and Character access must use the injected client `PlayersModule`.
-  Respawn must not recreate or clear `UiSystem` or `UiRoot`.
-- Concrete cloud windows start from the repository data-only authoring
-  template and contain no `LuaSourceContainer`. Every window has one canonical
-  owner-specific typed definition ModuleScript; its authoring sequence and
-  every typed caller directly require the same returned table.
-- The reusable template must not contain the project-owned
-  `src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau`. An
-  initialized derived project must contain that exact strict UTF-8 sequence;
-  no alternate config, registry, manifest, or repository-kind runtime marker
-  is accepted.
+- Если пользователь явно не указал иное, создавать локальные окна: физические
+  шаблоны в проекте, получаемые по `AssetKey`. Не выбирать облачный `AssetId`
+  и не публиковать ресурс окна по инициативе агента. Наличие поддержки
+  облачных окон в системе не меняет это значение по умолчанию.
+- Если пользователь явно не разрешил иное, запрещено генерировать во время
+  исполнения окна и элементы интерфейса или строить их разметку кодом.
+  Правило относится ко всему интерфейсу: окнам, постоянным панелям,
+  уведомлениям, кнопкам, надписям, декоративным объектам и повторяемым строкам,
+  а не только к штатным приглашениям.
+- Исходная иерархия и разметка должны быть физически созданы в Studio и
+  сохранены в каноническом `place.rbxl`. Размеры, расположение, оформление,
+  ограничения и шаблоны повторяемых элементов задаются в этих объектах,
+  а не в исполняемом коде, файлах `.model.json` или генераторах разметки.
+- Код описывает логику: привязку к готовым элементам, обработку действий,
+  обновление данных и состояния, видимость, анимации и жизненный цикл.
+  Разрешено клонировать заранее свёрстанный физический шаблон, например строку
+  списка, и заполнять его данными. Это не разрешает программно создавать
+  отсутствующую исходную разметку.
+- Исключение действует только в явно указанном пользователем объёме.
+  Разрешение облачного источника само по себе не разрешает генерировать
+  разметку; разрешение генерации не означает разрешения публикации в облаке.
 
-## Forbidden patterns
+## Обязательные правила
 
-- Do not place early `ReplicatedFirst` loading UI under `UiRoot`.
-- Do not add remotes, analytics, persistence, arbitrary asset loading, a
-  generic service locator, high-frequency raw input events, or TextBox text to
-  the semantic stream.
-- Do not let HUD/toast content enter the window stack or give it window
-  lifecycle APIs.
-- Do not expose the root signal's `Fire`, `Wait`, or `Destroy` methods.
-- Do not create an empty optional `DerivedUiActionIds.luau`; create that exact
-  project path only when real `game.*` actions are authored.
+- `UiSystem` является единственным клиентским владельцем `UiRoot`,
+  `WindowHost`, навигации окон, неизменяемых каталогов действий и конфигурации,
+  а также корневого потока событий.
+- `UiRoot` является одним `ScreenGui` с `ResetOnSpawn=false` и проекцией
+  безопасной области. Его прямые контейнеры сохраняют порядок
+  `HudHost < ToastHost < WindowHost`.
+- Проектные системы владеют конкретным содержимым постоянного интерфейса и
+  уведомлений, которое они помещают во внедрённые контейнеры. Система
+  интерфейса не должна вводить реестр постоянного интерфейса или планировщик
+  уведомлений.
+- Модули интерфейса используют `--!strict`, внедрение зависимостей через
+  конструкторы и существующий клиентский перечень запуска. Не создавать другую
+  точку запуска или отдельный `LocalScript`.
+- Переиспользуемый контроллер интерфейса владеет прямыми дочерними
+  контроллерами, соединениями и окончательным `UIElementId`; он не хранит
+  `WindowId` содержащего его окна.
+- Регистрация идентичности и динамическое присоединение или отсоединение
+  поддерева должны проверять столкновения до наблюдаемой публикации. Никогда
+  не добавлять суффикс к идентификатору автоматически.
+- Событие синхронно поднимается от дочернего владельца к родительскому.
+  `BaseWindowView` добавляет `WindowId` на границе окна; только корневой владелец
+  публикует событие через закрытый боковой `Signal`.
+- Корневые подписчики получают только `Connect` и `Once`. Приостановившийся или
+  завершившийся ошибкой подписчик не должен блокировать публикацию и остальных
+  подписчиков.
+- Полезная нагрузка корневых событий должна проходить ограниченную проверку
+  значений существующего сериализатора связи и никогда не должна содержать
+  `Instance`, функции, циклы или текст `TextBox`.
+- `Clear` выполняется синхронно и повторяемо, пытается освободить каждый
+  дочерний объект и каждый принадлежащий ему ресурс, а также сообщает общую
+  ошибку очистки, не выбирая политику уничтожения или пула корневого окна.
+- Доступ к игроку и персонажу выполняется через внедрённый клиентский
+  `PlayersModule`. Возрождение не должно пересоздавать или очищать `UiSystem`
+  либо `UiRoot`.
+- В штатном интерфейсе приглашений конкретные шаблоны постоянного интерфейса,
+  окон и повторяемых элементов являются физическими объектами без исполняемого кода,
+  созданными в Studio и сохранёнными только в каноническом `place.rbxl` под
+  `ReplicatedStorage.Assets.Client`. Их разметка не хранится в `src/`, не
+  описывается файлами `.model.json`, не создаётся через `Instance.new` и не
+  загружается по облачному `AssetId`.
+- Исполняемый код штатных приглашений получает исходные физические шаблоны только через
+  внедрённый клиентский `AssetRegistry`, указывает ожидаемый класс и устойчивый
+  `AssetKey`, клонирует исходник и проверяет полную структуру клона до
+  присоединения и любой наблюдаемой публикации. Исходник каталога не изменяется,
+  а модуль определения не выполняет второй прямой поиск. Во время исполнения
+  разрешены только привязка поведения, изменение состояния представления и
+  клонирование исходных шаблонов или их физических повторяемых элементов.
+- Для приглашений друзей канонические пути и ключи равны
+  `ReplicatedStorage.Assets.Client.UI.FriendInvitations.InviteFriends` /
+  `game.ui.hud.invite-friends` и
+  `ReplicatedStorage.Assets.Client.UI.FriendInvitations.InviteFriendsWindow` /
+  `game.ui.window.invite-friends`, а физическое окно локального предложения
+  имеет путь
+  `ReplicatedStorage.Assets.Client.UI.FriendInvitations.GroupInviteWindow` и
+  ключ `game.ui.window.group-invite`. Физический шаблон строки друга находится
+  внутри `InviteFriendsWindow`; исполняемый код только клонирует его.
+- `GroupInviteWindow` открывается только по авторитетному `IncomingOffer` и
+  принадлежит обычному стеку `UiSystem`. Его `BackgroundPolicy=Absorb`, в нём
+  нет обходного закрытия или общего поглотителя ввода, а единственными
+  действиями являются физические кнопки `Accept` и `Decline`.
+- После ответа на локальное предложение обе кнопки остаются недоступными до
+  удаления предложения авторитетным снимком. Только это удаление закрывает
+  активное окно; если окно прикрыто другим окном, закрытие откладывается до
+  `Resume`, не нарушая порядок стека.
+- Повторяемые строки списка друзей сохраняют физический экземпляр по `UserId`.
+  Сортировка изменяет только `LayoutOrder`; обновление состояния не пересоздаёт
+  контроллер ввода. Пользовательские состояния остаются нейтральными и не
+  утверждают доставку либо принятие: `Waiting for response`,
+  `Waiting for friend · slot held`, `Finish current invite`, `No free slots`,
+  `Checking status` и `Refreshing`.
+- Облачная загрузка окон по `AssetId` остаётся общей возможностью
+  переиспользуемого шаблона, описанной шаблонным ADR-0050, но не используется
+  как источник штатных физических окон приглашений.
+- Каждое окно имеет один канонический типизированный модуль определения,
+  принадлежащий владельцу системы; последовательность определений и каждый типизированный
+  вызывающий модуль напрямую подключают одну и ту же возвращаемую таблицу.
+- Переиспользуемый шаблон не должен содержать проектный
+  `src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau`.
+  Инициализированный производный проект должен содержать эту точную строгую
+  последовательность в кодировке UTF-8; альтернативная конфигурация, реестр,
+  перечень запуска или признак вида репозитория во время исполнения не
+  допускаются.
 
-## Verification
+## Состояние попытки внешнего приглашения
 
-- `UiSystemTestRunner`, `SystemTestRunner`, and `AllTestsRunner`.
-- Temporary Rojo build and bounded template-project structural validation.
-- Data-only template, authoring-skill, and derived-layout validation.
-- Clean selected canonical Studio Play for bootstrap, one root, three hosts,
-  safe-area behavior, respawn persistence, and clean server/client output.
+Поле `IsOpen` не входит в клиентское состояние приглашения.
+`IsBusy` ограничено десятью секундами от `RequestInvite`; полный резерв
+имеет независимый срок после `PromptRequested`. Внутреннее
+`OpeningRoblox` отображается нейтральным `Checking status` и не
+утверждает показ окна. `PromptRequested` означает только завершившийся
+вызов. Закрытие Roblox не меняет интерфейс, срок попытки или резерв.
+См. [действующее решение](../../docs/adr/template/0052-separate-invite-attempt-and-reservation-deadlines.md).
+
+## Запрещённые приёмы
+
+Штатные определения `game.invite-friends` и `game.group-invite` находятся в
+`Client/UI/Config/Definitions` и прямо подключены в `TemplateWindowConfig`.
+Представления принадлежат `Client/UI/Windows`, контроллер —
+`Client/UI/FriendInvitations`, общие проверки структуры — `Shared/UI` под
+`src/ReplicatedStorage/`. Команда находится в `Client/Initialization/Commands`.
+`DerivedWindowConfig` производной игры добавляет только другие определения.
+Переход существующей игры описан в
+[инструкции миграции](../../docs/Migrations/MIG-0001-find-a-baby.md).
+
+- Не помещать ранний загрузочный интерфейс `ReplicatedFirst` под `UiRoot`.
+- Не добавлять в семантический поток удалённые сообщения, сбор данных,
+  сохранение, произвольную загрузку ресурсов, общий поиск служб,
+  высокочастотные необработанные события ввода или текст `TextBox`.
+- Не включать постоянный интерфейс и уведомления в стек окон и не назначать им
+  операции жизненного цикла окна.
+- Не открывать у корневого сигнала методы `Fire`, `Wait` или `Destroy`.
+- Не создавать пустой необязательный `DerivedUiActionIds.luau`; создавать этот
+  точный проектный путь только при наличии настоящих действий `game.*`.
+- Не хранить один и тот же физический шаблон интерфейса одновременно в
+  `place.rbxl`, исходниках Rojo или облачном ресурсе как конкурирующих
+  источниках истины.
+- Не закрывать локальное предложение по клиентскому обратному вызову ответа,
+  не добавлять ему кнопку свободного закрытия и не показывать клиентское
+  действие как доказательство завершённого переноса.
+
+## Проверка
+
+- `UiSystemTestRunner`, `AssetRegistryTestRunner`, `SystemTestRunner` и
+  `AllTestsRunner`.
+- Временная сборка Rojo и ограниченная структурная проверка репозитория.
+- Проверка отсутствия проектных физических шаблонов интерфейса в сопоставлениях
+  Rojo, их наличия под точным клиентским корнем каталога, уникальности ключей,
+  отсутствия исполняемых объектов и полноты физической структуры.
+- Чистый запуск выбранного канонического сеанса Studio: один корень, три
+  контейнера, безопасная область, сохранение интерфейса при возрождении,
+  открытие физического окна физической кнопкой, клонирование физического
+  шаблона строки и чистый вывод сервера и клиента.
+- Проверить физическое `GroupInviteWindow`, точную привязку `Accept` и
+  `Decline`, недоступность при `Processing`, закрытие только по авторитетному
+  удалению, отложенное закрытие при приостановке, устойчивые строки по `UserId`
+  и нейтральные состояния.

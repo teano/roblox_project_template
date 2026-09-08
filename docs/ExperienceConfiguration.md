@@ -1,40 +1,42 @@
-# Experience configuration
+# Конфигурация игры
 
-## Ownership
+## Владение
 
-Roblox Experience Configs are the only source of tunable configuration values.
-`ConfigService` is server-only, so the server-owned
-`ExperienceConfigCatalog` obtains one `ConfigSnapshot` and reads every
-explicitly declared key from it.
+Roblox Experience Configs являются единственным источником настраиваемых
+значений конфигурации. Служба `ConfigService` доступна только на сервере,
+поэтому серверный `ExperienceConfigCatalog` получает один `ConfigSnapshot`
+и читает из него каждый явно объявленный ключ.
 
-Configuration contracts remain reviewed code:
+Контракты конфигурации остаются в проверяемом исходном коде:
 
-- stable logical IDs and Experience Config keys;
-- required versus optional presence;
-- pure decode and validation functions;
-- client disclosure and projections;
-- client-side decode contracts;
-- domain-specific live reload policy.
+- устойчивые логические идентификаторы и ключи Experience Config;
+- обязательность или необязательность значения;
+- чистые функции декодирования и проверки;
+- разрешение доступа клиента и проекции;
+- контракты декодирования на клиенте;
+- правила применения обновлений каждой предметной системой.
 
-This separation is equivalent to a serialized class plus serialized values:
-the contract is code, while the changing data is an Experience Config.
+Это разделение соответствует сериализуемому классу и его значениям:
+контракт задаётся кодом, а изменяемые данные — через Experience Config.
 
-### Audio startup exception
+### Исключение для запуска звука
 
-TF-0005 is the narrow exception defined by ADR-0041. Its generated
-`SoundCatalog` and static `AudioRuntimeConfig`, `RoutingConfig`, and
-`SpatialProfiles` are Git-reviewed, startup-only Luau modules under
-`ReplicatedStorage.Shared.Configs.Audio`. Server and client independently load
-them inside protected `AudioStartup.Initialize`, exact-validate and deep-freeze
-the complete state, and never use ConfigService, client projection, live
-refresh, Attributes, or ValueObjects. Code-owned `AudioSafetyLimits` remains
-outside `Configs` and cannot be raised by authored tables. All other tunable
-configuration continues to follow this document's Experience Config boundary.
-See [AudioSystem.md](AudioSystem.md).
+TF-0005 является узким исключением, установленным ADR-0041. Созданный
+`SoundCatalog` и статические `AudioRuntimeConfig`, `RoutingConfig` и
+`SpatialProfiles` — проверяемые через Git модули Luau под
+`ReplicatedStorage.Shared.Configs.Audio`, применяемые только при запуске.
+Сервер и клиент независимо загружают их внутри защищённого
+`AudioStartup.Initialize`, точно проверяют и глубоко замораживают полное
+состояние. Для них не используются `ConfigService`, клиентская проекция,
+обновление во время исполнения, атрибуты или объекты значений.
+Принадлежащие коду `AudioSafetyLimits` остаются вне `Configs`; подготовленные
+таблицы не могут повышать эти пределы. Остальные настраиваемые значения
+сохраняют описанную здесь границу Experience Config.
+См. [систему звука](AudioSystem.md).
 
-## Server definitions
+## Серверные определения
 
-Projects extend
+Проекты расширяют
 `ServerScriptService/Modules/Config/ServerConfigManifest.luau`:
 
 ```lua
@@ -46,22 +48,43 @@ Projects extend
 }
 ```
 
-`Decode` returns `(true, immutableCandidate, nil)` or
-`(false, nil, "path.to.field: expected finite number")`.
+`Decode` возвращает `(true, immutableCandidate, nil)` либо
+`(false, nil, reason)`, где `immutableCandidate` — неизменяемый кандидат,
+а `reason` — описание ошибки с путём к неверному полю.
 
-The catalog reads and decodes all required definitions into temporary models.
-It publishes generation `N` only when the complete candidate and every client
-projection are valid. Consumers call `Services.Config:GetRequired("Equipment")`
-and never read `ConfigService` directly.
+Каталог читает и декодирует все обязательные определения во временные модели.
+Он публикует поколение `N`, только когда полный кандидат и каждая клиентская
+проекция прошли проверку. Потребители вызывают
+`Services.Config:GetRequired("Equipment")` и не читают `ConfigService` напрямую.
 
-The template manifest declares its required models explicitly, so bootstrap
-fails before domain initialization when any source value is absent or invalid.
+Перечень явно объявляет обязательные модели. Если исходное значение отсутствует
+или неверно, запуск останавливается до инициализации предметных систем.
 
-## Required template configs
+## Обязательные значения конфигурации
 
-The template currently consumes three required Experience Configs. Every value
-must use the native Experience Config type `JSON`; a `String` containing
-serialized JSON does not satisfy these contracts.
+Каждое обязательное значение конфигурации использует собственный встроенный тип
+Experience Config `JSON`; `String` с сериализованным JSON не заменяет этот
+контракт.
+
+Текущий `ServerConfigManifest` содержит шесть обязательных моделей:
+`Wallet`, `GlobalSave`, `Statistics`, `Characters`, `PlayerSlots` и `Friends`.
+Для трёх добавленных систем обязательны следующие ключи:
+
+| Идентификатор модели | Ключ Experience Config | Доступ к конфигурации |
+|---|---|---|
+| `Characters` | `characters_config` | Только сервер |
+| `PlayerSlots` | `player_slots_config` | Только сервер |
+| `Friends` | `friends_config` | Только сервер |
+
+У этих определений нет `Required=false`: отсутствие любого из трёх ключей,
+неверный тип или ошибка декодирования останавливает команду `Config` и весь
+серверный запуск. Даже выбор `Disabled` для слотов не делает остальные ключи
+необязательными. При подготовке другого места все обязательные значения нужно
+создать в его Experience Configs до запуска систем.
+
+Числа в следующих примерах показывают допустимую форму данных. Они не
+подтверждают опубликованные значения Find a Baby или шаблонной игры и не
+означают, что облачная конфигурация другого места уже подготовлена.
 
 `wallet_config`:
 
@@ -74,11 +97,11 @@ serialized JSON does not satisfy these contracts.
 }
 ```
 
-Every code-owned currency ID must be present exactly once with a non-negative
-safe-integer amount no greater than `WalletConfig.MaxBalance` (`2^53 - 1`).
-Unknown currency names and unknown object fields reject the complete config
-generation. The template's published starting balances are zero; a derived
-game may replace them with its reviewed launch values.
+Каждый заданный кодом идентификатор валюты должен присутствовать ровно один раз
+с неотрицательным точно представимым целым числом не больше
+`WalletConfig.MaxBalance` (`2^53 - 1`). Неизвестные названия валют и поля объекта
+отклоняют всё поколение конфигурации. В примере начальные остатки равны нулю;
+производная игра задаёт собственные согласованные начальные значения.
 
 `global_save_config`:
 
@@ -91,19 +114,63 @@ game may replace them with its reviewed launch values.
 }
 ```
 
-The server consumes all four fields. The client bundle contains only
-`SnapshotRequestAttempts` and `SnapshotRetryDelaySeconds`; storage names,
-locks, shutdown policy, and other persistence/security boundaries remain
-code-owned.
+Сервер использует все четыре поля. Клиентский набор содержит только
+`SnapshotRequestAttempts` и `SnapshotRetryDelaySeconds`; имена хранилищ,
+блокировки, правила завершения работы и прочие границы сохранения и
+безопасности остаются в коде.
 
-The codec accepts only finite values within these bounds:
+Декодер принимает только конечные значения в следующих пределах:
 
-| Field | Accepted value |
+| Поле | Допустимое значение |
 |---|---|
-| `autoSaveIntervalSeconds` | number from 5 through 3600 |
-| `snapshotLoadTimeoutSeconds` | number from 1 through 120 |
-| `snapshotRequestAttempts` | integer from 1 through 100 |
-| `snapshotRetryDelaySeconds` | number from 0.05 through 10 |
+| `autoSaveIntervalSeconds` | Число от 5 до 3600 включительно |
+| `snapshotLoadTimeoutSeconds` | Число от 1 до 120 включительно |
+| `snapshotRequestAttempts` | Целое число от 1 до 100 включительно |
+| `snapshotRetryDelaySeconds` | Число от 0,05 до 10 включительно |
+
+`characters_config`:
+
+```json
+{
+  "respawnDelaySeconds": 5
+}
+```
+
+Обязательное поле `respawnDelaySeconds` принимает конечное число не меньше
+нуля; дробные значения допустимы. Отсутствующее поле, отрицательное значение,
+неверный тип, бесконечность и неизвестные поля отклоняются.
+`CharactersConfigCodec` создаёт неизменяемую серверную модель
+`{ RespawnDelaySeconds = value }`. `CharacterModule` получает эту задержку при
+инициализации; конфигурация `Characters` не входит в клиентский набор и не
+имеет `ToClient`.
+
+`player_slots_config`:
+
+```json
+{
+  "strategy": "Enabled"
+}
+```
+
+Допускаются только точные значения `Enabled` и `Disabled`. Выбор остаётся на
+сервере: он создаёт одну соответствующую стратегию слотов игроков и не
+передаёт эту конфигурацию клиенту.
+
+`friends_config`:
+
+```json
+{
+  "minInviteCapacity": 3,
+  "maxInviteCapacity": 3,
+  "reserveLifetimeSeconds": 120
+}
+```
+
+Минимум и максимум — конечные неотрицательные целые числа, причём минимум не
+больше максимума; срок резерва — положительное конечное число. Неизвестные поля
+отклоняются. Конфигурация остаётся серверной: клиент получает только
+авторитетный снимок `Friends` через общий снимок сохранения и сообщения
+изменения состояния.
 
 `statistics_config`:
 
@@ -141,45 +208,52 @@ The codec accepts only finite values within these bounds:
 }
 ```
 
-The three built-in types are required. Projects add stable custom type IDs in
-`snapshotTypes`, but only built-ins may appear in `publicProjection`.
-`AllowOnly` and `AllowAllExcept` filters are copied into each new snapshot.
-The codec applies field/count/string/metadata/record/provider/response caps.
-`maxStatisticIdLength` must be at least 36 so every accepted configuration can
-represent the mandatory Wallet transaction GUID and the adapter's code-owned
-source/statistic IDs. Aggregate provider budgeting reserves every retained
-snapshot plus the larger of a maximum ordered cursor or a maximum exact
-EventId ledger for each dedupe source, including bounded identifier and JSON
-encoding overhead. The practical `16 × 64` dedupe defaults fit the 512 KiB
-provider budget alongside the configured snapshot maxima; larger values remain
-within the code hard caps only when the complete theoretical budget fits.
-The default public projection is empty. See
-[Statistics.md](Statistics.md) for lifecycle and API semantics.
+Три встроенных типа обязательны. Проекты добавляют устойчивые собственные
+идентификаторы типов в `snapshotTypes`, но в `publicProjection` допустимы только
+встроенные типы. Фильтры `AllowOnly` и `AllowAllExcept` копируются в каждый новый
+снимок. Декодер применяет ограничения полей, количества элементов, строк,
+метаданных, записей, поставщиков и ответов.
 
-`saveRequestCooldownSeconds` accepts finite values from `1` through `3600`.
-The positive lower bound is code-owned safety policy: every accepted
-Statistics configuration retains the shared requested-save coalescing window.
+`maxStatisticIdLength` должен быть не меньше 36, чтобы любая принятая
+конфигурация могла представить обязательный глобально уникальный
+идентификатор транзакции `Wallet` и заданные кодом идентификаторы источника и
+показателя адаптера. Общий расчёт объёма поставщика учитывает каждый
+сохраняемый снимок и для каждого источника защиты от повторов больший из двух
+максимумов: упорядоченный указатель или точный журнал `EventId`. В расчёт входят
+ограниченные идентификаторы и накладные расходы кодирования JSON. Примерные
+пределы `16 × 64` для защиты от повторов помещаются в объём поставщика 512 КиБ
+вместе с указанными максимумами снимков. Большие значения допускаются жёсткими
+пределами кода, только если помещается полный теоретический объём.
+Исходная общедоступная проекция пуста. Жизненный цикл и смысл программного
+интерфейса описаны в [системе статистики](Statistics.md).
 
-All three models are startup-only for a server generation. Publishing a newer
-Experience Config makes `UpdateAvailable` fire, but it does not change active
-wallet grants, autosave scheduling, snapshot retry policy, or active statistic
-filters/retention. Those values apply after the next server/client bootstrap
-unless a future domain-safe coordinator explicitly adopts a refreshed catalog
-generation.
+`saveRequestCooldownSeconds` принимает конечные значения от `1` до `3600`
+включительно. Положительная нижняя граница является заданным кодом правилом
+безопасности: каждая принятая конфигурация `Statistics` сохраняет общее окно
+объединения запросов сохранения.
 
-When a later generation reduces snapshot retention, Statistics reconciliation
-deterministically removes only the oldest excess closed records before
-validation and preserves the newest records plus active/pending snapshots,
-counters, values, metadata, filters, and deduplication state. Other persisted
-limit reductions remain fail-closed and may require an explicit migration.
-Retention pruning itself also validates every old record and its ID/counter
-relationship first, so it cannot trim away malformed or conflicting data and
-make a corrupt profile appear valid.
+Все шесть перечисленных моделей применяются при запуске поколения сервера.
+Публикация новой Experience Config вызывает `UpdateAvailable`, но не меняет
+действующие начальные начисления, расписание автосохранения, правила повторов
+снимка, фильтры и глубину хранения статистики, задержку возрождения, стратегию
+слотов или параметры приглашений. Новые значения применяются при следующем
+запуске сервера и соответствующем запуске клиента, если будущий координатор
+явно не введёт безопасное для предметных систем принятие нового поколения.
 
-## Client disclosure
+Когда последующее поколение уменьшает глубину хранения снимков, согласование
+`Statistics` перед итоговой проверкой детерминированно удаляет только самые
+старые лишние закрытые записи. Новейшие записи, активные и ожидающие снимки,
+счётчики, значения, метаданные, фильтры и состояние защиты от повторов
+сохраняются. Другие сокращения пределов сохраняемых данных приводят к отказу
+проверки и могут потребовать явного преобразования. Само сокращение глубины
+хранения сначала проверяет каждую старую запись и связь её идентификатора со
+счётчиком, поэтому не может скрыть повреждённые или противоречивые данные
+удалением и представить повреждённый профиль как правильный.
 
-Client access is deny-by-default. The server manifest maps a public bundle ID
-to logical config IDs:
+## Доступ клиента
+
+По умолчанию клиенту запрещён доступ. Серверный перечень связывает
+общедоступный идентификатор набора с логическими идентификаторами конфигурации:
 
 ```lua
 ClientBundles = {
@@ -189,112 +263,116 @@ ClientBundles = {
 }
 ```
 
-The allowlist is server code, not an Experience Config. A newly created key
-therefore remains server-only until code review explicitly exposes it.
-The template exposes only the client-safe GlobalSave retry policy; Wallet and
-Statistics configuration remain server-only. Statistics current-state reads
-use their own bounded, server-projected domain DTO rather than disclosing this
-configuration. A project that adds another client config must add its logical
-ID, explicit projection, and matching client decoder in reviewed code.
+Список разрешений находится в серверном коде. Новый ключ остаётся доступным
+только серверу, пока проверенное изменение кода явно не откроет его клиенту.
+Шаблон раскрывает клиенту только безопасную политику повторов `GlobalSave`.
+Конфигурации `Wallet`, `Statistics`, `Characters`, `PlayerSlots` и `Friends` остаются только
+на сервере. Текущие чтения `Statistics` используют отдельную ограниченную
+серверную проекцию предметных данных и не раскрывают конфигурацию. Для новой
+клиентской конфигурации проект добавляет её устойчивый идентификатор, явную
+проекцию и соответствующий клиентский декодер в проверяемом коде.
 
-Every exposed definition requires `ToClient`. This function creates a DTO and
-is the only place where server data crosses the disclosure boundary. Fields
-such as drop weights, server authority rules, anti-cheat tolerances, unreleased
-content, and secrets stay out of that DTO.
+Каждое доступное клиенту определение требует `ToClient`. Эта функция создаёт
+объект передачи данных и является единственным местом перехода серверных
+данных через границу раскрытия конфигурации. В него не входят веса выпадения,
+правила серверных полномочий, допустимые отклонения защиты от нечестной игры,
+невыпущенное содержимое и секреты.
 
-The client asks for a named bundle, never an Experience Config key. The
-server returns a cached, prevalidated bundle:
-
-```text
-Experience Config snapshot
-  -> server codecs
-  -> immutable server generation
-  -> explicit client projections
-  -> named bundle
-  -> communication request
-  -> client codecs
-  -> immutable client generation
-```
-
-`ClientConfigCatalog` loads its bootstrap bundle after communication and
-before save/domain initialization. Project client modules add matching
-definitions to `ClientConfigManifest` and read the result through
-`Services.Config`.
-
-## Transport
-
-Config bootstrap happens before the normal `ClientReady` state. Batched
-server-to-client messages intentionally wait for `ClientReady`, so using them
-for this request would deadlock initialization.
-
-The communication module therefore owns one bounded `Request` RemoteFunction.
-Request types must be registered with validators. Both request and response
-use `CommunicationSerialize`, per-player request/byte rate limits, and the
-single-message size limit. The API is for synchronous server-read boundaries;
-ordinary runtime changes remain compact batched messages.
-
-A client bundle is capped at 56 KiB estimated size, below the communication
-single-message limit. An Experience Config may be larger, so client
-projections must be split or reduced when necessary.
-
-## Refresh
-
-`ConfigSnapshot.UpdateAvailable` only reports that a newer source exists. It
-does not mutate the published catalog. A domain coordinator may call
-`ExperienceConfigCatalog:Refresh()` at a safe boundary.
-
-Catalog update and generation-change notifications use the shared side-local
-contract documented in [Signal.md](Signal.md).
-
-Refresh follows:
+Клиент запрашивает именованный набор, а не ключ Experience Config. Сервер
+возвращает заранее проверенный набор из кеша:
 
 ```text
-refresh source snapshot
-  -> decode all definitions
-  -> validate all projections and bundle sizes
-  -> publish generation N+1 on complete success
+Снимок Experience Config
+  -> серверные декодеры
+  -> неизменяемое серверное поколение
+  -> явные клиентские проекции
+  -> именованный набор
+  -> запрос через модуль связи
+  -> клиентские декодеры
+  -> неизменяемое клиентское поколение
 ```
 
-Any failure preserves generation `N`. Client refresh similarly constructs a
-complete temporary generation and rejects stale or invalid results. The
-template deliberately does not automatically reinitialize domain providers:
-each project must choose whether a config applies immediately, between
-rounds, on the next session, or only after server restart.
+`ClientConfigCatalog` загружает начальный набор после запуска связи и до
+инициализации сохранения и предметных систем. Проектные клиентские модули
+добавляют соответствующие определения в `ClientConfigManifest` и читают
+результат через `Services.Config`.
 
-## Wallet initialization
+## Передача данных
 
-Wallet provider version 3 persists flat currency balances,
-`IsInitialized`, and server-only `LastTransactionSequence`. A missing Wallet
-provider is a new wallet:
+Начальная загрузка конфигурации происходит до обычного состояния
+`ClientReady`. Пакетированные сообщения сервера клиенту намеренно ожидают
+`ClientReady`, поэтому их использование для этого запроса создало бы
+взаимную блокировку запуска.
+
+Поэтому модуль связи владеет одним ограниченным `RemoteFunction` с именем
+`Request`. Типы запросов регистрируются вместе с проверяющими функциями. Запрос
+и ответ используют `CommunicationSerialize`, ограничения частоты запросов и
+байтов для каждого игрока и предел размера одного сообщения. Программный
+интерфейс предназначен для синхронного чтения серверных данных; обычные
+изменения времени исполнения остаются компактными пакетированными сообщениями.
+
+Оценочный размер клиентского набора ограничен 56 КиБ, что ниже предела одного
+сообщения связи. Experience Config может быть больше, поэтому при
+необходимости клиентские проекции разделяют или сокращают.
+
+## Обновление
+
+`ConfigSnapshot.UpdateAvailable` только сообщает о наличии нового источника
+и не меняет опубликованный каталог. Координатор предметной системы может
+вызвать `ExperienceConfigCatalog:Refresh()` в безопасной точке жизненного цикла.
+
+Уведомления об обновлении каталога и смене поколения используют общий контракт
+внутри одной стороны, описанный в [сигналах](Signal.md).
+
+Порядок обновления:
 
 ```text
-CreateDefault with IsInitialized=false
-  -> install memento
-  -> Run applies wallet_config.startingBalances
-  -> set IsInitialized=true
-  -> mark Wallet dirty
-  -> persist provider version 3
+Обновить исходный снимок
+  -> декодировать все определения
+  -> проверить все проекции и размеры наборов
+  -> опубликовать следующее поколение только при полном успехе
 ```
 
-Repeated `Run` and later loads see `IsInitialized=true` and never apply the
-startup grant again. Version 1 wallets did not have the flag; reconciliation
-preserves their balances and sets the flag to `true`, preventing an upgrade
-from granting existing players a second starting balance. Version 2 wallets
-gain sequence zero without changing balances. Both fields remain server-only
-and are removed by `ToClientMemento`.
+Любая ошибка сохраняет поколение `N`. Клиентское обновление также строит полное
+временное поколение и отклоняет устаревшие или неверные результаты. Шаблон
+намеренно не переинициализирует предметных поставщиков автоматически: каждый
+проект выбирает, применять ли конфигурацию сразу, между раундами, в следующем
+сеансе или только после перезапуска сервера.
 
-## Failure policy
+## Инициализация кошелька
 
-- Missing or invalid required data during initial server bootstrap is fatal.
-- A failed live refresh preserves the last valid generation.
-- An unknown client bundle is reported only as unavailable.
-- Client startup retries temporary `NotReady`, rate-limit, and transport
-  failures for a bounded interval.
-- No partial server or client model becomes visible.
+Поставщик `Wallet` версии 3 сохраняет плоскую таблицу остатков валют,
+`IsInitialized` и доступный только серверу `LastTransactionSequence`.
+Отсутствие поставщика `Wallet` означает новый кошелёк:
 
-## Tests
+```text
+CreateDefault с IsInitialized=false
+  -> установить снимок состояния
+  -> Run применяет wallet_config.startingBalances
+  -> установить IsInitialized=true
+  -> пометить Wallet изменённым
+  -> сохранить поставщика версии 3
+```
 
-Run in Studio Play:
+Повторный `Run` и последующие загрузки видят `IsInitialized=true` и не повторяют
+начальное начисление. В кошельках версии 1 этого признака не было: согласование
+сохраняет их остатки и устанавливает `true`, чтобы обновление не выдавало
+существующим игрокам начальные средства повторно. Кошельки версии 2 получают
+нулевой номер последовательности без изменения остатков. Оба поля доступны
+только серверу и удаляются из клиентской проекции через `ToClientMemento`.
+
+## Правила обработки ошибок
+
+- Отсутствие или ошибка обязательных данных останавливает начальный запуск сервера.
+- Неудачное обновление сохраняет последнее правильное поколение.
+- Неизвестный клиентский набор представляется только как недоступный.
+- Клиентский запуск повторяет запросы после временных ошибок `NotReady`,
+  ограничения частоты и ошибок передачи в течение ограниченного времени.
+- Частичная серверная или клиентская модель не становится наблюдаемой.
+
+## Проверки
+
+В игровом режиме Studio выполнить:
 
 ```lua
 require(game.ServerScriptService.Tests.ConfigCatalogTestRunner).runAll()
@@ -302,12 +380,24 @@ require(game.ServerScriptService.Tests.SystemTestRunner).runAll()
 require(game.ServerScriptService.Tests.ProductionIntegrationTestRunner).runAll()
 ```
 
-The focused suite uses injected ConfigService and communication fakes. It does
-not depend on live Experience Configs.
+Направленный набор использует внедрённые подмены `ConfigService` и связи.
+Он не зависит от действующих облачных Experience Configs.
 
-TF-0005 local-config tests belong to `AudioCatalogTestRunner` and
-`AudioIntegrationTestRunner`, not `ConfigCatalogTestRunner`; a regression test
-must also prove that non-audio configuration still uses Experience Config.
+Проверки локальной конфигурации TF-0005 принадлежат `AudioCatalogTestRunner` и
+`AudioIntegrationTestRunner`, а не `ConfigCatalogTestRunner`. Проверка
+отсутствия регрессий также должна подтвердить, что конфигурация вне звуковой
+подсистемы продолжает использовать Experience Config.
 
-For the required order of preparing a dedicated real-API environment, see
-[IntegrationTesting.md](IntegrationTesting.md).
+Обязательный порядок подготовки выделенной среды с настоящими обращениями к
+службам описан в [объединительной проверке](IntegrationTesting.md).
+
+## Срок попытки и срок резерва приглашения
+
+`reserveLifetimeSeconds` задаёт полный срок резерва после принятого
+результата `PromptRequested`; текущая согласованная конфигурация — 120 секунд.
+Десятисекундный предел попытки от `RequestInvite` принадлежит коду и не
+является новым ключом Experience Config. В него входят проверка дружбы и
+ожидания программного интерфейса. Схема `friends_config` не расширяется.
+Предварительное место ограничено сроком попытки; неудачный повтор не
+сокращает старый полноценный резерв. Локальное предложение и `Processing`
+сохраняют свои сроки. См. [ADR-0052](adr/template/0052-separate-invite-attempt-and-reservation-deadlines.md).

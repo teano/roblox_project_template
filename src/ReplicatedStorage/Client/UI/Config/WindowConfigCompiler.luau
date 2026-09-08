@@ -5,6 +5,7 @@ local Compiler = {}
 local ALLOWED_FIELDS = table.freeze({
 	WindowId = true,
 	AssetId = true,
+	AssetKey = true,
 	CreateView = true,
 	TryCastView = true,
 	InitializeView = true,
@@ -40,16 +41,26 @@ local function validLimit(value: any): boolean
 		and (value == math.huge or (value >= 0 and value % 1 == 0))
 end
 
+local function validAssetId(value: any): boolean
+	return typeof(value) == "number"
+		and value >= 1
+		and value <= MAX_SAFE_INTEGER
+		and value % 1 == 0
+end
+
+local function validAssetKey(value: any): boolean
+	return typeof(value) == "string"
+		and value ~= ""
+		and #value <= 128
+		and string.match(value, "^[A-Za-z0-9][A-Za-z0-9._-]*$") ~= nil
+end
+
 local function validDefinition(definition: any): boolean
 	if typeof(definition) ~= "table"
 		or typeof(definition.WindowId) ~= "string"
 		or definition.WindowId == ""
 		or #definition.WindowId > 128
 		or string.match(definition.WindowId, "^[A-Za-z0-9][A-Za-z0-9._-]*$") == nil
-		or typeof(definition.AssetId) ~= "number"
-		or definition.AssetId < 1
-		or definition.AssetId > MAX_SAFE_INTEGER
-		or definition.AssetId % 1 ~= 0
 		or typeof(definition.CreateView) ~= "function"
 		or typeof(definition.TryCastView) ~= "function"
 		or typeof(definition.InitializeView) ~= "function"
@@ -59,6 +70,14 @@ local function validDefinition(definition: any): boolean
 			and definition.BackgroundPolicy ~= "Absorb"
 			and definition.BackgroundPolicy ~= "CloseOnActivate")
 		or (definition.Preload ~= nil and typeof(definition.Preload) ~= "boolean")
+	then
+		return false
+	end
+	local hasAssetId = definition.AssetId ~= nil
+	local hasAssetKey = definition.AssetKey ~= nil
+	if hasAssetId == hasAssetKey
+		or (hasAssetId and not validAssetId(definition.AssetId))
+		or (hasAssetKey and not validAssetKey(definition.AssetKey))
 	then
 		return false
 	end

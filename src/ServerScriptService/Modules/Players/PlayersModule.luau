@@ -6,458 +6,386 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 
 export type DisconnectableConnection = Signal.Connection
-
 export type ConnectEvent<T...> = {
 	Connect: (self: ConnectEvent<T...>, callback: (T...) -> ()) -> DisconnectableConnection,
 }
-
 export type PlayersLifecycleSignal<T...> = {
 	Connect: (self: PlayersLifecycleSignal<T...>, callback: (T...) -> ()) -> DisconnectableConnection,
 	Once: (self: PlayersLifecycleSignal<T...>, callback: (T...) -> ()) -> DisconnectableConnection,
 }
-
 export type ServerPlayersServiceBoundary = {
+	CharacterAutoLoads: boolean,
 	PlayerAdded: ConnectEvent<Player>,
 	PlayerRemoving: ConnectEvent<Player>,
-	GetPlayers: (self: ServerPlayersServiceBoundary) -> { Player },
-	GetPlayerByUserId: (self: ServerPlayersServiceBoundary, userId: number) -> Player?,
-	GetPlayerFromCharacter: (self: ServerPlayersServiceBoundary, character: Model) -> Player?,
+	GetPlayers: (self: any) -> { Player },
+	GetPlayerByUserId: (self: any, userId: number) -> Player?,
+	GetPlayerFromCharacter: (self: any, character: Model) -> Player?,
 }
-
+export type PlayersAdmissionOperation = {
+	Player: Player,
+	Generation: number,
+}
+export type PlayersPrepareResult = {
+	Ok: boolean,
+	Operation: PlayersAdmissionOperation?,
+	Error: string?,
+}
 export type PlayersModule = {
 	Initialize: (self: PlayersModule) -> (),
+	StartPlatformObservation: (self: PlayersModule) -> boolean,
 	Stop: (self: PlayersModule) -> (),
+	SetCharacterAutoLoads: (self: PlayersModule, enabled: boolean) -> (),
 	GetPlayers: (self: PlayersModule) -> { Player },
 	GetPlayerByUserId: (self: PlayersModule, userId: number) -> Player?,
 	GetPlayerFromCharacter: (self: PlayersModule, character: Model) -> Player?,
-	ObservePlayers: (
-		self: PlayersModule,
-		onAdded: (Player) -> (),
-		onRemoving: ((Player) -> ())?
-	) -> () -> (),
+	ObservePlayers: (self: PlayersModule, (Player) -> (), ((Player) -> ())?) -> () -> (),
+	PrepareApproval: (self: PlayersModule, player: Player) -> PlayersPrepareResult,
+	CommitApproval: (self: PlayersModule, operation: PlayersAdmissionOperation) -> boolean,
+	CancelApproval: (self: PlayersModule, operation: PlayersAdmissionOperation) -> (),
+	EmitConnectionApproved: (self: PlayersModule, operation: PlayersAdmissionOperation) -> boolean,
+	AdmitPlayer: (self: PlayersModule, player: Player) -> boolean,
+	DisconnectPlayer: (self: PlayersModule, player: Player, reason: string) -> boolean,
 	PlayerAdded: PlayersLifecycleSignal<Player>,
 	PlayerRemoving: PlayersLifecycleSignal<Player>,
 	CharacterAdded: PlayersLifecycleSignal<Player, Model>,
 	CharacterRemoving: PlayersLifecycleSignal<Player, Model>,
+	ConnectionApproved: PlayersLifecycleSignal<Player>,
 }
 
-type LifecycleState = "fresh" | "initializing" | "active" | "failed" | "stopped"
-
+type State = "fresh" | "active" | "failed" | "stopped"
 type TrackedPlayer = {
+	Generation: number,
 	Character: Model?,
-	Connections: { DisconnectableConnection },
+	Connections: { any },
 }
-
-type ObserverRecord = {
+type Approval = PlayersAdmissionOperation & {
+	Stage: "prepared" | "committed" | "cancelled" | "emitted",
+}
+type Observer = {
 	Active: boolean,
 	Observed: { [Player]: boolean },
 	OnAdded: ((Player) -> ())?,
 	OnRemoving: ((Player) -> ())?,
-	AddedConnection: DisconnectableConnection?,
-	RemovingConnection: DisconnectableConnection?,
+	Added: any?,
+	Removing: any?,
 }
-
-type PlayersModuleImpl = PlayersModule & {
+type Impl = PlayersModule & {
 	_players: ServerPlayersServiceBoundary,
-	_state: LifecycleState,
-	_connections: { DisconnectableConnection },
-	_trackedPlayers: { [Player]: TrackedPlayer },
-	_observers: { [ObserverRecord]: boolean },
-	_signalsDestroyed: boolean,
-	_playerAddedSignal: Signal.Signal<Player>,
-	_playerRemovingSignal: Signal.Signal<Player>,
-	_characterAddedSignal: Signal.Signal<Player, Model>,
-	_characterRemovingSignal: Signal.Signal<Player, Model>,
+	_state: State,
+	_observationStarted: boolean,
+	_connections: { any },
+	_tracked: { [Player]: TrackedPlayer },
+	_observers: { [Observer]: boolean },
+	_nextGeneration: number,
+	_added: Signal.Signal<Player>,
+	_removing: Signal.Signal<Player>,
+	_characterAdded: Signal.Signal<Player, Model>,
+	_characterRemoving: Signal.Signal<Player, Model>,
+	_connectionApproved: Signal.Signal<Player>,
+	_approvals: { [Approval]: boolean },
 }
 
-local PlayersModule = {}
-PlayersModule.__index = PlayersModule
+local Module = {}
+Module.__index = Module
 
-local function lifecycleError(state: LifecycleState): string
+local function lifecycleError(state: State): string
 	if state == "fresh" then
 		return "PlayersModuleNotInitialized"
-	elseif state == "initializing" then
-		return "PlayersModuleInitializing"
 	end
 	return "PlayersModuleTerminal"
 end
 
-local function requireActive(self: PlayersModuleImpl)
+local function requireActive(self: Impl)
 	if self._state ~= "active" then
 		error(lifecycleError(self._state), 3)
 	end
 end
 
-local function makeLifecycleSignal<T...>(
-	requireConnection: () -> (),
+local function makeSurface<T...>(
+	check: () -> (),
 	isActive: () -> boolean
 ): (PlayersLifecycleSignal<T...>, Signal.Signal<T...>)
-	local backing: Signal.Signal<T...> = Signal.new()
-	local surface: PlayersLifecycleSignal<T...> = {
+	local signal = Signal.new()
+	return {
 		Connect = function(_self, callback)
-			requireConnection()
-			return backing:Connect(function(...: T...)
-				if isActive() then
-					callback(...)
-				end
+			check()
+			return signal:Connect(function(...: T...)
+				if isActive() then callback(...) end
 			end)
 		end,
 		Once = function(_self, callback)
-			requireConnection()
-			return backing:Once(function(...: T...)
-				if isActive() then
-					callback(...)
-				end
+			check()
+			return signal:Once(function(...: T...)
+				if isActive() then callback(...) end
 			end)
 		end,
-	}
-	return surface, backing
+	}, signal
 end
 
-function PlayersModule.new(playersService: ServerPlayersServiceBoundary?): PlayersModule
-	local PlayersServiceBoundaryCast = (playersService or Players) :: any
-	local players: ServerPlayersServiceBoundary = PlayersServiceBoundaryCast
-	local self: PlayersModuleImpl
-	local playerAdded: PlayersLifecycleSignal<Player>, playerAddedSignal: Signal.Signal<Player> = makeLifecycleSignal(function()
-		requireActive(self)
-	end, function()
-		return self._state == "active"
-	end)
-	local playerRemoving: PlayersLifecycleSignal<Player>, playerRemovingSignal: Signal.Signal<Player> = makeLifecycleSignal(function()
-		requireActive(self)
-	end, function()
-		return self._state == "active"
-	end)
-	local characterAdded: PlayersLifecycleSignal<Player, Model>, characterAddedSignal: Signal.Signal<Player, Model> = makeLifecycleSignal(function()
-		requireActive(self)
-	end, function()
-		return self._state == "active"
-	end)
-	local characterRemoving: PlayersLifecycleSignal<Player, Model>, characterRemovingSignal: Signal.Signal<Player, Model> = makeLifecycleSignal(function()
-		requireActive(self)
-	end, function()
-		return self._state == "active"
-	end)
-
+function Module.new(playersService: ServerPlayersServiceBoundary?, _unusedScheduler: any?): PlayersModule
+	local self: Impl
+	local added, addedSignal = makeSurface(function() requireActive(self) end, function() return self._state == "active" end)
+	local removing, removingSignal = makeSurface(function() requireActive(self) end, function() return self._state == "active" end)
+	local characterAdded, characterAddedSignal = makeSurface(function() requireActive(self) end, function() return self._state == "active" end)
+	local characterRemoving, characterRemovingSignal = makeSurface(function() requireActive(self) end, function() return self._state == "active" end)
+	local approved, approvedSignal = makeSurface(function() requireActive(self) end, function() return self._state == "active" end)
 	self = setmetatable({
-		_players = players,
+		_players = playersService or Players,
 		_state = "fresh",
+		_observationStarted = false,
 		_connections = {},
-		_trackedPlayers = {},
+		_tracked = {},
 		_observers = {},
-		_signalsDestroyed = false,
-		PlayerAdded = playerAdded,
-		PlayerRemoving = playerRemoving,
+		_nextGeneration = 0,
+		_approvals = {},
+		PlayerAdded = added,
+		PlayerRemoving = removing,
 		CharacterAdded = characterAdded,
 		CharacterRemoving = characterRemoving,
-		_playerAddedSignal = playerAddedSignal,
-		_playerRemovingSignal = playerRemovingSignal,
-		_characterAddedSignal = characterAddedSignal,
-		_characterRemovingSignal = characterRemovingSignal,
-	}, PlayersModule) :: PlayersModuleImpl
+		ConnectionApproved = approved,
+		_added = addedSignal,
+		_removing = removingSignal,
+		_characterAdded = characterAddedSignal,
+		_characterRemoving = characterRemovingSignal,
+		_connectionApproved = approvedSignal,
+	}, Module) :: any
 	return self
 end
 
-local function disconnectConnections(connections: { DisconnectableConnection })
-	for _, connection in connections do
-		connection:Disconnect()
-	end
+local function disconnectAll(connections: { any })
+	for _, connection in connections do connection:Disconnect() end
 	table.clear(connections)
 end
 
-function PlayersModule._disconnectTrackedPlayer(self: PlayersModuleImpl, player: Player)
-	local tracked = self._trackedPlayers[player]
-	if tracked == nil then
-		return
-	end
-	self._trackedPlayers[player] = nil
-	tracked.Character = nil
-	disconnectConnections(tracked.Connections)
-end
-
-function PlayersModule._disconnectObserver(self: PlayersModuleImpl, observer: ObserverRecord)
-	if not observer.Active then
-		return
-	end
+function Module:_disconnectObserver(observer: Observer)
+	if not observer.Active then return end
 	observer.Active = false
 	self._observers[observer] = nil
-	if observer.AddedConnection then
-		observer.AddedConnection:Disconnect()
-		observer.AddedConnection = nil
-	end
-	if observer.RemovingConnection then
-		observer.RemovingConnection:Disconnect()
-		observer.RemovingConnection = nil
-	end
+	if observer.Added then observer.Added:Disconnect(); observer.Added = nil end
+	if observer.Removing then observer.Removing:Disconnect(); observer.Removing = nil end
 	table.clear(observer.Observed)
 	observer.OnAdded = nil
 	observer.OnRemoving = nil
 end
 
-function PlayersModule._destroySignals(self: PlayersModuleImpl)
-	if self._signalsDestroyed then
-		return
+function Module:_removePlayer(player: Player)
+	local tracked = self._tracked[player]
+	if tracked == nil then return end
+	self._tracked[player] = nil
+	disconnectAll(tracked.Connections)
+	if tracked.Character ~= nil then
+		self._characterRemoving:Fire(player, tracked.Character)
+		tracked.Character = nil
 	end
-	self._signalsDestroyed = true
-	self._playerAddedSignal:Destroy()
-	self._playerRemovingSignal:Destroy()
-	self._characterAddedSignal:Destroy()
-	self._characterRemovingSignal:Destroy()
+	self._removing:Fire(player)
 end
 
-function PlayersModule._cleanup(self: PlayersModuleImpl)
-	disconnectConnections(self._connections)
-	local trackedPlayers = {}
-	for player in self._trackedPlayers do
-		table.insert(trackedPlayers, player)
+function Module:_trackPlayer(player: Player)
+	if self._state ~= "active" or self._tracked[player] ~= nil
+		or self._players:GetPlayerByUserId(player.UserId) ~= player
+	then return end
+	self._nextGeneration += 1
+	local tracked: TrackedPlayer = { Generation = self._nextGeneration, Character = nil, Connections = {} }
+	self._tracked[player] = tracked
+	local ok, err = xpcall(function()
+		table.insert(tracked.Connections, player.CharacterAdded:Connect(function(character)
+			if self._state ~= "active" or self._tracked[player] ~= tracked or tracked.Character == character then return end
+			tracked.Character = character
+			self._characterAdded:Fire(player, character)
+		end))
+		table.insert(tracked.Connections, player.CharacterRemoving:Connect(function(character)
+			if self._state ~= "active" or self._tracked[player] ~= tracked or tracked.Character ~= character then return end
+			tracked.Character = nil
+			self._characterRemoving:Fire(player, character)
+		end))
+	end, debug.traceback)
+	if not ok then
+		self._tracked[player] = nil
+		disconnectAll(tracked.Connections)
+		error(err, 0)
 	end
-	for _, player in trackedPlayers do
-		self:_disconnectTrackedPlayer(player)
+	local character = player.Character
+	if character ~= nil and tracked.Character ~= character then
+		tracked.Character = character
+		self._characterAdded:Fire(player, character)
 	end
+	self._added:Fire(player)
+end
+
+function Module:_cleanup()
+	disconnectAll(self._connections)
+	local players = {}
+	for player in self._tracked do table.insert(players, player) end
+	for _, player in players do self:_removePlayer(player) end
 	local observers = {}
-	for observer in self._observers do
-		table.insert(observers, observer)
-	end
-	for _, observer in observers do
-		self:_disconnectObserver(observer)
-	end
-	self:_destroySignals()
+	for observer in self._observers do table.insert(observers, observer) end
+	for _, observer in observers do self:_disconnectObserver(observer) end
+	for operation in self._approvals do operation.Stage = "cancelled" end
+	table.clear(self._approvals)
 end
 
-function PlayersModule._assertAcquiring(self: PlayersModuleImpl, connection: DisconnectableConnection?)
-	if self._state == "initializing" or self._state == "active" then
-		return
-	end
-	if connection then
-		connection:Disconnect()
-	end
-	error("PlayersModuleTerminal", 3)
+function Module:_destroySignals()
+	self._added:Destroy()
+	self._removing:Destroy()
+	self._characterAdded:Destroy()
+	self._characterRemoving:Destroy()
+	self._connectionApproved:Destroy()
 end
 
-function PlayersModule._emitCharacterAdded(self: PlayersModuleImpl, player: Player, character: Model)
-	local tracked = self._trackedPlayers[player]
-	if tracked == nil or tracked.Character == character then
-		return
-	end
-	tracked.Character = character
-	self._characterAddedSignal:Fire(player, character)
-end
-
-function PlayersModule._emitCharacterRemoving(self: PlayersModuleImpl, player: Player, character: Model)
-	local tracked = self._trackedPlayers[player]
-	if tracked == nil or tracked.Character ~= character then
-		return
-	end
-	tracked.Character = nil
-	self._characterRemovingSignal:Fire(player, character)
-end
-
-function PlayersModule._trackPlayer(self: PlayersModuleImpl, player: Player)
-	if self._state ~= "initializing" and self._state ~= "active" then
-		return
-	end
-	if self._players:GetPlayerByUserId(player.UserId) ~= player or self._trackedPlayers[player] ~= nil then
-		return
-	end
-
-	local tracked: TrackedPlayer = {
-		Character = nil,
-		Connections = {},
-	}
-	self._trackedPlayers[player] = tracked
-	local ok, trackError = xpcall(function()
-		local addedConnection = player.CharacterAdded:Connect(function(character)
-			if self._state == "initializing" or self._state == "active" then
-				self:_emitCharacterAdded(player, character)
-			end
-		end)
-		self:_assertAcquiring(addedConnection)
-		table.insert(tracked.Connections, addedConnection)
-
-		local removingConnection = player.CharacterRemoving:Connect(function(character)
-			if self._state == "initializing" or self._state == "active" then
-				self:_emitCharacterRemoving(player, character)
-			end
-		end)
-		self:_assertAcquiring(removingConnection)
-		table.insert(tracked.Connections, removingConnection)
-	end, debug.traceback)
-	if not ok then
-		self:_disconnectTrackedPlayer(player)
-		error(trackError, 0)
-	end
-
-	self._playerAddedSignal:Fire(player)
-	local currentCharacter = player.Character
-	if currentCharacter then
-		self:_emitCharacterAdded(player, currentCharacter)
-	end
-end
-
-function PlayersModule._removePlayer(self: PlayersModuleImpl, player: Player)
-	local tracked = self._trackedPlayers[player]
-	if tracked == nil then
-		return
-	end
-	if tracked.Character then
-		self:_emitCharacterRemoving(player, tracked.Character)
-	end
-	self._playerRemovingSignal:Fire(player)
-	self:_disconnectTrackedPlayer(player)
-end
-
-function PlayersModule.Initialize(self: PlayersModuleImpl)
-	if self._state == "active" then
-		return
-	elseif self._state == "initializing" then
-		error("PlayersModuleInitializing", 2)
-	elseif self._state == "failed" or self._state == "stopped" then
-		error("PlayersModuleTerminal", 2)
-	end
-
-	self._state = "initializing"
-	local ok, initializationError = xpcall(function()
-		local addedConnection = self._players.PlayerAdded:Connect(function(player)
-			self:_trackPlayer(player)
-		end)
-		self:_assertAcquiring(addedConnection)
-		table.insert(self._connections, addedConnection)
-
-		local removingConnection = self._players.PlayerRemoving:Connect(function(player)
-			if self._state == "initializing" or self._state == "active" then
-				self:_removePlayer(player)
-			end
-		end)
-		self:_assertAcquiring(removingConnection)
-		table.insert(self._connections, removingConnection)
-
-		local currentPlayers = self._players:GetPlayers()
-		self:_assertAcquiring(nil)
-		for _, player in currentPlayers do
-			self:_trackPlayer(player)
-			self:_assertAcquiring(nil)
-		end
-	end, debug.traceback)
-	if not ok then
-		local stopped = self._state == "stopped"
-		self:_cleanup()
-		self._state = if stopped then "stopped" else "failed"
-		error(initializationError, 0)
-	end
-	if self._state ~= "initializing" then
-		self:_cleanup()
-		error("PlayersModuleTerminal", 2)
-	end
+function Module:Initialize()
+	if self._state == "active" then return end
+	if self._state == "failed" or self._state == "stopped" then error("PlayersModuleTerminal", 2) end
 	self._state = "active"
 end
 
-function PlayersModule.GetPlayers(self: PlayersModuleImpl): { Player }
+function Module:StartPlatformObservation(): boolean
+	requireActive(self)
+	if self._observationStarted then return false end
+	local ok, err = xpcall(function()
+		table.insert(self._connections, self._players.PlayerAdded:Connect(function(player)
+			self:_trackPlayer(player)
+		end))
+		table.insert(self._connections, self._players.PlayerRemoving:Connect(function(player)
+			self:_removePlayer(player)
+		end))
+		for _, player in self._players:GetPlayers() do self:_trackPlayer(player) end
+	end, debug.traceback)
+	if not ok then
+		self:_cleanup()
+		self._state = "failed"
+		error(err, 0)
+	end
+	self._observationStarted = true
+	return true
+end
+
+function Module:SetCharacterAutoLoads(enabled: boolean)
+	requireActive(self)
+	assert(typeof(enabled) == "boolean", "CharacterAutoLoads must be boolean")
+	self._players.CharacterAutoLoads = enabled
+end
+
+function Module:GetPlayers(): { Player }
 	requireActive(self)
 	return self._players:GetPlayers()
 end
 
-function PlayersModule.GetPlayerByUserId(self: PlayersModuleImpl, userId: number): Player?
+function Module:GetPlayerByUserId(userId: number): Player?
 	requireActive(self)
 	return self._players:GetPlayerByUserId(userId)
 end
 
-function PlayersModule.GetPlayerFromCharacter(self: PlayersModuleImpl, character: Model): Player?
+function Module:GetPlayerFromCharacter(character: Model): Player?
 	requireActive(self)
 	return self._players:GetPlayerFromCharacter(character)
 end
 
-local function traceObserverError(observerError: unknown): string
-	return debug.traceback(tostring(observerError), 2)
-end
-
-function PlayersModule.ObservePlayers(
-	self: PlayersModuleImpl,
-	onAdded: (Player) -> (),
-	onRemoving: ((Player) -> ())?
-): () -> ()
+function Module:ObservePlayers(onAdded: (Player) -> (), onRemoving: ((Player) -> ())?): () -> ()
 	requireActive(self)
+	if not self._observationStarted then error("PlayersModuleObservationNotStarted", 2) end
 	assert(typeof(onAdded) == "function", "onAdded required")
 	assert(onRemoving == nil or typeof(onRemoving) == "function", "onRemoving must be a function")
-
-	local observer: ObserverRecord = {
-		Active = true,
-		Observed = {},
-		OnAdded = onAdded,
-		OnRemoving = onRemoving,
-		AddedConnection = nil,
-		RemovingConnection = nil,
-	}
+	local observer: Observer = { Active = true, Observed = {}, OnAdded = onAdded, OnRemoving = onRemoving, Added = nil, Removing = nil }
 	self._observers[observer] = true
-
-	local function emitAdded(player: Player)
-		if not observer.Active
-			or self._state ~= "active"
-			or observer.Observed[player]
-			or self._players:GetPlayerByUserId(player.UserId) ~= player
-		then
-			return
-		end
+	local function added(player: Player)
+		if not observer.Active or observer.Observed[player] or self._players:GetPlayerByUserId(player.UserId) ~= player then return end
 		observer.Observed[player] = true
-		local callback = observer.OnAdded
-		if callback and observer.Active and self._state == "active" then
-			callback(player)
-		end
+		if observer.OnAdded then observer.OnAdded(player) end
 	end
-
-	local function emitRemoving(player: Player)
-		if not observer.Active or not observer.Observed[player] then
-			return
-		end
+	local function removing(player: Player)
+		if not observer.Active or not observer.Observed[player] then return end
 		observer.Observed[player] = nil
-		local callback = observer.OnRemoving
-		if callback and observer.Active and self._state == "active" then
-			callback(player)
-		end
+		if observer.OnRemoving then observer.OnRemoving(player) end
 	end
-
-	local connectOk, connectError = xpcall(function()
-		observer.AddedConnection = self.PlayerAdded:Connect(emitAdded)
-		observer.RemovingConnection = self.PlayerRemoving:Connect(emitRemoving)
-	end, debug.traceback)
-	if not connectOk then
-		self:_disconnectObserver(observer)
-		error(connectError, 0)
-	end
-
-	local enumerationOk, enumerationError = xpcall(function()
+	local ok, err = xpcall(function()
+		observer.Added = self.PlayerAdded:Connect(added)
+		observer.Removing = self.PlayerRemoving:Connect(removing)
 		for _, player in self._players:GetPlayers() do
-			if not observer.Active or self._state ~= "active" then
-				break
-			end
-			if not observer.Observed[player] and self._players:GetPlayerByUserId(player.UserId) == player then
-				observer.Observed[player] = true
-				local callback = observer.OnAdded
-				if callback then
-					local callbackOk, callbackError = xpcall(callback, traceObserverError, player)
-					if not callbackOk then
-						warn(`[PlayersModule] initial observer error: {callbackError}`)
-					end
-				end
-			end
+			local delivered, deliveryError = xpcall(function()
+				added(player)
+			end, debug.traceback)
+			if not delivered then warn(`[PlayersModule] initial observer error: {deliveryError}`) end
 		end
 	end, debug.traceback)
-	if not enumerationOk then
-		self:_disconnectObserver(observer)
-		error(enumerationError, 0)
-	end
-
-	return function()
-		self:_disconnectObserver(observer)
-	end
+	if not ok then self:_disconnectObserver(observer); error(err, 0) end
+	return function() self:_disconnectObserver(observer) end
 end
 
-function PlayersModule.Stop(self: PlayersModuleImpl)
-	if self._state == "stopped" or self._state == "failed" then
-		self:_cleanup()
-		return
+function Module:PrepareApproval(player: Player): PlayersPrepareResult
+	requireActive(self)
+	local tracked = self._tracked[player]
+	if tracked == nil or self._players:GetPlayerByUserId(player.UserId) ~= player then
+		return table.freeze({ Ok = false, Error = "PlayerNotPresent" })
 	end
-	self._state = "stopped"
+	local operation: Approval = { Player = player, Generation = tracked.Generation, Stage = "prepared" }
+	self._approvals[operation] = true
+	return table.freeze({ Ok = true, Operation = operation })
+end
+
+function Module:CommitApproval(operation: PlayersAdmissionOperation): boolean
+	requireActive(self)
+	local internal = operation :: Approval
+	if self._approvals[internal] ~= true or internal.Stage ~= "prepared" then return false end
+	local tracked = self._tracked[internal.Player]
+	if tracked == nil or tracked.Generation ~= internal.Generation
+		or self._players:GetPlayerByUserId(internal.Player.UserId) ~= internal.Player
+	then
+		internal.Stage = "cancelled"
+		self._approvals[internal] = nil
+		return false
+	end
+	internal.Stage = "committed"
+	return true
+end
+
+function Module:CancelApproval(operation: PlayersAdmissionOperation)
+	local internal = operation :: Approval
+	if self._approvals[internal] == nil or internal.Stage == "emitted" then return end
+	internal.Stage = "cancelled"
+	self._approvals[internal] = nil
+end
+
+function Module:EmitConnectionApproved(operation: PlayersAdmissionOperation): boolean
+	requireActive(self)
+	local internal = operation :: Approval
+	if self._approvals[internal] ~= true or internal.Stage ~= "committed" then return false end
+	local tracked = self._tracked[internal.Player]
+	if tracked == nil or tracked.Generation ~= internal.Generation
+		or self._players:GetPlayerByUserId(internal.Player.UserId) ~= internal.Player
+	then
+		self:CancelApproval(operation)
+		return false
+	end
+	internal.Stage = "emitted"
+	self._approvals[internal] = nil
+	self._connectionApproved:Fire(internal.Player)
+	return true
+end
+
+-- This bridge preserves the established player-slot call site until its
+-- approved admission coordinator replaces it in the following slice. It owns
+-- no character policy: the character module receives ConnectionApproved.
+function Module:AdmitPlayer(player: Player): boolean
+	local prepared = self:PrepareApproval(player)
+	if not prepared.Ok or prepared.Operation == nil then return false end
+	if not self:CommitApproval(prepared.Operation) then
+		self:CancelApproval(prepared.Operation)
+		return false
+	end
+	return self:EmitConnectionApproved(prepared.Operation)
+end
+
+function Module:DisconnectPlayer(player: Player, reason: string): boolean
+	requireActive(self)
+	assert(typeof(reason) == "string" and reason ~= "", "Disconnect reason required")
+	if self._players:GetPlayerByUserId(player.UserId) ~= player then return false end
+	return pcall(function() player:Kick(reason) end)
+end
+
+function Module:Stop()
+	if self._state ~= "stopped" and self._state ~= "failed" then self._state = "stopped" end
 	self:_cleanup()
+	self:_destroySignals()
 end
 
-return PlayersModule
+return Module

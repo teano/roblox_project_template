@@ -1,22 +1,24 @@
-# Published teleport testing
+# Проверка опубликованной телепортации
 
-## Purpose and scope
+## Назначение и область проверки
 
-This runbook tests real Roblox transport between two published places while
-keeping the reusable template safe by default. `TeleportValidationPad` is only
-an operator harness. It is not gameplay, it does not modify `place.rbxl`, and
-the secondary project or place is only a test endpoint rather than a separate
-release-readiness target.
+Эта инструкция проверяет настоящий транспорт Roblox между двумя
+опубликованными местами, сохраняя безопасные исходные настройки шаблона.
+`TeleportValidationPad` — только проверочное средство оператора. Оно не
+является игровой механикой, не изменяет `place.rbxl`, а дополнительный проект
+или место служит только конечной точкой проверки, а не отдельным кандидатом
+на выпуск.
 
-Deterministic suites remain the authority for envelope validation, session GUID
-continuity, negative paths, client recovery, and cleanup. The published run
-adds evidence that Roblox can perform the forward, return, and rapid-repeat
-transport with the same source revision and without a save-session-lock kick.
+Детерминированные наборы остаются источником доказательств проверки
+конверта, непрерывности GUID сеанса, отрицательных исходов, восстановления
+клиента и очистки. Опубликованный запуск дополнительно подтверждает, что
+Roblox выполняет прямые, обратные и быстрые повторные переходы при одной
+редакции исходников и без отключения из-за блокировки сеанса сохранения.
 
-## Safe default
+## Безопасные исходные настройки
 
-`src/ServerScriptService/Modules/Teleport/TeleportValidationConfig.luau` ships
-with:
+`src/ServerScriptService/Modules/Teleport/TeleportValidationConfig.luau`
+поставляется со значениями:
 
 ```luau
 Enabled = false
@@ -25,78 +27,86 @@ RoutesBySourcePlaceId = {}
 AuthorizedUserIds = {}
 ```
 
-In that state `TeleportValidationPad:Initialize()` does not install a player
-observer, create a Part, or call Teleport. Do not change these defaults in a
-public reusable-template commit merely to make one operator run convenient.
+В этом состоянии `TeleportValidationPad:Initialize()` не устанавливает
+наблюдателя игроков, не создаёт `Part` и не вызывает телепортацию. Не меняйте
+эти исходные значения в общедоступном коммите переиспользуемого шаблона
+ради удобства одного проверочного запуска.
 
-## Preconditions
+## Предварительные условия
 
-1. Use two published places in the same dedicated test Experience. One is the
-   primary project under validation; the other may be a sibling repository
-   used only as the endpoint.
-2. Both endpoints must use the same reviewed Teleport source revision. Scene
-   content may differ and is outside this test unless it prevents bootstrap or
-   teleport interaction.
-3. The operator must know the intended tester UserId. A username is not a
-   stable substitute.
-4. Both exact Studio sessions must already be open and connected through their
-   own MCP plugin when Studio operations are required. Never open a duplicate
-   session because a connector is missing.
-5. Run `scripts/ensure-rojo-server.ps1` from the repository being synchronized
-   before Studio/live-sync work. It uses that project's configured endpoint,
-   so rerun it whenever switching repositories.
-6. A derived checkout must be initialized with the current
-   `scripts/template-project.ps1 init` contract before its first connection.
-   Remove inherited template `placeId`, `gameId`, and `servePlaceIds` and record
-   only independently observed identity.
+1. Используйте два опубликованных места одной выделенной проверочной игры.
+   Одно относится к проверяемому основному проекту; второе может находиться
+   в соседнем репозитории и служить только конечной точкой перехода.
+2. Оба места должны использовать одну проверенную редакцию исходников
+   телепортации. Содержимое сцены может различаться и не входит в проверку,
+   если не мешает запуску или взаимодействию с телепортацией.
+3. Оператор должен знать предполагаемый `UserId` проверяющего. Имя
+   пользователя не является устойчивой заменой.
+4. Когда требуются действия в Studio, оба точных сеанса должны быть уже
+   открыты и подключены через собственные плагины MCP. Не открывайте
+   дублирующий сеанс из-за отсутствующего соединителя.
+5. Перед действиями в Studio и работающей синхронизацией выполните
+   `scripts/ensure-rojo-server.ps1` из синхронизируемого репозитория. Команда
+   использует настроенную конечную точку этого проекта, поэтому повторяйте
+   её при каждом переключении репозитория.
+6. До первого подключения производный репозиторий должен быть
+   инициализирован по текущему контракту `scripts/template-project.ps1 init`.
+   Удалите унаследованные `placeId`, `gameId` и `servePlaceIds` шаблона
+   и запишите только независимо прочитанную идентичность.
 
-## Prepare the two repository roles
+## Подготовка двух репозиториев
 
-Record the reviewed source baseline before changing either endpoint:
+До изменения любого из мест зафиксируйте проверенную исходную основу:
 
 ```powershell
 git rev-parse HEAD
 git status --short
 ```
 
-The production implementation must be committed and the listed status must be
-clean before creating or updating an endpoint. A commit SHA does not identify
-uncommitted or untracked source. Temporary validation-config edits happen only
-after this clean baseline and are recorded separately by exact file hash.
+Производственная реализация должна быть зафиксирована коммитом, а указанный
+вывод состояния должен быть пустым до создания или обновления конечной
+точки. SHA коммита не идентифицирует незафиксированные или неотслеживаемые
+исходники. Временные изменения проверочной конфигурации допускаются только
+после этой чистой основы и записываются отдельно по точному хэшу файла.
 
-For template validation, this repository is the primary and the existing
-sibling `roblox_project_template_second_place` is only the transport endpoint.
-Fetch its template upstream and prove the reviewed template commit is an
-ancestor of the endpoint before adding endpoint-owned divergence.
+При проверке шаблона этот репозиторий является основным, а существующий
+соседний `roblox_project_template_second_place` — только конечной точкой
+транспорта. Получите изменения его исходного шаблона `upstream` и докажите,
+что проверенный коммит шаблона является предком конечной точки, прежде чем
+добавлять принадлежащие ей отклонения.
 
-For a derived game, create a separate sibling endpoint repository from the
-same clean primary-project commit, for example
-`{primary-folder}_TeleportEndpoint`. Supply a distinct endpoint repository URL
-and clone the primary repository's shared history at the recorded commit; do
-not copy a working directory or its `.git` directory, and do not bootstrap the
-endpoint from a bare template revision that omits project-owned production
-changes. The recorded primary commit must be reachable from the clone source.
-Before endpoint-owned divergence, verify `git rev-parse HEAD` is exactly the
-recorded primary baseline and `git status --short` is empty. Preserve the
-template `upstream`, replace the copied `origin` only after verifying the
-distinct endpoint destination. After divergence, prove the baseline remains
-in the exact endpoint history with both
-`git cat-file -e <primary-baseline>^{commit}` and
-`git merge-base --is-ancestor <primary-baseline> HEAD`; a merely similar tree
-or a hash-equivalent file copy is not shared history.
+Для производной игры создайте отдельный соседний репозиторий конечной точки
+от того же чистого коммита основного проекта, например
+`{primary-folder}_TeleportEndpoint`. Укажите отдельный адрес репозитория
+конечной точки и клонируйте общую историю основного репозитория на записанном
+коммите. Не копируйте рабочую папку или её каталог `.git` и не создавайте
+конечную точку из чистой редакции шаблона, в которой отсутствуют
+производственные изменения игры. Записанный основной коммит должен быть
+достижим из источника клонирования. До изменений конечной точки убедитесь,
+что `git rev-parse HEAD` точно совпадает с записанной основной основой, а
+`git status --short` ничего не выводит. Сохраните шаблонный `upstream`;
+заменяйте скопированный `origin` только после проверки отдельного назначения
+конечной точки. После внесения отклонений докажите, что основа осталась в
+истории этой конечной точки, обеими командами:
+`git cat-file -e <primary-baseline>^{commit}` и
+`git merge-base --is-ancestor <primary-baseline> HEAD`. Похожее дерево или
+копия файлов с совпадающими хэшами не являются общей историей.
 
-The bodies of cloned Accepted project ADRs remain immutable. Find the active
-ADR owner of the copied README and `default.project.json`, then add the next
-endpoint-owned project ADR that explicitly supersedes those copied identity
-decisions. Update only the old ADR lifecycle metadata and project index status
-to record supersession. The new ADR's `Template divergence` section must name
-the exact paths, primary/template baseline, endpoint Rojo-name and independent
-cloud-identity invariants, future merge policy, and removal condition. Remove
-copied primary or inherited template cloud IDs before the endpoint's first
-Rojo preflight. The endpoint is not a second primary release candidate.
+Основной текст склонированных принятых архитектурных решений проекта
+остаётся неизменяемым. Найдите действующее решение, которое владеет
+скопированными README и `default.project.json`, затем добавьте следующее
+решение проекта конечной точки, явно заменяющее скопированные решения об
+идентичности. Для указания замены обновите только сведения о жизненном цикле
+старого решения и его состояние в указателе проекта. Раздел «Отклонение от шаблона»
+нового решения должен перечислять точные пути, основу основного проекта
+и шаблона, имя конечной точки Rojo и инварианты её независимой облачной
+идентичности, правило будущего слияния и условие удаления. До первой
+предварительной проверки Rojo конечной точки удалите скопированные
+идентификаторы основного проекта или унаследованные облачные идентификаторы
+шаблона. Конечная точка не является вторым основным кандидатом на выпуск.
 
-Before publishing, compare SHA-256 hashes for these production files in both
-repository roots and require exact matches:
+Перед публикацией сравните хэши SHA-256 следующих производственных файлов
+в корнях обоих репозиториев и потребуйте точного совпадения:
 
 ```text
 src/ReplicatedStorage/Client/Teleport/TeleportClient.luau
@@ -110,65 +120,74 @@ src/ServerScriptService/Modules/Storage/SessionLockingStorage.luau
 src/ServerScriptService/Modules/Storage/StorageConfig.luau
 ```
 
-Use `Get-FileHash -Algorithm SHA256` for each path and retain both result sets
-with the test record. Identity, validation config, project policy composition,
-ADRs, and scene content may differ; the production teleport and save-handoff
-implementation listed above must not. If a derived endpoint needs a different
-listed implementation, stop and review it as a separate change instead of
-using it as equivalent transport evidence.
+Используйте `Get-FileHash -Algorithm SHA256` для каждого пути и сохраните оба
+набора результатов в записи проверки. Идентичность, проверочная конфигурация,
+сборка проектного правила, архитектурные решения и сцена могут отличаться;
+перечисленная производственная реализация телепортации и передачи сохранения
+— не может. Если производной конечной точке нужна иная реализация из этого
+перечня, остановитесь и проверьте её как отдельное изменение, а не используйте
+как равноценное свидетельство транспорта.
 
-In a derived repository, create or reuse an Accepted project ADR before the
-temporary run. It must own every changed template path, including
-`src/ServerScriptService/Modules/Teleport/TeleportValidationConfig.luau` and
-any manifest or policy-composition path, and state the baseline, invariant, and
-future template-merge policy. The reusable template's temporary enabled values
-must never be committed as its safe default.
+В производном репозитории до временного запуска создайте или используйте
+принятое архитектурное решение проекта. Оно должно владеть каждым изменённым
+путём шаблона, включая
+`src/ServerScriptService/Modules/Teleport/TeleportValidationConfig.luau` и
+любой путь перечня запуска или сборки правила, а также указывать основу,
+инвариант и правило будущего слияния с шаблоном. Временные значения включения
+переиспользуемого шаблона никогда не должны попадать в коммит как его
+безопасные исходные настройки.
 
-## Record cloud identity
+## Запись облачной идентичности
 
-For each selected post-attachment DataModel, read the exact nonzero
-`game.PlaceId` and `game.GameId`. Do not infer them from names, URLs, command
-lines, or another repository. Both places must report the same GameId.
+Для каждой выбранной модели данных после прикрепления прочитайте точные
+ненулевые `game.PlaceId` и `game.GameId`. Не выводите их из имён, адресов,
+командных строк или другого репозитория. Оба места должны сообщать одинаковый
+`GameId`.
 
-In each owning repository:
+В каждом владеющем репозитории:
 
-1. Set top-level `placeId` to that repository's selected place.
-2. Set top-level `gameId` to the observed shared Experience ID.
-3. Set `servePlaceIds` to the exact approved test-place set.
-4. Record the decision in the owning ADR namespace: `template` for this
-   reusable validation Experience, `project` for a derived game.
-5. Rerun the Rojo preflight, reconnect, and re-read the DataModel IDs before
-   Play, Experience Config, DataStore, or Publish.
+1. Задайте верхнеуровневый `placeId` выбранного места этого репозитория.
+2. Задайте верхнеуровневый `gameId` прочитанного общего идентификатора игры.
+3. Задайте `servePlaceIds` точного разрешённого набора проверочных мест.
+4. Запишите решение в принадлежащем владельцу пространстве архитектурных
+   решений: `template` для этой проверочной игры шаблона, `project` для
+   производной игры.
+5. Повторите предварительную проверку Rojo, переподключитесь и заново
+   прочитайте идентификаторы модели данных до запуска Play, обращения к
+   конфигурации игры, DataStore или публикации.
 
-Write each ID as a bare decimal JSON integer in `1..2^53-1`. Do not use a
-fractional (`123.0`), exponent (`1.23e2`), quoted, or out-of-range spelling;
-repository validation rejects representations that require numeric
-normalization or can lose precision before identity comparison.
+Каждый идентификатор записывайте как десятичное целое число JSON без кавычек
+в диапазоне `1..2^53-1`. Не используйте дробную запись (`123.0`), экспоненту
+(`1.23e2`), кавычки или значения вне диапазона: проверка репозитория
+отклоняет представления, требующие числовой нормализации или способные
+потерять точность до сравнения идентичности.
 
-Do not use **Publish to Roblox As** to repair identity. Normal Publish is
-allowed only after the selected DataModel matches the repository record.
+Не используйте **Publish to Roblox As** для восстановления идентичности.
+Обычная публикация разрешена только после совпадения выбранной модели данных
+с записью репозитория.
 
-## Configure the production destination policy
+## Настройка производственного правила назначений
 
-The operator harness never expands `TeleportPolicy`. The primary and endpoint
-servers must independently allow both source/destination PlaceIds through
-project composition.
+Проверочное средство оператора не расширяет `TeleportPolicy`. Основной и
+целевой серверы должны независимо разрешать оба исходных и целевых `PlaceId`
+через сборку проекта.
 
-- The dedicated template validation Experience already has its exact two-place
-  policy in `TeleportPolicy.Template`.
-- A derived project must compose its own `TeleportPolicy.new` allowlist or an
-  equivalent project-owned policy value containing both observed PlaceIds.
-  If this changes a template-owned path, create or reuse the project ADR that
-  records the exact divergence and future merge policy.
+- Выделенная проверочная игра шаблона уже имеет точное правило двух мест
+  в `TeleportPolicy.Template`.
+- Производный проект должен собрать собственный список разрешений
+  `TeleportPolicy.new` или равноценное принадлежащее проекту правило,
+  содержащее оба прочитанных `PlaceId`. Если это меняет принадлежащий
+  шаблону путь, создайте или используйте решение проекта, которое
+  фиксирует точное отклонение и правило будущего слияния.
 
-Run `TeleportModuleTestRunner` after changing policy. A pad that appears while
-the destination policy rejects its route is a failed setup, not permission to
-bypass the policy.
+После изменения правила запустите `TeleportModuleTestRunner`. Если площадка
+появляется, но правило назначений отклоняет её маршрут, настройка неверна.
+Это не разрешение обойти правило.
 
-## Temporarily enable the operator harness
+## Временное включение проверочного средства
 
-Edit only `TeleportValidationConfig.luau` in each endpoint's synchronized
-source so both use the same values:
+Измените только `TeleportValidationConfig.luau` в синхронизированных
+исходниках каждого места, чтобы оба использовали одинаковые значения:
 
 ```luau
 local ENABLED = true
@@ -184,89 +203,112 @@ local AUTHORIZED_USER_IDS = {
 }
 ```
 
-Replace every example number with an independently observed ID. Requirements:
+Замените каждое примерное число независимо прочитанным идентификатором.
+Требования:
 
-- `GAME_ID` is one finite positive integer and exactly matches both DataModels;
-- every route key and value is a different finite positive PlaceId;
-- round-trip testing needs both directed entries;
-- every tester key is a finite positive integer and its value is exactly
-  `true`;
-- keep the allowlist minimal and never treat the UserId as a secret;
-- do not add a fallback by username, group membership, place name, or current
-  `game.PlaceId` alone.
+- `GAME_ID` — одно конечное положительное целое число, точно совпадающее
+  в обеих моделях данных;
+- каждый ключ и значение маршрута — разные конечные положительные `PlaceId`;
+- для проверки пути туда и обратно нужны оба направленных маршрута;
+- каждый ключ проверяющего — конечное положительное целое число,
+  а значение равно именно `true`;
+- список разрешений должен быть минимальным; не считайте `UserId` секретом;
+- не добавляйте запасной выбор по имени пользователя, членству в группе,
+  имени места или одному лишь текущему `game.PlaceId`.
 
-The controller snapshots and validates the configuration at construction.
-Invalid, partial, inherited, or mismatched values produce no observer or pad.
+Контроллер снимает и проверяет конфигурацию при создании. Неверные,
+неполные, унаследованные или не совпадающие значения не создают
+наблюдателя или площадку.
 
-After enablement, compute and retain the SHA-256 hash of
-`TeleportValidationConfig.luau` in both repositories and require the hashes to
-match. Record that temporary config hash alongside both clean baseline commit
-SHAs and the production-file hash sets above. `HEAD` alone does not identify
-the enabled validation artifact.
+После включения вычислите и сохраните SHA-256 файла
+`TeleportValidationConfig.luau` в обоих репозиториях и потребуйте совпадения
+хэшей. Запишите хэш временной конфигурации вместе с хэшами обоих чистых
+исходных коммитов и наборами хэшей производственных файлов, перечисленных
+выше. Один `HEAD` не идентифицирует включённое проверочное состояние.
 
-## Synchronize and publish
+## Синхронизация и публикация
 
-For the primary repository, then the endpoint repository:
+Сначала для основного репозитория, затем для репозитория конечной точки:
 
-1. Run the Rojo preflight from that repository.
-2. Explicitly select the already-open Studio instance by its recorded
-   `game.PlaceId` and `game.GameId`.
-3. Connect the matching Rojo project and wait for synchronization to finish.
-4. Confirm the DataModel IDs still match the repository record.
-5. Run a fresh Play bootstrap and focused deterministic tests before Publish.
-6. Stop Play and use normal **Publish to Roblox**. Record the published version.
+1. Выполните предварительную проверку Rojo из этого репозитория.
+2. Явно выберите уже открытый экземпляр Studio по записанным
+   `game.PlaceId` и `game.GameId`.
+3. Подключите совпадающий проект Rojo и дождитесь завершения синхронизации.
+4. Убедитесь, что идентификаторы модели данных по-прежнему совпадают с
+   записью репозитория.
+5. До публикации выполните чистый запуск в режиме Play и направленные
+   детерминированные проверки.
+6. Остановите Play и используйте обычную команду **Publish to Roblox**.
+   Запишите опубликованную версию.
 
-Switch repositories deliberately: stop Play in the selected instance, run the
-next repository's Rojo preflight so it owns port `34872`, enumerate Studio
-instances, and select the endpoint only by its recorded PlaceId and GameId. A
-running Studio process with an empty or disconnected connector response is not
-proof that the endpoint is absent; stop and restore that connector rather than
-opening or replacing Studio.
+Переключайте репозитории явно: остановите Play в выбранном экземпляре,
+выполните предварительную проверку Rojo следующего репозитория, чтобы он
+владел портом `34872`, перечислите экземпляры Studio и выберите конечную
+точку только по записанным `PlaceId` и `GameId`. Работающий процесс Studio
+при пустом ответе или отключённом соединителе не доказывает отсутствия
+конечной точки. Остановитесь и восстановите соединитель вместо открытия
+или замены Studio.
 
-Do not edit either canonical `place.rbxl` for this test. Do not require the
-endpoint's unrelated scene assets to satisfy the primary template's release
-gate.
+Не изменяйте ни один канонический `place.rbxl` ради этой проверки.
+Несвязанные ресурсы сцены конечной точки не должны проходить условия
+выпуска основного шаблона.
 
-Before enablement, record the exact safe-default diff and run the focused
-Teleport suite. After mandatory teardown, prove that the configuration is
-restored and rerun the same checks. Generic repository validation does not
-parse this runtime policy.
+До включения сохраните точное отличие от безопасных исходных настроек и
+выполните направленный набор телепортации. После обязательного возврата
+исходных настроек докажите восстановление конфигурации и повторите те же
+проверки. Общая проверка репозитория не разбирает это правило времени
+исполнения.
 
-## Roblox-client E2E
+## Сквозная проверка клиентом Roblox
 
-Use a fresh Roblox client, not Studio Play:
+Используйте заново запущенный клиент Roblox, а не режим Play в Studio:
 
-1. Join the primary place as an allowlisted tester.
-2. Confirm one labelled runtime pad appears near a `SpawnLocation` and names
-   the configured endpoint PlaceId. A non-allowlisted player must not activate
-   it.
-3. Step onto the pad and confirm the endpoint loads without a kick.
-4. Confirm the endpoint pad names the primary PlaceId, then return.
-5. Repeat the round trip several times, including rapid returns after each
-   destination becomes interactive.
-6. Confirm there is no Error 267 save-load kick, no infinite loading state, no
-   duplicate pad for one tester presence, and no in-scope Teleport/bootstrap
-   error.
+1. Войдите в основное место как проверяющий из списка разрешений.
+2. Убедитесь, что рядом со `SpawnLocation` появилась одна площадка
+   времени исполнения с надписью настроенного целевого `PlaceId`.
+   Игрок вне списка разрешений не должен её активировать.
+3. Встаньте на площадку и убедитесь, что целевое место загружается
+   без отключения игрока.
+4. Убедитесь, что площадка целевого места указывает основной `PlaceId`,
+   затем вернитесь.
+5. Несколько раз повторите путь туда и обратно, включая быстрые возвраты
+   после того, как каждое место становится доступно для взаимодействия.
+6. Убедитесь в отсутствии отключения с `Error 267` из-за загрузки
+   сохранения, бесконечной загрузки, повторной площадки для одного
+   присутствующего проверяющего и ошибок телепортации или запуска
+   в пределах проверки.
 
-Record:
+Запишите:
 
-- source revision and published versions;
-- shared GameId and both PlaceIds;
-- tester UserId and the temporary config revision;
-- forward, return, and rapid-repeat results;
-- deterministic suite totals and primary fresh-bootstrap result;
-- any omitted check and its reason.
+- редакцию исходников и опубликованные версии;
+- общий `GameId` и оба `PlaceId`;
+- `UserId` проверяющего и редакцию временной конфигурации;
+- результаты прямых, обратных и быстрых повторных переходов;
+- итоги детерминированных наборов и чистого запуска основного проекта;
+- каждую невыполненную проверку и её причину.
 
-The physical pad deliberately does not display or log `sessionId` or
-`attemptId`. Session-envelope continuity is verified by the deterministic
-arrival/envelope suites; the published run verifies the real Roblox transport
-and handoff path. A game that needs additional presentation may subscribe to
-the existing local Teleport projection, but must not add a diagnostic remote or
-publish another player's identifiers.
+Физическая площадка намеренно не показывает и не записывает `sessionId` или
+`attemptId`. Непрерывность конверта сеанса проверяют детерминированные наборы
+прибытия и конверта; опубликованный запуск проверяет настоящий транспорт
+Roblox и путь передачи. Игра, которой нужно дополнительное представление,
+может подписаться на существующую локальную проекцию телепортации, но не
+должна добавлять диагностический удалённый объект или публиковать
+идентификаторы другого игрока.
 
-## Mandatory teardown
+## Проверка продолжения приглашения друзей
 
-After E2E, restore the reusable safe default in both synchronized endpoints:
+Для опубликованной проверки приглашения двумя реальными учётными записями
+зафиксируйте отдельно: исходную `LaunchData`, первое попадание не в целевой
+сервер, перенаправление в точный `TargetJobId` и успешную публикацию связи
+после допуска. Проверка не должна выводить жетон резерва, идентификатор сеанса
+или идентификатор попытки в журнал либо интерфейс. Статические и Studio-проверки
+подтверждают только схему и корреляцию; межсерверный путь подтверждает только
+опубликованный запуск Roblox-клиентов.
+
+## Обязательный возврат исходных настроек
+
+После сквозной проверки восстановите безопасные исходные настройки
+переиспользуемого шаблона в обоих синхронизируемых местах:
 
 ```luau
 local ENABLED = false
@@ -275,27 +317,29 @@ local ROUTES_BY_SOURCE_PLACE_ID = {}
 local AUTHORIZED_USER_IDS = {}
 ```
 
-Then repeat the repository switch, Rojo sync, exact DataModel identity check,
-and normal Publish for both endpoints. Join a fresh server as the former tester
-and confirm no `TeleportValidationPad_To_*` Part appears. Existing servers may
-retain their construction-time config until shutdown; only a fresh server is
-valid teardown evidence.
+Затем для обоих мест повторите переключение репозитория, синхронизацию Rojo,
+точную проверку идентичности модели данных и обычную публикацию. Войдите
+в новый сервер прежним проверяющим и убедитесь, что деталь
+`TeleportValidationPad_To_*` не появляется. Существующие серверы могут
+сохранять конфигурацию, полученную при создании, до завершения работы.
+Только новый сервер является допустимым свидетельством возврата настроек.
 
-Finally rerun `TeleportModuleTestRunner`, bounded template validation, and a
-clean primary Play bootstrap. In a derived repository, confirm the temporary
-config and composition diff is empty against the recorded baseline (or restored
-to an explicitly reviewed disabled equivalent). The endpoint only needs to
-prove that its synchronized bootstrap works; do not count its unrelated release
-checks as primary readiness evidence.
+В завершение повторите `TeleportModuleTestRunner`, ограниченную проверку
+шаблона и чистый запуск основного проекта в режиме Play. В производном
+репозитории подтвердите отсутствие временных отличий конфигурации и
+сборки от записанной основы либо их восстановление до явно проверенного
+отключённого эквивалента. Конечная точка должна доказать только работу
+своего синхронизированного запуска; её несвязанные проверки выпуска
+не считаются доказательством готовности основного проекта.
 
-## Troubleshooting
+## Поиск неисправностей
 
-| Symptom | Check |
+| Симптом | Проверка |
 |---|---|
-| No pad | `Enabled`, exact GameId, current source route, positive tester UserId, Rojo sync, fresh server |
-| Pad appears but request is rejected | `TeleportPolicy` independently allows the destination |
-| Wrong destination label | route entry for the current `game.PlaceId` |
-| Teleport fails before target load | both places are published in the same Experience and the client is not running in Studio Play |
-| Return causes Error 267 | source/target use the same save-handoff revision; inspect session-lock close/load diagnostics |
-| Other players can trigger movement | verify touch resolves through `PlayersModule` and equals the allowlisted tester; do not broaden the allowlist |
-| Pad remains after disabling | publish both endpoints and join a newly allocated server |
+| Площадка отсутствует | `Enabled`, точный `GameId`, текущий исходный маршрут, положительный `UserId` проверяющего, синхронизация Rojo, новый сервер |
+| Площадка появляется, но запрос отклоняется | `TeleportPolicy` независимо разрешает назначение |
+| Надпись указывает неверное назначение | Запись маршрута для текущего `game.PlaceId` |
+| Телепортация не удаётся до загрузки цели | Оба места опубликованы в одной игре, клиент запущен вне режима Play в Studio |
+| Возврат вызывает `Error 267` | Источник и цель используют одну редакцию передачи сохранения; проверить диагностику закрытия и загрузки блокировки сеанса |
+| Другие игроки могут вызвать переход | Убедиться, что касание определяет игрока через `PlayersModule` и он совпадает с разрешённым проверяющим; не расширять список разрешений |
+| Площадка остаётся после отключения | Опубликовать оба места и войти в заново выделенный сервер |

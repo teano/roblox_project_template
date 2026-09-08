@@ -36,6 +36,8 @@ implementation edits that preserve architecture do not require unrelated ADRs.
 | Communication, remotes, DTOs, serialization, rate limits, epochs, or resync | `communication.md`, `architecture.md`, `testing.md` |
 | Experience Config catalog, codecs, bundles, projections, or refresh | `configuration.md`, `communication.md`, `testing.md` |
 | Player or character lifecycle | `players.md`, `testing.md` |
+| Слоты игроков, друзья, приглашения или составной допуск | `players.md`, `communication.md`, `configuration.md`, `initialization.md`, `testing.md`; для окон также `ui.md` |
+| Происхождение перенесённых систем, журнал `docs/Migrations/**`, ссылки на исходные решения | `architecture-decisions.md`; [журнал миграций](../../docs/Migrations/README.md) |
 | Wallet, Version, GameData, Statistics, another provider, or authority change | `domain-data.md`, `save-system.md`, `communication.md`, `testing.md` |
 | Teleport session/attempt/envelope/destination or validation pad | `teleport.md`, `players.md`, `communication.md`, `testing.md` |
 | Audio catalog/config, playback, graph, Music, settings, pools, preload, or QA | `audio.md` plus only the actually affected dependency rules, and `testing.md` |

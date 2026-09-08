@@ -1,3 +1,5 @@
+/.lcs/
+
 # Generated Rojo builds. The canonical Studio place is intentionally tracked.
 /*.rbxl
 !/place.rbxl

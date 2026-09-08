@@ -15,6 +15,18 @@ export type TeleportDestination =
 	| { Kind: "ReservedServer", PlaceId: number, ReservedServerAccessCode: string }
 	| { Kind: "NewReservedServer", PlaceId: number }
 
+export type FriendsTeleportContinuation = {
+	Version: number,
+	Token: string,
+	TargetJobId: string,
+	Attempt: number,
+}
+
+export type FriendsContinuationResult =
+	{ Status: "Absent" }
+	| { Status: "Valid", Continuation: FriendsTeleportContinuation }
+	| { Status: "Invalid", Code: string }
+
 export type AttemptSnapshot = {
 	AttemptId: string,
 	State: AttemptState,

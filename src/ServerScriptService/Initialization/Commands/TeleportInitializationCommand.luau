@@ -6,7 +6,7 @@ Command.__index = Command
 function Command.new(module: any)
 	return setmetatable({
 		Id = "Teleport",
-		DependsOn = { "Players", "Communication" },
+		DependsOn = { "Players", "Communication", "Characters" },
 		_module = module,
 	}, Command)
 end

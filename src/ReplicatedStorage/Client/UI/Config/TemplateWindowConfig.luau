@@ -1,5 +1,8 @@
 --!strict
 
--- The reusable template intentionally ships no concrete cloud window. Authors
--- add canonical definition modules and list their exact returned tables here.
-return table.freeze({})
+local Definitions = script.Parent.Definitions
+
+return table.freeze({
+	require(Definitions.InviteFriendsWindowDefinition),
+	require(Definitions.GroupInviteWindowDefinition),
+})

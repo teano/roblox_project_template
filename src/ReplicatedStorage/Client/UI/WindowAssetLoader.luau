@@ -48,18 +48,36 @@ local function validateLoaded(value: any): (GuiObject?, Instance?, string?)
 	return root, carrier, nil
 end
 
+local function hasMethod(value: any, methodName: string): boolean
+	if value == nil then
+		return false
+	end
+	local ok, member = pcall(function()
+		return value[methodName]
+	end)
+	return ok and typeof(member) == "function"
+end
+
 function Loader.new(dependencies: {
-	AssetBackend: any,
+	AssetBackend: any?,
+	AssetRegistry: any?,
 	ContentPreloader: any,
 	Clock: (() -> number)?,
 	Spawn: (((() -> ()) -> ()))?,
 	Delay: (((number, () -> ()) -> ()))?,
 	Logger: any?,
 })
-	assert(dependencies.AssetBackend ~= nil and typeof(dependencies.AssetBackend.LoadAssetAsync) == "function")
+	local hasAssetBackend = hasMethod(dependencies.AssetBackend, "LoadAssetAsync")
+	local hasAssetRegistry = hasMethod(dependencies.AssetRegistry, "RequireByKey")
+	assert(dependencies.AssetBackend == nil or hasAssetBackend,
+		"WindowAssetLoader AssetBackend must expose LoadAssetAsync")
+	assert(dependencies.AssetRegistry == nil or hasAssetRegistry,
+		"WindowAssetLoader AssetRegistry must expose RequireByKey")
+	assert(hasAssetBackend or hasAssetRegistry, "WindowAssetLoader requires an asset source")
 	assert(dependencies.ContentPreloader ~= nil)
 	return setmetatable({
 		_backend = dependencies.AssetBackend,
+		_assetRegistry = dependencies.AssetRegistry,
 		_preloader = dependencies.ContentPreloader,
 		_clock = dependencies.Clock or os.clock,
 		_spawn = dependencies.Spawn or task.spawn,
@@ -99,7 +117,15 @@ function Loader:_start(definition: any, deadline: number): Attempt
 		local carrier: Instance? = nil
 		local acceptedRoot: GuiObject? = nil
 		local ok, errorCode = xpcall(function()
-			local loaded = self._backend:LoadAssetAsync(definition.AssetId)
+			local loaded: any
+			if definition.AssetKey ~= nil then
+				assert(self._assetRegistry ~= nil, "AssetRegistryUnavailable")
+				local original = self._assetRegistry:RequireByKey(definition.AssetKey, "GuiObject")
+				loaded = original:Clone()
+			else
+				assert(self._backend ~= nil, "AssetBackendUnavailable")
+				loaded = self._backend:LoadAssetAsync(definition.AssetId)
+			end
 			local root, loadedCarrier, validationError = validateLoaded(loaded)
 			carrier = loadedCarrier
 			if validationError ~= nil or root == nil then

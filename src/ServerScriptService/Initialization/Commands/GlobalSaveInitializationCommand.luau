@@ -64,26 +64,34 @@ function Command.new(deps: {
 	WalletModule: any,
 	StatisticsModule: any,
 	AudioSettingsModule: any,
+	FriendsModule: any,
 	Logger: any?,
 })
 	return setmetatable({
 		Id = "GlobalSave",
-		DependsOn = { "DomainData", "Teleport", "Statistics" },
+		DependsOn = { "DomainData", "Teleport", "Statistics", "Characters" },
 		_deps = deps,
 		_logger = deps.Logger or Logger.new("GlobalSave", "info"),
 	}, Command)
 end
 
-function Command.GetOrderedProviders(walletModule: any, statisticsModule: any, audioSettingsModule: any, versionModule: any): { any }
-	if versionModule == nil then
-		return { walletModule, statisticsModule, audioSettingsModule }
+function Command.GetOrderedProviders(walletModule: any, statisticsModule: any, third: any, fourth: any?, fifth: any?): { any }
+	local audioSettingsModule, friendsModule, versionModule
+	if fifth ~= nil then
+		audioSettingsModule = third
+		friendsModule = fourth
+		versionModule = fifth
+	elseif fourth ~= nil then
+		audioSettingsModule = third
+		versionModule = fourth
+	else
+		versionModule = third
 	end
-	return {
-		walletModule,
-		statisticsModule,
-		audioSettingsModule,
-		versionModule,
-	}
+	local providers = { walletModule, statisticsModule }
+	if audioSettingsModule ~= nil then table.insert(providers, audioSettingsModule) end
+	if friendsModule ~= nil then table.insert(providers, friendsModule) end
+	if versionModule ~= nil then table.insert(providers, versionModule) end
+	return providers
 end
 
 function Command:_waitUntilLoaded(controller: any, player: Player, timeout: number): boolean
@@ -219,13 +227,14 @@ end
 function Command:Initialize(context: any)
 	local deps = self._deps
 	local globalSaveConfig = deps.Config:GetRequired("GlobalSave")
+	deps.FriendsModule:Initialize()
 	local builder = deps.SaveModule:BuildSaveController(SaveProtocol.GlobalControllerId)
 		:WithStorage(deps.Storage)
 		:WithKeyResolver(function(player)
 			return `{deps.StorageConfig.KeyPrefix}{player.UserId}`
 		end)
 		:WithSoftSerializedBytesLimit(deps.StorageConfig.SoftSerializedBytesLimit)
-	for _, provider in Command.GetOrderedProviders(deps.WalletModule, deps.StatisticsModule, deps.AudioSettingsModule, deps.VersionModule) do
+	for _, provider in Command.GetOrderedProviders(deps.WalletModule, deps.StatisticsModule, deps.AudioSettingsModule, deps.FriendsModule, deps.VersionModule) do
 		builder:WithSaveProvider(provider)
 	end
 	local controller = builder:Build()

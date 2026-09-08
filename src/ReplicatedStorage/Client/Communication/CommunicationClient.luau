@@ -71,6 +71,10 @@ function CommunicationClient.new(
 		_outboundRate = newOutboundRate(resolvedClock),
 		_expectedIncomingSequence = 1,
 		_incomingEpoch = 0,
+		_incoming = {},
+		_incomingMessages = 0,
+		_incomingBytes = 0,
+		_incomingDrain = nil,
 		_pausedForResync = false,
 		_resyncHandler = nil,
 		_resyncInFlight = false,
@@ -78,6 +82,7 @@ function CommunicationClient.new(
 		_resyncRetryScheduled = false,
 		_resyncGeneration = 0,
 		_resyncThread = nil :: thread?,
+		_resyncPreparations = {},
 		_connections = {},
 		_initialized = false,
 		_transport = transport,
@@ -102,6 +107,16 @@ function CommunicationClient:SetResyncHandler(handler: () -> ())
 	self._resyncHandler = handler
 	if self._pausedForResync then
 		self:_startResync()
+	end
+end
+
+function CommunicationClient:RegisterResyncPreparation(prepare: (string) -> any): () -> ()
+	assert(typeof(prepare) == "function", "Resync preparation must be a function")
+	local entry = { Prepare = prepare, Active = true }
+	table.insert(self._resyncPreparations, entry)
+	return function()
+		if not entry.Active then return end
+		entry.Active = false
 	end
 end
 
@@ -272,6 +287,13 @@ function CommunicationClient:_startResync()
 	end
 end
 
+function CommunicationClient:_clearIncoming()
+	table.clear(self._incoming)
+	self._incomingMessages = 0
+	self._incomingBytes = 0
+	self._incomingDrain = nil
+end
+
 function CommunicationClient:_requestResync(reason: string)
 	if self._pausedForResync then
 		return
@@ -280,10 +302,47 @@ function CommunicationClient:_requestResync(reason: string)
 	self._resyncRetryAttempt = 0
 	self._resyncGeneration += 1
 	self._resyncRetryScheduled = false
+	self:_clearIncoming()
+	local preparations = table.clone(self._resyncPreparations)
+	local completions = {}
+	for _, entry in preparations do
+		if entry.Active then
+			local preparationThread = coroutine.create(function()
+				return xpcall(function() return entry.Prepare(reason) end, debug.traceback)
+			end)
+			local resumed, ok, result = coroutine.resume(preparationThread)
+			if not resumed then
+				self._logger:Error("resync_preparation_failed", { Error = tostring(ok) })
+			elseif coroutine.status(preparationThread) ~= "dead" then
+				self._logger:Error("resync_preparation_failed", { Error = "Resync preparation yielded" })
+				local closed, closeError = coroutine.close(preparationThread)
+				if not closed then
+					self._logger:Error("resync_preparation_close_failed", { Error = tostring(closeError) })
+				end
+			elseif not ok then
+				self._logger:Error("resync_preparation_failed", { Error = tostring(result) })
+			elseif typeof(result) == "function" then
+				table.insert(completions, result)
+			elseif typeof(result) == "table" then
+				for _, completion in result do if typeof(completion) == "function" then table.insert(completions, completion) end end
+			end
+		end
+	end
 	table.clear(self._outgoing)
 	self._outgoingBytes = 0
+	for _, completion in completions do
+		task.spawn(function()
+			local ok, err = xpcall(completion, debug.traceback)
+			if not ok then self._logger:Error("resync_preparation_completion_failed", { Error = tostring(err) }) end
+		end)
+	end
 	self._logger:Warn("resync_required", { Reason = reason })
 	self:_startResync()
+end
+
+function CommunicationClient:RequestResync(reason: string)
+	if typeof(reason) ~= "string" or reason == "" then reason = "Requested" end
+	self:_requestResync(reason)
 end
 
 function CommunicationClient:ResumeAfterSnapshot(epoch: number)
@@ -303,9 +362,10 @@ function CommunicationClient:ResumeAfterSnapshot(epoch: number)
 	self._resyncRetryAttempt = 0
 	self._resyncRetryScheduled = false
 	self._resyncGeneration += 1
+	self:_clearIncoming()
 end
 
-function CommunicationClient:_handleBatch(batch: any)
+function CommunicationClient:ReceiveBatch(batch: any)
 	if self._pausedForResync then
 		return
 	end
@@ -345,8 +405,6 @@ function CommunicationClient:_handleBatch(batch: any)
 		self:_requestResync("SequenceGap")
 		return
 	end
-	self._expectedIncomingSequence += 1
-
 	for _, message in batch.Messages do
 		if typeof(message) ~= "table"
 			or typeof(message.Type) ~= "string"
@@ -363,6 +421,30 @@ function CommunicationClient:_handleBatch(batch: any)
 			self:_requestResync("InvalidRequestId")
 			return
 		end
+	end
+	if #self._incoming + 1 > CommunicationConfig.MaxQueuedMessagesPerPeer
+		or self._incomingMessages + messageCount > CommunicationConfig.MaxQueuedMessagesPerPeer
+		or self._incomingBytes + estimatedBytes > CommunicationConfig.MaxQueuedPayloadBytesPerPeer
+	then
+		self:_requestResync("IncomingQueueOverflow")
+		return
+	end
+	self._expectedIncomingSequence += 1
+	table.insert(self._incoming, {
+		Batch = batch,
+		MessageCount = messageCount,
+		EstimatedBytes = estimatedBytes,
+	})
+	self._incomingMessages += messageCount
+	self._incomingBytes += estimatedBytes
+	self:_drainIncoming()
+end
+
+function CommunicationClient:_dispatchBatch(batch: any, generation: number, epoch: number)
+	for _, message in batch.Messages do
+		if self._pausedForResync or self._resyncGeneration ~= generation or self._incomingEpoch ~= epoch then
+			return
+		end
 		if message.Type == CommunicationProtocol.SystemMessages.ResyncRequired then
 			self:_requestResync("ServerRequested")
 			return
@@ -373,6 +455,9 @@ function CommunicationClient:_handleBatch(batch: any)
 			continue
 		end
 		local ok, err = pcall(handler, message.Payload, message.RequestId)
+		if self._pausedForResync or self._resyncGeneration ~= generation or self._incomingEpoch ~= epoch then
+			return
+		end
 		if not ok then
 			self._logger:Error("message_handler_failed", {
 				MessageType = message.Type,
@@ -384,8 +469,24 @@ function CommunicationClient:_handleBatch(batch: any)
 	end
 end
 
-function CommunicationClient:ReceiveBatch(batch: any)
-	self:_handleBatch(batch)
+function CommunicationClient:_drainIncoming()
+	if self._incomingDrain ~= nil then return end
+	local generation = self._resyncGeneration
+	local epoch = self._incomingEpoch
+	self._incomingDrain = generation
+	while self._incoming[1] ~= nil do
+		local entry = self._incoming[1]
+		-- Retain the active batch in the bounded queue while its handler yields.
+		self:_dispatchBatch(entry.Batch, generation, epoch)
+		if self._incomingDrain ~= generation or self._resyncGeneration ~= generation
+			or self._incomingEpoch ~= epoch or self._pausedForResync then
+			return
+		end
+		table.remove(self._incoming, 1)
+		self._incomingMessages -= entry.MessageCount
+		self._incomingBytes -= entry.EstimatedBytes
+	end
+	self._incomingDrain = nil
 end
 
 function CommunicationClient:_flush()
@@ -530,6 +631,8 @@ function CommunicationClient:Stop()
 	self._resyncRetryAttempt = 0
 	self._resyncRetryScheduled = false
 	self._resyncGeneration += 1
+	self:_clearIncoming()
+	table.clear(self._resyncPreparations)
 	self._initialized = false
 end
 

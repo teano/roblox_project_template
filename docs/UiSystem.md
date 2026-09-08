@@ -1,210 +1,350 @@
-# UI System
+# Система интерфейса
 
-## Boundary and startup
+Происхождение перенесённых систем: [MIG-0001](Migrations/MIG-0001-find-a-baby.md).
 
-`ReplicatedStorage.Client.UI.UiSystem` is the client-owned facade for the game
-UI after early loading. `ClientManifest` constructs it with the existing
-client `PlayersModule`; `UiInitializationCommand` runs as command `UI` after
-`StartupContentPreload`, `Pooling`, and `Players`. A structural failure is
-adapted at that command boundary to `UiInitializationFailed:<Code>`, allowing
-the existing initialization runner and client bootstrap to stop normally.
+## Создание окон и элементов
 
-The reusable template ships an empty `TemplateWindowConfig`, so initialization
-still creates no window automatically. A concrete project may list canonical
-per-window definitions in that duplicate-preserving authoring sequence. The
-exact optional derived source is
-`ReplicatedStorage.Project.Client.UI.DerivedWindowConfig`; its absence is the
-empty derived sequence and is not a runtime repository-kind check.
+По умолчанию окна локальные, а весь интерфейс — физически свёрстанные
+объекты, созданные в Studio и сохранённые в каноническом `place.rbxl`.
+Это относится также к постоянным панелям, уведомлениям и шаблонам строк.
+Код содержит логику и привязку к готовым элементам, но не исходную разметку.
+Клонирование готового физического шаблона и обновление его данных, состояния
+и анимации допустимы.
 
-## Root ownership
+Облачный источник и генерация разметки во время исполнения требуют явного
+указания пользователя каждый в своём объёме. Возможность загрузки по `AssetId`,
+описанная ниже, не меняет локальный источник по умолчанию. Действующее правило:
+[создание интерфейса](../.agents/rules/ui.md).
 
-Initialization publishes one `UiRoot` `ScreenGui` under the local player's
-`PlayerGui`, with `ResetOnSpawn=false`, `CoreUISafeInsets`, device-safe-area
-clipping, sibling Z ordering, and three full-area hosts:
+## Граница и запуск
+
+`ReplicatedStorage.Client.UI.UiSystem` является принадлежащим клиенту входом в
+игровой интерфейс после ранней загрузки. `ClientManifest` создаёт его с
+существующим клиентским `PlayersModule`; `UiInitializationCommand` выполняется
+как команда `UI` после `StartupContentPreload`, `Pooling` и `Players`.
+Структурная ошибка преобразуется на границе команды в
+`UiInitializationFailed:<Code>`, что позволяет существующему исполнителю
+запуска и клиентской точке запуска штатно остановиться.
+
+Шаблон регистрирует штатные определения `game.invite-friends` и
+`game.group-invite` в `TemplateWindowConfig`. Регистрация не открывает
+окна автоматически: постоянная кнопка открывает список, а серверный
+`IncomingOffer` открывает локальное предложение. Один
+`FriendInvitationsUiController` запускается после `GlobalSave`.
+
+Дополнительные определения производной игры находятся в необязательном
+`ReplicatedStorage.Project.Client.UI.DerivedWindowConfig`. Его отсутствие
+означает пустое расширение. Штатные окна в нём не повторяются:
+повтор идентификатора возвращает `DuplicateWindowId`.
+См. [переход существующих игр](Migrations/MIG-0001-find-a-baby.md).
+
+## Владение корнем
+
+Запуск публикует один `ScreenGui` с именем `UiRoot` под `PlayerGui` локального
+игрока. Он использует `ResetOnSpawn=false`, `CoreUISafeInsets`, обрезку по
+безопасной области устройства, порядок слоёв соседей и три полноразмерных
+контейнера:
 
 1. `HudHost` (`ZIndex=10`)
 2. `ToastHost` (`ZIndex=20`)
 3. `WindowHost` (`ZIndex=30`)
 
-The candidate is built and validated off-tree, then parented once. A compatible
-existing root is accepted idempotently; a duplicate or malformed root returns
-`UiRootMalformed` without publishing partial UI state. Character respawn does
-not initialize, clear, or replace the root. Early `ReplicatedFirst` loading UI
-remains separate.
+Кандидат строится и проверяется вне дерева, а затем присоединяется одной
+операцией. Совместимый существующий корень принимается повторяемо;
+дублирующийся или неверно сформированный корень возвращает `UiRootMalformed`
+без публикации частичного состояния интерфейса. Возрождение персонажа не
+запускает, не очищает и не заменяет корень. Ранний загрузочный интерфейс
+`ReplicatedFirst` остаётся отдельным.
 
-Project-specific HUD and toast systems receive their host and the same frozen
-`UiElementContext` through explicit client composition. They own their content,
-state, subscriptions, visibility, and cleanup; UI supplies no `HudId`, HUD
-registry, toast queue, timer, or lifecycle facade.
+Проектные системы постоянного интерфейса и уведомлений получают свой контейнер
+и тот же замороженный `UiElementContext` через явную клиентскую сборку. Они
+владеют своим содержимым, состоянием, подписками, видимостью и очисткой;
+система интерфейса не предоставляет `HudId`, реестр постоянного интерфейса,
+очередь уведомлений, таймер или общий жизненный цикл.
 
-## Controller identity and events
+## Идентичность контроллеров и события
 
-Every controller has one final `UIElementId`, a represented `GuiObject`, and a
-list of direct `NestedUiElements`. Dynamic subtree attachment collision-checks
-the complete claim set before updating parent links. Removal releases only
-claims owned by that exact controller. Repeated items use the byte-length
-prefixed form:
+Каждый контроллер имеет один окончательный `UIElementId`, представляемый
+`GuiObject` и список прямых `NestedUiElements`. Динамическое присоединение
+поддерева проверяет полный набор заявок на столкновения до обновления
+родительских связей. Удаление освобождает только заявки, принадлежащие именно
+этому контроллеру. Повторяемые элементы используют форму с длиной в байтах:
 
 ```text
 ui.runtime/<path-bytes>:<stable-path>/<key-bytes>:<stable-key>
 ```
 
-`Clear` is synchronous, idempotent, recursively attempts children and owned
-connections, and never chooses whether a root window is destroyed or pooled.
+`Clear` выполняется синхронно и повторяемо, пытается очистить дочерние объекты
+и принадлежащие соединения и никогда не выбирает, уничтожать корневое окно или
+возвращать его в пул.
 
-Semantic actions bubble synchronously through direct owners. Reusable children
-do not know `WindowId`; `BaseWindowView` adds it at the window boundary. The
-root validates catalog membership, identifiers, and the complete envelope with
-the existing communication serializer, shallow-freezes the owned envelope,
-and publishes through the existing non-blocking side-local `Signal`. Consumers
-receive only `Connect` and `Once`. TextBox events never carry entered text;
-form logic reads field values directly.
+Семантические действия синхронно поднимаются через прямых владельцев.
+Переиспользуемые дочерние объекты не знают `WindowId`; `BaseWindowView`
+добавляет его на границе окна. Корень проверяет принадлежность каталогу,
+идентификаторы и полный конверт существующим сериализатором связи, неглубоко
+замораживает принадлежащий ему конверт и публикует через существующий
+неблокирующий боковой `Signal`. Потребители получают только `Connect` и `Once`.
+События `TextBox` никогда не несут введённый текст; логика формы читает значения
+полей напрямую.
 
-The template catalog uses named lowercase `ui.*` identifiers for pointer,
-button, TextBox, form, and window lifecycle actions. The catalog is validated
-and frozen during initialization and has no mutation API.
+Шаблонный каталог использует именованные строчные идентификаторы `ui.*` для
+указателя, кнопки, `TextBox`, формы и действий жизненного цикла окна. Каталог
+проверяется и замораживается при запуске и не имеет операций изменения.
 
-## Canonical window definitions
+## Канонические определения окон
 
-`WindowConfigCompiler` validates both authoring sequences completely before it
-freezes the exact definition tables, their optional pool budgets, the ordered
-sequence, and the `WindowId` lookup. A definition binds one logical `WindowId`
-to one positive allowlisted cloud `AssetId`, repo-owned `CreateView`,
-`TryCastView`, `InitializeView`, lifecycle/visibility/background policies, and
-optional eager preload. `PoolOptions` is required only for `Pool` lifecycle.
-There is no runtime mutation API, second registry, `TemplateId`, arbitrary
-AssetId input, or runtime owner-verification claim.
+`WindowConfigCompiler` полностью проверяет обе последовательности определений,
+прежде чем заморозить точные таблицы, необязательные объёмы пулов, порядок и
+поиск по `WindowId`. Определение связывает один логический `WindowId` ровно с
+одним источником физического шаблона:
 
-Typed callers directly require the same per-window definition ModuleScript
-listed by the authoring source and pass that exact table to
-`AddWindowTypedAsync`. Universal callers use `AddWindowAsync(WindowId,
-unknown)`. Both routes use the same frozen config and the same runtime
-definition identity.
+- положительным разрешённым облачным `AssetId`; или
+- устойчивым `AssetKey`, который внедрённый клиентский `AssetRegistry`
+  разрешает как `GuiObject`.
 
-## Loading, window lifecycle, and handles
+Одновременное присутствие обоих источников или отсутствие обоих отклоняется.
+То же определение содержит принадлежащие исходникам `CreateView`, `TryCastView`
+и `InitializeView`, политики жизненного цикла, видимости и фона, а также
+необязательную предварительную загрузку. `PoolOptions` обязателен только для
+жизненного цикла `Pool`. Нет операции изменения во время исполнения, второго
+реестра, `TemplateId`, произвольного ввода `AssetId` или `AssetKey` и заявления
+о проверке облачного владельца во время исполнения.
 
-`WindowAssetLoader` calls only the injected `AssetService:LoadAssetAsync` for
-the definition's allowlisted `AssetId`. It requires one `GuiObject` root,
-rejects every `LuaSourceContainer` recursively, and routes relevant content
-through anonymous `ContentPreloader:Preload(..., FailurePolicy="Fail")`.
-Successful templates are cached for one `UiSystem` lifetime and cloned
-synchronously; failures are retryable. At most one non-cancellable physical
-attempt exists per `WindowId`, and stale or timed-out results cannot populate
-the cache. `Preload=true` starts a best-effort three-second eager attempt during
-UI initialization without turning delivery failure into bootstrap failure.
+Типизированные вызывающие модули напрямую подключают тот же модуль определения
+окна, который указан источником определений, и передают точную таблицу в
+`AddWindowTypedAsync`. Общие вызывающие модули используют
+`AddWindowAsync(WindowId, unknown)`. Оба пути используют одну замороженную
+конфигурацию и одну идентичность определения во время исполнения.
 
-An empty-stack request creates the first Active window. After that, only the
-exact current Active view may add, close, or replace a window. Adding pauses
-the previous top; closing resumes the remaining top; replacement prepares its
-candidate off-tree and never restores the removed window. `HideBelow` and
-`KeepBelow` are evaluated from the final stack once per operation. Applied
-state publishes the shared opened, paused, resumed, shown, hidden, and closed
-catalog actions, with closed published before identity cleanup.
+## Получение шаблонов, жизненный цикл окон и дескрипторы
 
-Every operation owns one generation and one absolute three-second deadline.
-There is no queue, Back history, or intermediate lower-prefix recomputation.
-The generation-safe `WindowHandle` remains valid while its window is paused,
-but `IsActiveWindow` is false; removal or cleanup invalidates it before a
-pooled object can be issued again.
+`WindowAssetLoader` выбирает источник, указанный каноническим определением.
+Для `AssetId` он вызывает только внедрённый
+`AssetService:LoadAssetAsync`. Для `AssetKey` он получает неизменяемый исходник
+через внедрённый клиентский `AssetRegistry:RequireByKey`, требует класс
+`GuiObject` и клонирует исходник до обработки. Оба пути требуют ровно один
+корневой `GuiObject`, рекурсивно отклоняют каждый `LuaSourceContainer` и
+направляют относящееся содержимое через безымянный
+`ContentPreloader:Preload(..., FailurePolicy="Fail")`.
 
-Destroy definitions clone and destroy each issue. Pool definitions use one
-existing homogeneous `PoolModule` pool named `Ui.Window/<WindowId>`, pass the
-frozen `MaxActive`/`MaxRetained` budgets unchanged, keep the exact generation
-lease, and run UI `Clear` before the ordinary release. A UI use token prevents
-stale cleanup from marking a later issue clean. Timed-out continuing pooled
-transition hooks retain their dirty lease in navigator-owned quarantine until
-the hook settles, then clear and release through the existing pool API.
+Успешные шаблоны сохраняются в кеше на время жизни одного `UiSystem` и затем
+клонируются синхронно; ошибки допускают повторную попытку. Для одного
+`WindowId` одновременно существует не более одной физической попытки, которую
+нельзя отменить, а устаревший или просроченный результат не может попасть в
+кеш. `Preload=true` начинает необязательную трёхсекундную предварительную
+попытку во время запуска интерфейса, не превращая ошибку доставки в ошибку
+запуска.
 
-## Input blocking and Background
+Запрос при пустом стеке создаёт первое окно в состоянии `Active`. После этого
+добавлять, закрывать или заменять окно может только точное текущее представление
+в состоянии `Active`. Добавление приостанавливает прежнее верхнее окно,
+закрытие возобновляет оставшееся верхнее окно, а замена готовит кандидата вне
+дерева и не восстанавливает удалённое окно. `HideBelow` и `KeepBelow`
+вычисляются один раз на операцию по окончательному стеку. Применённое состояние
+публикует общие действия открытия, приостановки, возобновления, показа,
+скрытия и закрытия; закрытие публикуется до очистки идентичности.
 
-Each `BaseWindowView` owns one `WindowInputBlocker`. A valid direct
-`BlockObjectRef` pointing inside the same window makes independently acquired
-manual or system handles effective; the sink stays `All` until the last token
-releases and returns to `None` afterward. Missing, nil, foreign, or malformed
-references produce permanently inert acquired handles and never fail window
-initialization. `Clear` invalidates all handles, restores the sink, and removes
-owned observers.
+Каждая операция владеет одним поколением и одним абсолютным трёхсекундным
+сроком. Нет очереди, истории возврата или промежуточного пересчёта нижнего
+префикса. Безопасный для поколения `WindowHandle` остаётся действительным,
+пока окно приостановлено, но `IsActiveWindow` возвращает ложь; удаление или
+очистка отменяет его до следующей выдачи объекта из пула.
 
-`BackgroundPolicy=None` requires no object. `Absorb` and `CloseOnActivate`
-bind the exact direct full-window `GuiButton` named `Background`; activation is
-ignored while the window is blocked or lacks Active authority, and the close
-variant requests only that window's own close. No global input interceptor is
-introduced.
+Определения с политикой `Destroy` клонируют и уничтожают каждый выданный
+объект. Определения с политикой `Pool` используют один существующий однородный
+пул `PoolModule` с именем `Ui.Window/<WindowId>`, передают замороженные объёмы
+`MaxActive` и `MaxRetained` без изменения, сохраняют точную аренду поколения и
+выполняют `Clear` интерфейса до обычного возврата. Метка использования
+интерфейса не позволяет устаревшей очистке отметить чистой более позднюю
+выдачу. Истёкшие, но ещё выполняющиеся переходы объекта из пула сохраняют
+грязную аренду в принадлежащем навигатору карантине до завершения обработчика,
+после чего очищают и возвращают её через существующий интерфейс пула.
 
-## Gamepad navigation
+## Блокировка ввода и фон
 
-Each window owns one `WindowNavigationRegistry`. It records authored
-`Selectable`, `Interactable`, and directional-link baselines for registered
-`UINavigationEnabled` descendants, plus the current default and last selected
-object. Only an Active and effectively unblocked window enables those members.
-Pause or blocking clears owned focus and disables interaction; resume or final
-token release restores the last valid member or the required default.
+Каждый `BaseWindowView` владеет одним `WindowInputBlocker`. Допустимый прямой
+`BlockObjectRef`, указывающий внутрь того же окна, делает независимо полученные
+ручные или системные дескрипторы действующими; поглотитель остаётся в режиме
+`All` до освобождения последней метки и затем возвращается в `None`.
+Отсутствующая, пустая, внешняя или неверно сформированная ссылка создаёт
+навсегда бездействующие полученные дескрипторы и не нарушает запуск окна.
+`Clear` отменяет все дескрипторы, восстанавливает поглотитель и удаляет
+принадлежащие наблюдатели.
 
-Dynamic attachment from zero eligible members requires the two-argument
-`AddNestedUiElement(child, nominatedDefault)` form. Removing the current
-default while eligible members remain similarly requires an exact remaining
-replacement. Validation occurs before identity, hierarchy, binding, or
-navigation mutation, so an invalid nomination leaves all surfaces unchanged.
-`Clear` restores authored baselines and forgets all per-generation focus state.
+`BackgroundPolicy=None` не требует объекта. `Absorb` и `CloseOnActivate`
+привязывают точную прямую полнооконную кнопку `GuiButton` с именем
+`Background`; нажатие игнорируется, пока окно заблокировано или не имеет
+полномочия `Active`, а вариант закрытия запрашивает закрытие только собственного
+окна. Общий перехватчик ввода не создаётся.
 
-## Window authoring and derived projects
+## Навигация игровым контроллером
 
-Start a concrete window with
-`.agents/templates/window-authoring/WindowTemplate.model.json` and the
-explicit `$window-authoring` skill. The template is a non-executable `Frame`
-seed with direct `Content` and optional `Background`; an optional direct
-`BlockObjectRef` may point to a full-screen transparent input sink. The cloud
-asset remains data-only, while a repo-owned `BaseWindowView` and one canonical
-typed definition ModuleScript own all behavior.
+Каждое окно владеет одним `WindowNavigationRegistry`. Он записывает исходные
+значения `Selectable`, `Interactable` и направленных связей для
+зарегистрированных потомков с `UINavigationEnabled`, а также текущий исходный и
+последний выбранный объект. Только активное и фактически незаблокированное окно
+включает такие элементы. Приостановка или блокировка очищает принадлежащий фокус
+и отключает взаимодействие; возобновление или освобождение последней метки
+восстанавливает последний допустимый элемент либо обязательный исходный.
 
-Template definitions live below
-`Client/UI/Config/Definitions` and are directly listed in
-`TemplateWindowConfig`. Initialized derived projects instead own the exact
-`Project/Client/UI/DerivedWindowConfig.luau` and sibling `Definitions`
-directory. `scripts/template-project.ps1 init` creates the strict UTF-8 empty
-sequence only when the config is missing. Prepared and legacy initialization
-preserves an already-authored config byte-for-byte. For an already initialized
-legacy derived project with project-owned identity but no config, explicit
-`scripts/template-project.ps1 repair` creates only that missing empty sequence
-and preserves project config, README, place, and namespaces. Repository
-validation requires the config in a derived repository and rejects the
-reserved project namespace in this reusable template. Upstream updates
-preserve the complete project namespace. There is no alternate config, runtime
-repository-kind marker, or automatic empty action source.
+Динамическое присоединение при отсутствии допустимых элементов требует форму
+`AddNestedUiElement(child, nominatedDefault)` с двумя аргументами. Удаление
+текущего исходного элемента при наличии других допустимых элементов также
+требует точную оставшуюся замену. Проверка выполняется до изменения
+идентичности, иерархии, привязок или навигации, поэтому неверный кандидат не
+создаёт частичного изменения. `Clear` восстанавливает исходные значения и
+удаляет принадлежащие поколению сведения о фокусе.
 
-Release evidence uses the checked-in data-only `WindowAssetFixture`, its fixed
-`ui.test.window-asset-fixture`/`1001` definition, the production config compiler,
-and the production loader with a clone-only local backend. The production cloud
-capability remains unchanged. A cloud smoke is conditional on an already
-approved external fixture and AssetId; without one it is recorded as not run,
-not fabricated or treated as a failure. Exact-place read-only deployment
-evidence must still show `AllowInsertFreeAssets=false`; runtime does not claim
-cloud-owner verification.
+## Создание окон и производные проекты
 
-## Verification
+Переиспользуемый шаблон поддерживает облачные окна, которые начинаются с
+`WindowTemplate.model.json` из `.agents/templates/window-authoring/` и не
+содержат исполняемого кода. Такой шаблон имеет один корневой `GuiObject`,
+именованный контейнер управляемого содержимого `Content` и, согласно
+`BackgroundPolicy`, необязательную прямую кнопку `Background`. Необязательный
+прямой `BlockObjectRef` может указывать на полноэкранный прозрачный поглотитель
+ввода внутри того же корня. Конкретный модуль представления и типизированное
+определение остаются в исходниках.
 
-`UiSystemTestRunner` owns the deterministic runtime coverage for `TS-TEST-001`
-through `TS-TEST-011` plus `TS-TEST-013`, `TS-TEST-014`, and `TS-TEST-015`.
-`TS-TEST-012` is the selected-device Play checklist driven by the test-only
-`WindowAssetFixturePlaySetup.start()`/`Finish()` session. `TS-TEST-016` is the
-deterministic local data-only loader/config proof. `TS-STATIC-001` is the raw
-Studio Script Analysis partition gate, and `TS-EVIDENCE-ALLOWINSERT-001` is a
-separate read-only exact-place setting observation. None of these identities is
-replaced by a Rojo build or a fabricated cloud result.
+Для штатных приглашений [ADR-0050](adr/template/0050-stock-physical-windows-and-dual-sources.md) устанавливает физический источник:
+все конкретные шаблоны постоянного интерфейса, окон и повторяемых элементов
+создаются физически в Studio и сохраняются только в каноническом `place.rbxl`
+под `ReplicatedStorage.Assets.Client`. Они получают уникальные `AssetKey`, не
+имеют копий `.model.json` в исходниках, не используют облачный `AssetId` и не
+создают разметку через `Instance.new`. Система интерфейса получает и клонирует
+физический исходник, представление проверяет структуру клона до присоединения и
+наблюдаемой публикации, а затем код только привязывает поведение либо обновляет
+состояние. Модуль определения не выполняет второй прямой поиск. Для приглашений
+друзей каноническими являются:
 
-Run the focused suite before `SystemTestRunner` and the aggregate
-`AllTestsRunner`, followed by repository validation and a temporary Rojo
-build. The SLICE-004 candidate's focused run passed 17/17 and the aggregate run
-passed 397/397 across 15 suites in the selected canonical Studio place
-(`PlaceId=91045933836846`, `GameId=10596427617`). The fresh Xbox One Play
-observed the production safe-area root, actual pointer, keyboard, and Studio
-Virtual Controller gamepad navigation, respawn persistence, and complete
-`Finish()` teardown. The same executable focused run included the bounded
-`TS-TEST-009` post-yield Open/Close owner, generation, deadline, and destroyed-
-navigator regression; this behavior is backed by Studio Play execution, not
-static inspection alone. The then-current repository tooling and temporary
-Rojo build passed on that historical candidate. Read-only Experience Settings
-inspection at
-`2026-08-25T05:33:26.033Z` showed “Allow Loading Third Party Assets” disabled.
-No publish, deployment, attachment, cloud load, or settings mutation was part
-of that run.
+- `ReplicatedStorage.Assets.Client.UI.FriendInvitations.InviteFriends` с
+  `AssetKey=game.ui.hud.invite-friends`;
+- `ReplicatedStorage.Assets.Client.UI.FriendInvitations.InviteFriendsWindow` с
+  `AssetKey=game.ui.window.invite-friends`;
+- `ReplicatedStorage.Assets.Client.UI.FriendInvitations.GroupInviteWindow` с
+  `AssetKey=game.ui.window.group-invite`.
+
+Физический шаблон строки друга находится внутри `InviteFriendsWindow` и только
+клонируется во время исполнения. Все эти объекты не содержат `Script`,
+`LocalScript`, `ModuleScript` или другой `LuaSourceContainer`. Шаблонная
+облачная возможность сохраняется для переиспользуемого основания, но не
+является источником штатного интерфейса приглашений.
+
+`GroupInviteWindow` является физическим модальным окном локального предложения
+группы. Его определение использует `WindowId=game.group-invite`, жизненный цикл
+`Destroy`, видимость `KeepBelow`, фон `Absorb` и не использует предварительную
+загрузку. Физическая структура содержит `Title`, `Message`, `Countdown`,
+контейнер `Actions` и только кнопки `Accept` и `Decline`; обходных `Close` и
+`InputSink` нет. Исходным элементом навигации является `Accept`.
+
+Авторитетный `IncomingOffer` открывает окно через обычный стек `UiSystem`.
+После ответа представление показывает `Processing` и исключает обе кнопки из
+доступной навигации. Клиентский результат ответа не закрывает окно: это делает
+только удаление предложения следующим серверным снимком. Приостановленное окно
+запоминает необходимость закрытия и применяет её после `Resume`, когда снова
+становится верхним. Замена предложения получает новое поколение, поэтому
+устаревший обратный вызов не меняет новое окно.
+
+Строки друзей в основном окне сохраняются по `UserId`. Пересортировка меняет
+только `LayoutOrder`, а изменение присутствия, резерва или нейтрального
+состояния обновляет тот же физический экземпляр и контроллер ввода. Отображаемые
+состояния `Waiting for response`, `Waiting for friend · slot held`,
+`Finish current invite`, `No free slots`, `Checking status` и `Refreshing` не
+являются утверждением о доставке, принятии или завершении переноса.
+
+Определения переиспользуемого шаблона находятся под
+`src/ReplicatedStorage/Client/UI/Config/Definitions/` и перечисляются в
+`TemplateWindowConfig.luau`. Определения инициализированного производного
+проекта находятся под
+`src/ReplicatedStorage/Project/Client/UI/Definitions/` и перечисляются в
+точном проектном
+`src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau`.
+`scripts/template-project.ps1` при инициализации создаёт эту точную пустую
+последовательность только при её отсутствии. Для производного проекта с уже
+заданной проектной идентичностью, но без определения окон, явная операция
+`repair` создаёт только отсутствующую пустую последовательность и сохраняет
+проектную конфигурацию, `README`, место и пространства имён. Проверка
+репозитория требует этот файл в производном проекте и запрещает зарезервированное
+проектное пространство имён в переиспользуемом шаблоне. Обновления из шаблона
+сохраняют всё проектное пространство имён. Альтернативной конфигурации,
+определения вида репозитория во время исполнения или автоматически создаваемого
+пустого источника действий нет.
+
+Повторное внешнее приглашение разрешено во время полноценного резерва
+`Native`, в том числе при заполненной им вместимости. После `RequestInvite`
+кнопка блокируется не более чем на 10 секунд. Закрытие окна Roblox не управляет
+этим сроком. Ошибка или зависание проверки и программного вызова не могут
+продлить блокировку. После исходной границы допустим новый запрос.
+
+Полный резерв на 120 секунд появляется либо продлевается только после принятого
+сервером результата `PromptRequested`. Предварительное место ограничено
+сроком попытки. Неудачный повтор не удаляет прежний полноценный резерв.
+
+`GetPromptState` содержит `IsBusy`, `Phase` и необязательный
+`TargetUserId`; поля `IsOpen` нет. Фазы `Idle` и `Requesting`
+описывают покой и запрос. `OpeningRoblox` — внутреннее имя этапа проверки
+и обращения к программному интерфейсу, а не факт показа; строка использует
+нейтральное `Checking status`. `PromptRequested` означает успешный вызов
+и допускает `Waiting for friend · slot held`, не обещая доставку.
+`GameInvitePromptClosed` не изменяет состояние интерфейса или резерв.
+
+Потеря владения, непригодность цели и локальное предложение продолжают
+ограничивать действие. Резерв `SameServer` не допускает повторного
+приглашения; срок локального предложения остаётся 120 секунд, обработки
+`Processing` — 30 секунд в согласованной конфигурации.
+
+Сроки и границы приняты в [ADR-0052](adr/template/0052-separate-invite-attempt-and-reservation-deadlines.md).
+
+## Проверка
+
+Штатные представления находятся в `Client/UI/Windows`, контроллер и проверка
+постоянной кнопки — в `Client/UI/FriendInvitations`, общие проверки структуры —
+в `Shared/UI`, команда — в `Client/Initialization/Commands`; пути указаны
+относительно `src/ReplicatedStorage/`. `ClientManifest` внедряет оба источника
+загрузчика. Идентификаторы `game.invite-friends`, `game.group-invite` и три
+ключа `game.ui.*` сохранены: их префикс не определяет владельца файла.
+
+`UiSystemTestRunner` владеет детерминированным покрытием `TS-TEST-001`–
+`TS-TEST-011`, а также `TS-TEST-013`, `TS-TEST-014` и `TS-TEST-015`.
+`TS-TEST-012` является перечнем проверок запуска на выбранном устройстве,
+которым управляет проверочная сессия
+`WindowAssetFixturePlaySetup.start()`/`Finish()`. `TS-TEST-016` является
+детерминированным доказательством локального шаблона без исполняемого кода и
+конфигурации: оно использует сохранённый в исходниках `WindowAssetFixture`, его
+фиксированные `ui.test.window-asset-fixture` и `1001`, производственный
+`WindowConfigCompiler` и производственный `WindowAssetLoader` с внедрённым
+локальным поставщиком, который только клонирует объект. Проверка
+`TS-STATIC-001` выполняется непосредственно средством анализа сценариев Studio,
+а `TS-EVIDENCE-ALLOWINSERT-001` отдельно считывает
+`AllowInsertFreeAssets=false` для точного места. Облачная возможность шаблона
+не изменена; её проверка запускается только с заранее разрешённым
+внешним шаблоном и `AssetId`, а иначе отмечается как невыполненная. Эти
+свидетельства нельзя заменять сборкой Rojo или поддельным облачным результатом.
+
+После направленного набора выполнить `SystemTestRunner`, общий
+`AllTestsRunner`, проверку репозитория и временную сборку Rojo. Для исторического
+кандидата `SLICE-004` направленный набор завершился результатом 17/17, а общий
+набор — 397/397 в 15 наборах выбранного канонического места Studio
+(`PlaceId=91045933836846`, `GameId=10596427617`). Свежий запуск с макетом
+`Xbox One` подтвердил настоящий ввод указателем и клавиатурой, навигацию
+виртуальным игровым контроллером Studio, безопасную область, сохранение при
+возрождении и полную очистку через `Finish()`. Тот же направленный запуск
+включал ограниченную проверку `TS-TEST-009` после приостановки: операции
+открытия и закрытия, истёкшие сроки, поколения владельца и уничтоженный
+навигатор. Поэтому это поведение подтверждено исполнением в Studio, а не только
+статическим исследованием. Действовавшие тогда средства репозитория и временная
+сборка Rojo завершились успешно.
+
+Прочитанная без изменения настройка места в
+`2026-08-25T05:33:26.033Z` показывала, что «разрешить загрузку сторонних
+ресурсов» отключено. В этот исторический запуск не входили публикация,
+развёртывание, прикрепление, облачная загрузка или изменение настроек.
+
+Для штатного интерфейса дополнительно проверить в выбранном каноническом
+сеансе Studio наличие трёх физических шаблонов приглашений по точным путям и
+ключам, отсутствие исполняемых потомков и файловых копий Rojo, открытие
+физического окна физической кнопкой, клонирование физического шаблона строки и
+модальное локальное предложение с точными действиями `Accept` и `Decline`.
+Предыдущие количества проверок не являются свидетельством для изменённого
+исходного состояния; после изменения определения источника необходимо выполнить
+направленный и полный наборы заново.

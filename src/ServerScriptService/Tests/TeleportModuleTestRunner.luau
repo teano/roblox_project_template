@@ -313,19 +313,23 @@ local function statisticsConfig(): any
 	}
 end
 
-local function continuationJoinData(userId: number, sessionId: string, sourcePlaceId: number?): any
+local function continuationJoinData(userId: number, sessionId: string, sourcePlaceId: number?, friends: any?): any
 	local source = sourcePlaceId or PLACE_ID
+	local envelope: any = {
+		Version = TeleportProtocol.EnvelopeVersion,
+		SourcePlaceId = source,
+		AttemptId = guid(899),
+		SessionsByUserId = {
+			[tostring(userId)] = sessionId,
+		},
+	}
+	if friends ~= nil then
+		envelope.Friends = friends
+	end
 	return {
 		SourcePlaceId = source,
 		TeleportData = {
-			[TeleportProtocol.EnvelopeKey] = {
-				Version = TeleportProtocol.EnvelopeVersion,
-				SourcePlaceId = source,
-				AttemptId = guid(899),
-				SessionsByUserId = {
-					[tostring(userId)] = sessionId,
-				},
-			},
+			[TeleportProtocol.EnvelopeKey] = envelope,
 		},
 	}
 end
@@ -769,6 +773,56 @@ test("invalid continuation shapes fail closed to a new external session", functi
 		local module = newServer(scope, { player })
 		assertEqual(module:GetSession(player).EntryKind, "External", `invalid case {index}`)
 	end
+end)
+
+test("Friends continuation is exact, copied into TeleportData, and exposed only as a typed result", function(scope)
+	local player = newPlayer(351, nil)
+	local module, _, teleportService = newServer(scope, { player })
+	local continuation = {
+		Version = 1,
+		Token = "reserve-token",
+		TargetJobId = "target-job",
+		Attempt = 1,
+	}
+	local request = module:Teleport({ player }, { Kind = "ServerInstance", PlaceId = PLACE_ID, ServerInstanceId = "target-job" }, continuation)
+	assertTrue(request.Ok)
+	local sent = teleportService.Calls[1].Options.TeleportData.TeleportModule.Friends
+	assertEqual(sent.Version, 1)
+	assertEqual(sent.Token, "reserve-token")
+	assertEqual(sent.TargetJobId, "target-job")
+	assertEqual(sent.Attempt, 1)
+
+	local target = newPlayer(351, {
+		SourcePlaceId = PLACE_ID,
+		TeleportData = teleportService.Calls[1].Options.TeleportData,
+	})
+	local targetModule = newServer(scope, { target })
+	assertEqual(targetModule:GetSession(target).EntryKind, "Teleported")
+	local arrived = targetModule:GetFriendsContinuation(target)
+	assertEqual(arrived.Status, "Valid")
+	assertEqual(arrived.Continuation.Token, "reserve-token")
+	assertEqual(arrived.Continuation.TargetJobId, "target-job")
+	assertEqual(arrived.Continuation.Attempt, 1)
+
+	local invalid = newPlayer(352, continuationJoinData(352, guid(352), nil, {
+		Version = 1,
+		Token = "reserve-token",
+		TargetJobId = "target-job",
+		Attempt = 4,
+	}))
+	local invalidModule = newServer(scope, { invalid })
+	assertEqual(invalidModule:GetSession(invalid).EntryKind, "Teleported")
+	assertEqual(invalidModule:GetFriendsContinuation(invalid).Status, "Invalid")
+
+	local invalidRequest = module:Teleport({ player }, { Kind = "Public", PlaceId = PLACE_ID }, {
+		Version = 1,
+		Token = "reserve-token",
+		TargetJobId = "target-job",
+		Attempt = 4,
+	})
+	assertEqual(invalidRequest.Ok, false)
+	assertEqual(invalidRequest.Code, "InvalidFriendsContinuation")
+	assertEqual(#teleportService.Calls, 1, "invalid continuation must not reach TeleportService")
 end)
 
 test("accepted request carries only the module envelope and does not publish arrival", function(scope)

@@ -26,6 +26,16 @@ local function failure(code: string): UiVoidResult
 	return { Kind = "Error", Error = { Code = code } }
 end
 
+local function hasMethod(value: any, methodName: string): boolean
+	if value == nil then
+		return false
+	end
+	local ok, member = pcall(function()
+		return value[methodName]
+	end)
+	return ok and typeof(member) == "function"
+end
+
 function UiSystem.new(dependencies: {
 	PlayersModule: any,
 	DerivedActionEntries: { any }?,
@@ -36,6 +46,7 @@ function UiSystem.new(dependencies: {
 	Pooling: any?,
 	ContentPreloader: any?,
 	AssetBackend: any?,
+	AssetRegistry: any?,
 	Clock: (() -> number)?,
 	Spawn: (((() -> ()) -> ()))?,
 	Delay: (((number, () -> ()) -> ()))?,
@@ -54,6 +65,7 @@ function UiSystem.new(dependencies: {
 		_pooling = dependencies.Pooling,
 		_contentPreloader = dependencies.ContentPreloader,
 		_assetBackend = dependencies.AssetBackend,
+		_assetRegistry = dependencies.AssetRegistry,
 		_clock = dependencies.Clock or os.clock,
 		_spawn = dependencies.Spawn or task.spawn,
 		_delay = dependencies.Delay or task.delay,
@@ -167,9 +179,23 @@ function UiSystem:Initialize(): UiVoidResult
 	end
 
 	local hasWindowDefinitions = #windowConfig.Definitions > 0
-	if hasWindowDefinitions
-		and (self._pooling == nil or self._contentPreloader == nil or self._assetBackend == nil)
-	then
+	local needsAssetBackend = false
+	local needsAssetRegistry = false
+	for _, definition in windowConfig.Definitions do
+		if definition.AssetKey ~= nil then
+			needsAssetRegistry = true
+		else
+			needsAssetBackend = true
+		end
+	end
+	local hasValidAssetBackend = hasMethod(self._assetBackend, "LoadAssetAsync")
+	local hasValidAssetRegistry = hasMethod(self._assetRegistry, "RequireByKey")
+	if hasWindowDefinitions and (
+		self._pooling == nil
+		or self._contentPreloader == nil
+		or (needsAssetBackend and not hasValidAssetBackend)
+		or (needsAssetRegistry and not hasValidAssetRegistry)
+	) then
 		identityRegistry:Destroy()
 		eventStream:Destroy()
 		rootController:Destroy()
@@ -179,10 +205,14 @@ function UiSystem:Initialize(): UiVoidResult
 	local assetLoader = nil
 	local poolOwner = nil
 	local navigator = nil
-	if self._pooling ~= nil and self._contentPreloader ~= nil and self._assetBackend ~= nil then
+	if self._pooling ~= nil
+		and self._contentPreloader ~= nil
+		and (hasValidAssetBackend or hasValidAssetRegistry)
+	then
 		local windowOk = xpcall(function()
 			assetLoader = WindowAssetLoader.new({
 				AssetBackend = self._assetBackend,
+				AssetRegistry = self._assetRegistry,
 				ContentPreloader = self._contentPreloader,
 				Clock = self._clock,
 				Spawn = self._spawn,

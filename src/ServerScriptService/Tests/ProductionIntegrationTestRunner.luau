@@ -22,6 +22,9 @@ local CommunicationClient = require(ReplicatedStorage.Client.Communication.Commu
 local TeleportClient = require(ReplicatedStorage.Client.Teleport.TeleportClient)
 local ClientSaveController = require(ReplicatedStorage.Client.Save.ClientSaveController)
 local WalletClient = require(ReplicatedStorage.Client.Wallet.WalletClient)
+local FriendsClient = require(ReplicatedStorage.Client.Friends.FriendsClient)
+local FriendsSnapshotClientProvider = require(ReplicatedStorage.Client.Friends.FriendsSnapshotClientProvider)
+local FriendsProtocol = require(ReplicatedStorage.Shared.Friends.FriendsProtocol)
 
 local GlobalSaveInitializationCommand =
 	require(ServerScriptService.Initialization.Commands.GlobalSaveInitializationCommand)
@@ -35,6 +38,9 @@ local ServerSaveController = require(ServerScriptService.Modules.Save.ServerSave
 local ShutdownSaveCoordinator = require(ServerScriptService.Modules.Save.ShutdownSaveCoordinator)
 local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
 local StatisticsModule = require(ServerScriptService.Modules.Statistics.StatisticsModule)
+local FriendsModule = require(ServerScriptService.Modules.Friends.FriendsModule)
+local PlayerSlotModule = require(ServerScriptService.Modules.PlayerSlots.PlayerSlotModule)
+local PlayerAdmissionCoordinator = require(ServerScriptService.Modules.PlayerAdmission.PlayerAdmissionCoordinator)
 local TestHarness = require(script.Parent.TestHarness)
 
 local ProductionIntegrationTestRunner = {}
@@ -2145,6 +2151,18 @@ function ProductionIntegrationTestRunner.runAll()
 			end
 			return { Ok = true }
 		end
+		local friendsModule = {
+			Id = "Friends",
+			InitializeCalls = 0,
+			Initialized = false,
+		}
+		function friendsModule:Initialize()
+			self.InitializeCalls += 1
+			if self.Initialized then
+				return
+			end
+			self.Initialized = true
+		end
 		local communicationHandlers = {}
 		local queuedMessages = {}
 		local command = GlobalSaveInitializationCommand.new({
@@ -2200,6 +2218,7 @@ function ProductionIntegrationTestRunner.runAll()
 			VersionModule = { Id = "Version" },
 			WalletModule = { Id = "Wallet" },
 			StatisticsModule = statisticsModule,
+			FriendsModule = friendsModule,
 			Logger = makeLogger(),
 		})
 		local context = { Services = {} }
@@ -2208,6 +2227,7 @@ function ProductionIntegrationTestRunner.runAll()
 		assertEqual(registeredAutoSave, controller)
 		assertEqual(registeredSessionLock, controller)
 		assertEqual(boundStatisticsController, controller)
+		assertEqual(friendsModule.InitializeCalls, 1)
 		local patchHandler = communicationHandlers[CommunicationProtocol.SystemMessages.SaveClientPatch]
 		assert(patchHandler ~= nil, "GlobalSave did not register the client patch handler")
 		local validPatch, validatedPatch = patchHandler.Validate({
@@ -2686,6 +2706,210 @@ function ProductionIntegrationTestRunner.runAll()
 			},
 		})
 		assertEqual(handled, 1, "stale pre-resync packet must be ignored")
+	end)
+
+	test("same epoch batches remain ordered while the first handler yields", function(scope)
+		local logger = makeLogger()
+		local client = scope:Track(CommunicationClient.new(logger))
+		local events = {}
+		client:ResumeAfterSnapshot(1)
+		client:RegisterHandler("Integration.First", function()
+			table.insert(events, "first")
+			coroutine.yield()
+		end)
+		client:RegisterHandler("Integration.Ordered", function(payload) table.insert(events, payload.Name) end)
+		local worker = coroutine.create(function()
+			client:ReceiveBatch({ Epoch = 1, Sequence = 1, Messages = {
+				{ Type = "Integration.First", Payload = {} },
+				{ Type = "Integration.Ordered", Payload = { Name = "tail1" } },
+			} })
+		end)
+		scope:Defer(function() if coroutine.status(worker) ~= "dead" then coroutine.close(worker) end end)
+		assertTrue(coroutine.resume(worker), "first batch did not reach the yield")
+		assertEqual(coroutine.status(worker), "suspended")
+		client:ReceiveBatch({ Epoch = 1, Sequence = 2, Messages = {
+			{ Type = "Integration.Ordered", Payload = { Name = "batch2" } },
+		} })
+		assertTrue(coroutine.resume(worker), "first batch did not finish")
+		assertEqual(table.concat(events, ","), "first,tail1,batch2", "a later batch must not overtake the first tail")
+		assertEqual(client:GetQueueStats().PausedForResync, false, "ordinary yielding delivery must not force recovery")
+	end)
+
+	test("incoming queue bounds include active messages bytes and empty batches", function(scope)
+		for _, bound in { "Messages", "Bytes", "EmptyBatches" } do
+			local logger, entries = makeLogger()
+			local client = scope:Track(CommunicationClient.new(logger))
+			local delivered = 0
+			client:ResumeAfterSnapshot(1)
+			client:RegisterHandler("Integration.Wait", function() coroutine.yield() end)
+			client:RegisterHandler("Integration.Buffered", function() delivered += 1 end)
+			local worker = coroutine.create(function()
+				client:ReceiveBatch({ Epoch = 1, Sequence = 1,
+					Messages = { { Type = "Integration.Wait", Payload = {} } } })
+			end)
+			scope:Defer(function() if coroutine.status(worker) ~= "dead" then coroutine.close(worker) end end)
+			assertTrue(coroutine.resume(worker), "first batch did not suspend")
+			local batchCount = if bound == "Messages" then CommunicationConfig.MaxQueuedMessagesPerPeer / CommunicationConfig.MaxMessagesPerBatch
+				elseif bound == "Bytes" then math.floor(CommunicationConfig.MaxQueuedPayloadBytesPerPeer / 60_000) + 1
+				else CommunicationConfig.MaxQueuedMessagesPerPeer
+			for index = 1, batchCount do
+				local messages = {}
+				if bound == "Messages" then
+					for _ = 1, CommunicationConfig.MaxMessagesPerBatch do
+						table.insert(messages, { Type = "Integration.Buffered", Payload = {} })
+					end
+				elseif bound == "Bytes" then
+					table.insert(messages, { Type = "Integration.Buffered", Payload = { Text = string.rep("x", 60_000) } })
+				end
+				client:ReceiveBatch({ Epoch = 1, Sequence = index + 1, Messages = messages })
+				assertEqual(client:GetQueueStats().PausedForResync, index == batchCount,
+					`{bound} must accept the bounded prefix and recover exactly on overflow`)
+			end
+			assertEqual(entries[#entries].Fields.Reason, "IncomingQueueOverflow")
+			assertTrue(coroutine.resume(worker), "retired overflow worker did not finish")
+			assertEqual(delivered, 0, "overflow must discard buffered old-generation messages")
+			client:ResumeAfterSnapshot(2)
+			client:ReceiveBatch({ Epoch = 2, Sequence = 1,
+				Messages = { { Type = "Integration.Buffered", Payload = {} } } })
+			assertEqual(delivered, 1, "recovery must release the queue and its budgets")
+		end
+	end)
+
+	test("a retired incoming drain cannot release or consume the newer generation queue", function(scope)
+		for _, boundary in { "Pause", "Snapshot", "Stop" } do
+			local logger = makeLogger()
+			local client = scope:Track(CommunicationClient.new(logger))
+			local events = {}
+			client:RegisterHandler("Integration.Wait", function() coroutine.yield() end)
+			client:RegisterHandler("Integration.Ordered", function(payload) table.insert(events, payload.Name) end)
+			local function startBatch(epoch: number, tail: string): thread
+				local worker = coroutine.create(function()
+					client:ReceiveBatch({ Epoch = epoch, Sequence = 1, Messages = {
+						{ Type = "Integration.Wait", Payload = {} },
+						{ Type = "Integration.Ordered", Payload = { Name = tail } },
+					} })
+				end)
+				scope:Defer(function() if coroutine.status(worker) ~= "dead" then coroutine.close(worker) end end)
+				assertTrue(coroutine.resume(worker), "batch did not suspend")
+				return worker
+			end
+			client:ResumeAfterSnapshot(1)
+			local oldWorker = startBatch(1, "old-tail")
+			client:ReceiveBatch({ Epoch = 1, Sequence = 2,
+				Messages = { { Type = "Integration.Ordered", Payload = { Name = "old-buffered" } } } })
+			if boundary == "Pause" then client:RequestResync("Integration.ResetIncoming")
+			elseif boundary == "Stop" then client:Stop() end
+			client:ResumeAfterSnapshot(2)
+			local newWorker = startBatch(2, "new-tail")
+			assertTrue(coroutine.resume(oldWorker), "old drain did not finish")
+			client:ReceiveBatch({ Epoch = 2, Sequence = 2,
+				Messages = { { Type = "Integration.Ordered", Payload = { Name = "new-buffered" } } } })
+			assertEqual(#events, 0, `{boundary} must discard the old queue and retain ownership of the new drain`)
+			assertTrue(coroutine.resume(newWorker), "new drain did not finish")
+			assertEqual(table.concat(events, ","), "new-tail,new-buffered")
+		end
+	end)
+
+	test("native eligibility wait does not block ordered delivery and recovery cancels its old worker", function(scope)
+		local logger = makeLogger()
+		local communication = scope:Track(CommunicationClient.new(logger))
+		local ready = scope:Track(Signal.new())
+		local provider = scope:Track(FriendsSnapshotClientProvider.new())
+		local nativeCalls = 0
+		local delivered = 0
+		local platformWorker: thread? = nil
+		local fullSnapshot = {
+			Min = 1, Max = 3, Current = 3, ConnectedCount = 0, CanCreateReserve = false,
+			IsSlotOwner = true, ConnectedUserIds = {},
+			Reserves = { { TargetUserId = 77, ExpiresAtServerTime = 1000, Kind = "Native" } },
+		}
+		local friends = scope:Track(FriendsClient.new(provider, {
+			Communication = communication,
+			LocalPlayer = {} :: any,
+			GenerateRequestId = function() return "yielding-invite" end,
+			Spawn = function(callback: () -> ())
+				local spawned = coroutine.create(callback)
+				platformWorker = spawned
+				scope:Defer(function() if coroutine.status(spawned) ~= "dead" then coroutine.close(spawned) end end)
+				assertTrue(coroutine.resume(spawned), "platform worker did not reach its wait")
+			end,
+			SocialService = {
+				CanSendGameInviteAsync = function() coroutine.yield(); return true end,
+				PromptGameInvite = function() nativeCalls += 1 end,
+			},
+		}))
+		friends:Initialize({ Ready = ready })
+		provider:SetMemento(fullSnapshot)
+		provider:Run()
+		ready:Fire()
+		communication:ResumeAfterSnapshot(1)
+		communication:RegisterHandler("Integration.AfterNativePrompt", function() delivered += 1 end)
+		assertTrue(friends:RequestInvite(77).Ok, "native request did not start")
+		local worker = coroutine.create(function()
+			communication:ReceiveBatch({
+				Epoch = 1, Sequence = 1,
+				Messages = {
+					{ Type = FriendsProtocol.MessageTypes.OpenPrompt, RequestId = "yielding-invite",
+						Payload = { Generation = "native-generation", TargetUserId = 77, LaunchData = "{}" } },
+					{ Type = "Integration.AfterNativePrompt", Payload = {} },
+				},
+			})
+		end)
+		scope:Defer(function() if coroutine.status(worker) ~= "dead" then coroutine.close(worker) end end)
+		assertTrue(coroutine.resume(worker), "batch failed before the platform eligibility wait")
+		assertEqual(coroutine.status(worker), "dead", "native platform waits must not occupy the incoming queue")
+		assertEqual(coroutine.status(assert(platformWorker)), "suspended")
+		assertEqual(delivered, 1, "ordered message delivery must continue during the platform wait")
+		communication:RequestResync("Integration.NativePromptRecovery")
+		provider:Stop()
+		provider:SetMemento(fullSnapshot)
+		provider:Run()
+		ready:Fire()
+		communication:ResumeAfterSnapshot(2)
+		assertTrue(coroutine.resume(assert(platformWorker)), "old platform continuation failed")
+		assertEqual(coroutine.status(assert(platformWorker)), "dead")
+		assertEqual(nativeCalls, 0, "cancelled eligibility must not open the native prompt")
+		assertEqual(delivered, 1, "old platform continuation must not replay a delivered message")
+		communication:ReceiveBatch({ Epoch = 2, Sequence = 1,
+			Messages = { { Type = "Integration.AfterNativePrompt", Payload = {} } } })
+		assertEqual(delivered, 2, "current-epoch delivery must still work")
+	end)
+
+	test("yielded batch success and failure are inert after pause snapshot replacement or stop", function(scope)
+		for _, boundary in { "Pause", "Snapshot", "Stop" } do
+			for _, failAfterYield in { false, true } do
+				local logger, entries = makeLogger()
+				local client = scope:Track(CommunicationClient.new(logger))
+				local delivered = 0
+				client:RegisterHandler("Integration.Yielding", function()
+					coroutine.yield()
+					if failAfterYield then error("ExpectedStaleHandlerFailure") end
+				end)
+				client:RegisterHandler("Integration.Tail", function() delivered += 1 end)
+				client:ResumeAfterSnapshot(1)
+				local worker = coroutine.create(function()
+					client:ReceiveBatch({ Epoch = 1, Sequence = 1, Messages = {
+						{ Type = "Integration.Yielding", Payload = {} },
+						{ Type = "Integration.Tail", Payload = {} },
+					} })
+				end)
+				scope:Defer(function() if coroutine.status(worker) ~= "dead" then coroutine.close(worker) end end)
+				assertTrue(coroutine.resume(worker), "handler did not reach its wait")
+				assertEqual(coroutine.status(worker), "suspended")
+				if boundary == "Stop" then
+					client:Stop()
+				else
+					client:RequestResync("Integration.YieldingBoundary")
+					if boundary == "Snapshot" then client:ResumeAfterSnapshot(2) end
+				end
+				local diagnosticsBeforeResume = #entries
+				assertTrue(coroutine.resume(worker), "stale handler continuation escaped the transport")
+				assertEqual(coroutine.status(worker), "dead")
+				assertEqual(delivered, 0, `{boundary} must retire the old batch remainder`)
+				assertEqual(#entries, diagnosticsBeforeResume, "stale handler error must not restart recovery or emit diagnostics")
+				assertEqual(client:GetQueueStats().PausedForResync, boundary == "Pause")
+			end
+		end
 	end)
 
 	test("late resync handler starts recovery for an already paused client", function()
@@ -3254,6 +3478,311 @@ function ProductionIntegrationTestRunner.runAll()
 		assertTrue(stats.Messages <= CommunicationConfig.MaxQueuedMessagesPerPeer, "queue limit exceeded")
 		assertTrue(stats.DroppedPresentation > 0, "presentation was not shed")
 		assertEqual(stats.ResyncRequired, false)
+	end)
+
+	test("Friends snapshot changes reject a stale Previous value without mutating the client baseline", function(scope)
+		local provider = FriendsSnapshotClientProvider.new()
+		local ready = Signal.new()
+		local handlers = {}
+		local resyncs = 0
+		local client = FriendsClient.new(provider, {
+			Communication = {
+				RegisterHandler = function(_self: any, messageType: string, callback: any)
+					handlers[messageType] = callback
+				end,
+				RegisterResyncPreparation = function(_self: any, _callback: any)
+					return function() end
+				end,
+				RequestResync = function(_self: any, reason: string)
+					assertEqual(reason, "FriendsSnapshotMismatch")
+					resyncs += 1
+				end,
+			},
+		})
+		scope:Defer(function()
+			client:Stop()
+			ready:Destroy()
+		end)
+		local baseline = {
+			Min = 1,
+			Max = 3,
+			Current = 2,
+			ConnectedCount = 0,
+			CanCreateReserve = false,
+			IsSlotOwner = true,
+			ConnectedUserIds = {},
+			Reserves = {},
+		}
+		provider:SetMemento(baseline)
+		provider:Run()
+		client:Initialize({ Ready = ready })
+		ready:Fire()
+		local current = {
+			Min = 1,
+			Max = 3,
+			Current = 2,
+			ConnectedCount = 0,
+			CanCreateReserve = true,
+			IsSlotOwner = true,
+			ConnectedUserIds = {},
+			Reserves = {
+				{ TargetUserId = 77, ExpiresAtServerTime = 1234.5, Kind = "Native" },
+			},
+		}
+		handlers[FriendsProtocol.MessageTypes.SnapshotChanged]({ Previous = baseline, Current = current })
+		assertEqual(client:GetSnapshot().Snapshot.Reserves[1].TargetUserId, 77)
+		handlers[FriendsProtocol.MessageTypes.SnapshotChanged]({
+			Previous = baseline,
+			Current = {
+				Min = 1,
+				Max = 3,
+				Current = 2,
+				ConnectedCount = 1,
+				CanCreateReserve = false,
+				IsSlotOwner = true,
+				ConnectedUserIds = { 88 },
+				Reserves = {},
+			},
+		})
+		assertEqual(resyncs, 1)
+		assertEqual(client:GetSnapshot().Snapshot.Reserves[1].TargetUserId, 77)
+		assertEqual(client:GetSnapshot().Snapshot.ConnectedCount, 0)
+	end)
+
+	test("same-server friend offer transfers the physical slot and respawns exactly once without disconnect", function(scope)
+		local slotsRoot = Instance.new("Folder")
+		slotsRoot.Name = "WorkspaceBoundary"
+		local slotsFolder = Instance.new("Folder")
+		slotsFolder.Name = "PlayerSlots"
+		slotsFolder.Parent = slotsRoot
+		local teams = Instance.new("Folder")
+		local tagged = {}
+		local colors = { BrickColor.new("Bright red"), BrickColor.new("Bright blue") }
+		for slotId = 1, 2 do
+			local model = Instance.new("Model")
+			model.Name = `Slot_{slotId}`
+			model:SetAttribute("SlotId", slotId)
+			model.Parent = slotsFolder
+			table.insert(tagged, model)
+			local spawn = Instance.new("SpawnLocation")
+			spawn.Name = "PlayerSpawn"
+			spawn.Enabled = true
+			spawn.Neutral = false
+			spawn.AllowTeamChangeOnTouch = false
+			spawn.TeamColor = colors[slotId]
+			spawn.Parent = model
+			local team = Instance.new("Team")
+			team.Name = model.Name
+			team:SetAttribute("SlotId", slotId)
+			team.AutoAssignable = false
+			team.TeamColor = colors[slotId]
+			team.Parent = teams
+		end
+		scope:Defer(function() slotsRoot:Destroy(); teams:Destroy() end)
+		local inviter = { UserId = 50_001, Name = "Inviter", DisplayName = "Inviter", Team = nil, RespawnLocation = nil } :: any
+		local target = { UserId = 50_002, Name = "Target", DisplayName = "Target", Team = nil, RespawnLocation = nil } :: any
+		local present = { [inviter.UserId] = inviter, [target.UserId] = target }
+		local removing = Signal.new()
+		local attemptFailed = Signal.new()
+		local loaded = Signal.new()
+		scope:Defer(function() removing:Destroy(); attemptFailed:Destroy(); loaded:Destroy() end)
+		local disconnects = 0
+		local players = {
+			GetPlayers = function() return {} end,
+			GetPlayerByUserId = function(_self: any, userId: number) return present[userId] end,
+			PlayerRemoving = removing,
+			DisconnectPlayer = function() disconnects += 1; return true end,
+		}
+		local config = {
+			GetRequired = function(_self: any, id: string)
+				if id == "PlayerSlots" then return table.freeze({ Strategy = "Enabled" }) end
+				if id == "Friends" then
+					return table.freeze({ MinInviteCapacity = 1, MaxInviteCapacity = 3, ReserveLifetimeSeconds = 120 })
+				end
+				error(`unexpected local-transfer config: {id}`)
+			end,
+		}
+		local slots = PlayerSlotModule.new({
+			PlayersModule = players,
+			Config = config,
+			CollectionService = { GetTagged = function(_self: any, tag: string) return if tag == "PlayerSlot" then table.clone(tagged) else {} end },
+			Workspace = slotsRoot,
+			Teams = teams,
+			MaxPlayers = 8,
+		})
+		slots:Initialize()
+		scope:Defer(function() slots:Stop() end)
+		local inviterAdmission = slots:PrepareAdmission(inviter, table.freeze({ Kind = "Ordinary" }))
+		assertTrue(inviterAdmission.Ok and slots:CommitAdmission(inviterAdmission.Operation), "inviter slot admission failed")
+		local targetAdmission = slots:PrepareAdmission(target, table.freeze({ Kind = "Ordinary" }))
+		assertTrue(targetAdmission.Ok and slots:CommitAdmission(targetAdmission.Operation), "target slot admission failed")
+		assertEqual(slots:GetPlayerSlot(inviter).SlotId, 1)
+		assertEqual(slots:GetPlayerSlot(target).SlotId, 2)
+
+		local queued = {}
+		local coordinator: any = nil
+		local generated = 0
+		local now = 1_000
+		local delayed = {}
+		local launchPayloads = {}
+		local friends = FriendsModule.new({
+			Config = config,
+			PlayerSlots = slots,
+			PlayersModule = players,
+			Communication = {
+				RegisterHandler = function() end,
+				Queue = function(_self: any, player: Player, messageType: string, payload: any, requestId: string?)
+					table.insert(queued, { Player = player, MessageType = messageType, Payload = payload, RequestId = requestId })
+					return true
+				end,
+			},
+			CheckFriendship = function() return true end,
+			CanCreateLocalOffer = function(observedInviter: Player, observedTarget: Player)
+				return coordinator:CanCreateLocalOffer(observedInviter, observedTarget)
+			end,
+			Spawn = function(callback: () -> ()) callback() end,
+			Delay = function(_seconds: number, callback: () -> ()) table.insert(delayed, callback) end,
+			Clock = function() return now end,
+			JobId = "integration-job",
+			EncodeJson = function(value: any)
+				table.insert(launchPayloads, value)
+				return "{}"
+			end,
+			GenerateId = function()
+				generated += 1
+				return `integration-{generated}`
+			end,
+		})
+		friends:Initialize()
+		scope:Defer(function() friends:Stop() end)
+		for _, player in { inviter, target } do
+			friends:SetMemento(player, { Current = if player == inviter then 2 else 1 })
+			friends:Run(player)
+		end
+		local respawnCount = 0
+		local respawnCallback = nil :: any
+		coordinator = PlayerAdmissionCoordinator.new({
+			PlayersModule = players,
+			FriendsModule = friends,
+			PlayerSlots = slots,
+			CharacterModule = {
+				RequestRespawn = function(_self: any, player: Player, callback: any)
+					assertEqual(player, target)
+					respawnCount += 1
+					respawnCallback = callback
+					return true
+				end,
+			},
+			TeleportModule = { AttemptFailed = attemptFailed },
+			PlaceId = 1,
+		})
+		coordinator:Initialize({ PlayerLoaded = loaded, IsLoaded = function() return true end })
+		scope:Defer(function() coordinator:Stop() end)
+
+		local projections = {}
+		for _, player in { inviter, target } do
+			local provider = FriendsSnapshotClientProvider.new()
+			provider:SetMemento(friends:GetSnapshot(player).Snapshot)
+			provider:Run()
+			projections[player] = provider
+		end
+		local firstTransferMessage = #queued + 1
+		friends:RequestInvite(inviter, { TargetUserId = target.UserId }, "request-local")
+		local offer = friends:GetSnapshot(target).Snapshot.IncomingOffer
+		assertTrue(offer ~= nil and offer.Status == "Open", "same-server request did not create an incoming offer")
+		assertEqual(friends:GetSnapshot(inviter).Snapshot.Reserves[1].Kind, "SameServer")
+		friends:RespondLocalOffer(target, { OfferId = offer.OfferId, Decision = "Accept" }, "accept-local")
+		assertEqual(respawnCount, 1, "accepted same-server transfer did not request exactly one respawn")
+		assertTrue(respawnCallback ~= nil, "accepted transfer did not own a respawn completion")
+		assertEqual(slots:GetPlayerSlot(target).SlotId, 1)
+		assertEqual(slots:GetPlayerSlot(target).Role, "Friend")
+		assertEqual(target.Team, slots:GetSlot(1).Team)
+		assertEqual(target.RespawnLocation, slots:GetSlot(1).PlayerSpawn)
+		respawnCallback(true)
+		assertEqual(slots:GetSlot(2).Owner, nil, "source slot was not freed after successful transfer")
+		assertEqual(friends:GetSnapshot(inviter).Snapshot.ConnectedUserIds[1], target.UserId)
+		assertEqual(friends:GetSnapshot(target).Snapshot.ConnectedUserIds[1], inviter.UserId)
+		assertEqual(friends:GetSnapshot(target).Snapshot.IncomingOffer, nil)
+		assertEqual(disconnects, 0, "same-server transfer used the player disconnect path")
+		local acceptedResult = false
+		for _, message in queued do
+			if message.MessageType == FriendsProtocol.MessageTypes.LocalOfferResult
+				and message.RequestId == "accept-local" and message.Payload.Category == "Accepted" then
+				acceptedResult = true
+			end
+		end
+		assertTrue(acceptedResult, "successful local transfer did not publish Accepted")
+		for index = firstTransferMessage, #queued do
+			local message = queued[index]
+			if message.MessageType == FriendsProtocol.MessageTypes.SnapshotChanged then
+				assertTrue(projections[message.Player]:TryApply(message.Payload.Previous, message.Payload.Current),
+					`local transfer snapshot chain rejected for {message.Player.UserId} at {index}`)
+			end
+		end
+		assertEqual(projections[inviter]:GetSnapshot().ConnectedCount, 1)
+		assertEqual(#projections[inviter]:GetSnapshot().Reserves, 0)
+		assertEqual(projections[target]:GetSnapshot().IsSlotOwner, false)
+
+
+		assertTrue(friends:SetCurrent(inviter, 3).Ok, "integration capacity could not be raised")
+		local nativeA = { UserId = 50_003, Name = "NativeA", DisplayName = "NativeA" } :: any
+		local nativeB = { UserId = 50_004, Name = "NativeB", DisplayName = "NativeB" } :: any
+		friends:RequestInvite(inviter, { TargetUserId = nativeA.UserId }, "native-a")
+		local openA = nil :: any
+		for _, message in queued do
+			if message.MessageType == FriendsProtocol.MessageTypes.OpenPrompt and message.RequestId == "native-a" then openA = message end
+		end
+		assertTrue(openA ~= nil and launchPayloads[1] ~= nil, "first native capability was not created")
+		friends:HandlePlatformResult(inviter, { Generation = openA.Payload.Generation, Result = "PromptRequested" }, "native-a")
+		friends:HandlePromptClosed(inviter, { Generation = openA.Payload.Generation }, "native-a")
+		now += 10
+		friends:GetSnapshot(inviter)
+		friends:RequestInvite(inviter, { TargetUserId = nativeB.UserId }, "native-b")
+		local openB = nil :: any
+		for _, message in queued do
+			if message.MessageType == FriendsProtocol.MessageTypes.OpenPrompt and message.RequestId == "native-b" then openB = message end
+		end
+		assertTrue(openB ~= nil and launchPayloads[2] ~= nil, "second native capability was not created")
+
+		present[nativeB.UserId] = nativeB
+		friends:SetMemento(nativeB, { Current = 1 })
+		friends:Run(nativeB)
+		local nativeBDeparture = friends:BeginDeparture(nativeB, "KeepPublishedFriends")
+		friends:CompleteDeparture(nativeBDeparture.Operation)
+		now = 1_120
+		for _, callback in delayed do callback() end
+		assertEqual(#friends:GetSnapshot(inviter).Snapshot.Reserves, 0, "expired/departed native holds remained visible")
+
+		present[nativeA.UserId] = nativeA
+		friends:SetMemento(nativeA, { Current = 1 })
+		friends:Run(nativeA)
+		local admissionA = friends:PrepareAdmission(nativeA, {
+			Kind = "Invitation", Token = launchPayloads[1].Token, TargetJobId = "integration-job",
+		})
+		assertTrue(admissionA.Ok, "hold expiry revoked the stable native capability")
+		friends:CancelAdmission(admissionA.Operation)
+		local retryA = friends:PrepareAdmission(nativeA, {
+			Kind = "Invitation", Token = launchPayloads[1].Token, TargetJobId = "integration-job",
+		})
+		assertTrue(retryA.Ok and friends:CommitAdmission(retryA.Operation), "cancelled native claim did not replay")
+		friends:EmitAdmissionEvents(retryA.Operation)
+		assertEqual(friends:PrepareAdmission(nativeA, {
+			Kind = "Invitation", Token = launchPayloads[1].Token, TargetJobId = "integration-job",
+		}).Error, "Rejected", "consumed native capability replayed")
+
+		local admissionB = friends:PrepareAdmission(nativeB, {
+			Kind = "Invitation", Token = launchPayloads[2].Token, TargetJobId = "integration-job",
+		})
+		assertTrue(admissionB.Ok and friends:CommitAdmission(admissionB.Operation), "target departure revoked native capability")
+		friends:EmitAdmissionEvents(admissionB.Operation)
+		assertEqual(friends:GetSnapshot(inviter).Snapshot.ConnectedCount, 3)
+		friends:RequestInvite(inviter, { TargetUserId = 50_005 }, "native-over-capacity")
+		local noCapacity = false
+		for _, message in queued do
+			if message.MessageType == FriendsProtocol.MessageTypes.InviteResult and message.RequestId == "native-over-capacity"
+				and message.Payload.Category == "NoCapacity" then noCapacity = true end
+		end
+		assertTrue(noCapacity, "full native capability path did not reject capacity")
 	end)
 
 	test("state overflow collapses queue to one resync request", function()

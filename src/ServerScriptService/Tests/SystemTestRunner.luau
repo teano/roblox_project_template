@@ -9,6 +9,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local Teams = game:GetService("Teams")
 
 local InitializationRunner = require(ReplicatedStorage.Shared.Initialization.InitializationRunner)
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
@@ -20,10 +23,22 @@ local GlobalSaveInitializationCommand = require(
 	ServerScriptService.Initialization.Commands.GlobalSaveInitializationCommand
 )
 local PlayersModule = require(ServerScriptService.Modules.Players.PlayersModule)
+local PlayerSlotModule = require(ServerScriptService.Modules.PlayerSlots.PlayerSlotModule)
 local WalletModule = require(ServerScriptService.Modules.Wallet.WalletModule)
 local WalletConfig = require(ReplicatedStorage.Shared.Wallet.WalletConfig)
 local VersionConfig = require(ReplicatedStorage.Shared.Version.VersionConfig)
 local ServerManifest = require(ServerScriptService.Initialization.ServerManifest)
+local ClientManifest = require(ReplicatedStorage.Client.Initialization.ClientManifest)
+local InviteFriendsWindowDefinition =
+	require(ReplicatedStorage.Client.UI.Config.Definitions.InviteFriendsWindowDefinition)
+local GroupInviteWindowDefinition =
+	require(ReplicatedStorage.Client.UI.Config.Definitions.GroupInviteWindowDefinition)
+local TemplateWindowConfig = require(ReplicatedStorage.Client.UI.Config.TemplateWindowConfig)
+local InviteFriendsHudPrefabValidator =
+	require(ReplicatedStorage.Client.UI.FriendInvitations.InviteFriendsHudPrefabValidator)
+local InviteFriendsWindowPrefabValidator =
+	require(ReplicatedStorage.Shared.UI.InviteFriendsWindowPrefabValidator)
+local GroupInviteWindowPrefabValidator = require(ReplicatedStorage.Shared.UI.GroupInviteWindowPrefabValidator)
 local TestHarness = require(script.Parent.TestHarness)
 
 local SystemTestRunner = {}
@@ -53,6 +68,15 @@ local function getManifestCommand(commandId: string)
 		end
 	end
 	error(`server manifest command not found: {commandId}`, 2)
+end
+
+local function getClientManifestCommand(commandId: string)
+	for _, command in ClientManifest.Commands do
+		if command.Id == commandId then
+			return command
+		end
+	end
+	error(`client manifest command not found: {commandId}`, 2)
 end
 
 local function initializeManifestCommand(commandId: string)
@@ -268,6 +292,8 @@ function SystemTestRunner.runAll()
 		end)
 		local getPlayersHook = nil :: (() -> ())?
 		local service = {
+			CharacterAutoLoads = true,
+			RespawnTime = 5,
 			PlayerAdded = playerAdded,
 			PlayerRemoving = playerRemoving,
 		}
@@ -318,6 +344,7 @@ function SystemTestRunner.runAll()
 			playersModule:Stop()
 		end)
 		playersModule:Initialize()
+		playersModule:StartPlatformObservation()
 		local player = makeObservedPlayer(4_201)
 		local added = 0
 		local removed = 0
@@ -381,6 +408,7 @@ function SystemTestRunner.runAll()
 		assertEqual(departedAdds, 0, "enumeration must not deliver a player who already left")
 		disconnectDeparted()
 	end)
+
 
 	test("initialization follows manifest and is idempotent", function()
 		local order = {}
@@ -521,6 +549,151 @@ function SystemTestRunner.runAll()
 		assertEqual(command.DependsOn[1], "Communication")
 	end)
 
+	test("client manifest catalogs only the Studio-owned physical invitation templates", function()
+		for _, command in ServerManifest.Commands do
+			assertTrue(command.Id ~= "FriendInvitationsWindowAsset",
+				"server startup must not retain obsolete cloud window publication")
+		end
+		local assets = ClientManifest.Services.Assets
+		assertTrue(assets ~= nil, "client manifest must expose Services.Assets")
+		if not assets:IsInitialized() then
+			getClientManifestCommand("Assets"):Initialize({})
+		end
+		local hud = assets:RequireByKey("game.ui.hud.invite-friends", "TextButton")
+		local window = assets:RequireByKey("game.ui.window.invite-friends", "GuiObject")
+		local groupWindow = assets:RequireByKey("game.ui.window.group-invite", "GuiObject")
+		assertTrue(hud:GetAttribute("AssetKey") == "game.ui.hud.invite-friends")
+		assertTrue(window:GetAttribute("AssetKey") == "game.ui.window.invite-friends")
+		assertTrue(assets:GetPath(hud) == "Client/UI/FriendInvitations/InviteFriends")
+		assertTrue(assets:GetPath(window) == "Client/UI/FriendInvitations/InviteFriendsWindow")
+		assertTrue(assets:GetPath(groupWindow) == "Client/UI/FriendInvitations/GroupInviteWindow")
+		assertTrue(GroupInviteWindowPrefabValidator.Validate(groupWindow) ~= nil,
+			"catalog group window must satisfy the complete physical schema")
+		assertEqual(#TemplateWindowConfig, 2, "template must register exactly its two canonical stock windows")
+		assertEqual(TemplateWindowConfig[1], InviteFriendsWindowDefinition)
+		assertEqual(TemplateWindowConfig[2], GroupInviteWindowDefinition)
+		assertTrue(InviteFriendsHudPrefabValidator.Validate(hud) ~= nil,
+			"catalog HUD must satisfy the complete physical schema")
+		local windowBinding = InviteFriendsWindowPrefabValidator.Validate(window)
+		assertTrue(windowBinding ~= nil and not windowBinding.FriendRowTemplate.Visible,
+			"catalog window must contain the complete physical hierarchy and hidden row template")
+		assertTrue(InviteFriendsWindowDefinition.AssetKey == "game.ui.window.invite-friends"
+			and InviteFriendsWindowDefinition.AssetId == nil,
+			"stock definition must use only the Studio-owned physical source")
+		assertTrue(GroupInviteWindowDefinition.AssetKey == "game.ui.window.group-invite"
+			and GroupInviteWindowDefinition.AssetId == nil,
+			"stock group definition must use only the Studio-owned physical source")
+		local templateUi = ReplicatedStorage.Client.UI
+		local legacyHud = templateUi:FindFirstChild("Hud")
+		local windows = templateUi:FindFirstChild("Windows")
+		assertTrue(legacyHud == nil or legacyHud:FindFirstChild("InviteFriends") == nil,
+			"Rojo runtime namespace must not own the physical HUD template")
+		assertTrue(windows == nil or windows:FindFirstChild("InviteFriendsWindowTemplate") == nil,
+			"runtime/cloud delivery namespace must not own a physical window template")
+	end)
+
+	test("server manifest initializes Characters after Players and Config before observation consumers", function()
+		local command = getManifestCommand("Characters")
+		assertEqual(command.DependsOn[1], "Players")
+		assertEqual(command.DependsOn[2], "Config")
+		assertTrue(ServerManifest.Services.Characters ~= nil, "server manifest must expose Services.Characters")
+		local configIndex, charactersIndex, teleportIndex, slotIndex = nil, nil, nil, nil
+		for index, candidate in ServerManifest.Commands do
+			if candidate.Id == "Config" then configIndex = index
+			elseif candidate.Id == "Characters" then charactersIndex = index
+			elseif candidate.Id == "Teleport" then teleportIndex = index
+			elseif candidate.Id == "PlayerSlots" then slotIndex = index end
+		end
+		assertTrue(configIndex ~= nil and charactersIndex ~= nil and teleportIndex ~= nil and slotIndex ~= nil
+			and charactersIndex > configIndex and teleportIndex > charactersIndex and slotIndex > teleportIndex,
+			"Characters command order is invalid")
+		local playerSlots = getManifestCommand("PlayerSlots")
+		assertEqual(playerSlots.DependsOn[1], "Players")
+		assertEqual(playerSlots.DependsOn[2], "Config")
+		assertTrue(ServerManifest.Services.Friends ~= nil, "server manifest must expose Services.Friends")
+		assertTrue(ServerManifest.Services.PlayerAdmission ~= nil, "server manifest must expose Services.PlayerAdmission")
+		local admission = getManifestCommand("PlayerAdmission")
+		assertEqual(admission.DependsOn[1], "GlobalSave")
+		assertEqual(admission.DependsOn[2], "Characters")
+		assertEqual(admission.DependsOn[3], "PlayerSlots")
+	end)
+
+	test("enabled production player slots accept every canonical scene slot", function(scope)
+		local slotsFolder = workspace:FindFirstChild("PlayerSlots")
+		assertTrue(slotsFolder ~= nil and slotsFolder:IsA("Folder"), "canonical Workspace.PlayerSlots folder is missing")
+		local authoredSlots = slotsFolder:GetChildren()
+		assertTrue(#authoredSlots > 0, "canonical Workspace.PlayerSlots has no authored slots")
+
+		local playerSlots = PlayerSlotModule.new({
+			PlayersModule = {
+				GetPlayerByUserId = function()
+					return nil
+				end,
+			},
+			Config = {
+				GetRequired = function(_self, id)
+					if id == "PlayerSlots" then return table.freeze({ Strategy = "Enabled" }) end
+					if id == "Friends" then return table.freeze({ MaxInviteCapacity = 3 }) end
+					error(`unexpected production slot config id: {tostring(id)}`)
+				end,
+			},
+			CollectionService = CollectionService,
+			Workspace = workspace,
+			Teams = Teams,
+			MaxPlayers = Players.MaxPlayers,
+		})
+		scope:Defer(function()
+			playerSlots:Stop()
+		end)
+		playerSlots:Initialize()
+		local slots = playerSlots:GetSlots()
+		assertEqual(
+			#slots,
+			#authoredSlots,
+			"enabled production player slots rejected the canonical scene configuration"
+		)
+
+		local publishedByModel = {}
+		for _, slot in slots do
+			publishedByModel[slot.SlotModel] = slot
+		end
+		for _, slotModel in authoredSlots do
+			assertTrue(
+				publishedByModel[slotModel] ~= nil,
+				`canonical player slot was not accepted: {slotModel:GetFullName()}`
+			)
+		end
+	end)
+
+	test("server manifest injects the comparable server clock into Friends", function()
+		local friends = ServerManifest.Services.Friends
+		assertTrue(friends ~= nil, "server manifest must expose Friends")
+		local before = workspace:GetServerTimeNow()
+		local observed = friends._clock()
+		local after = workspace:GetServerTimeNow()
+		assertTrue(
+			typeof(observed) == "number" and observed >= before and observed <= after,
+			"Friends must use Workspace:GetServerTimeNow through manifest composition"
+		)
+	end)
+
+	test("client manifest starts FriendInvitationsUI after the UI and accepted global snapshot", function()
+		local command = getClientManifestCommand("FriendInvitationsUI")
+		assertEqual(command.DependsOn[1], "UI")
+		assertEqual(command.DependsOn[2], "GlobalSave")
+		local uiIndex, globalSaveIndex, invitationsIndex = nil, nil, nil
+		for index, candidate in ClientManifest.Commands do
+			if candidate.Id == "UI" then uiIndex = index
+			elseif candidate.Id == "GlobalSave" then globalSaveIndex = index
+			elseif candidate.Id == "FriendInvitationsUI" then invitationsIndex = index end
+		end
+		assertTrue(
+			uiIndex ~= nil and globalSaveIndex ~= nil and invitationsIndex ~= nil
+				and invitationsIndex > uiIndex and invitationsIndex > globalSaveIndex,
+			"FriendInvitationsUI command must follow both UI and GlobalSave"
+		)
+	end)
+
 	test("server manifest initializes migrations before domain data and global save", function()
 		local migration = getManifestCommand("Migration")
 		local domainData = getManifestCommand("DomainData")
@@ -530,17 +703,22 @@ function SystemTestRunner.runAll()
 		assertEqual(globalSave.DependsOn[1], "DomainData")
 		assertEqual(globalSave.DependsOn[2], "Teleport")
 		assertEqual(globalSave.DependsOn[3], "Statistics")
+		assertEqual(globalSave.DependsOn[4], "Characters")
+		assertEqual(getManifestCommand("PlayerAdmission").DependsOn[1], "GlobalSave")
 	end)
 
 	test("global save production composition keeps Version as the final provider", function()
 		local providers = GlobalSaveInitializationCommand.GetOrderedProviders(
 			ServerManifest.Services.Wallet,
 			ServerManifest.Services.Statistics,
+			ServerManifest.Services.AudioSettings,
+			ServerManifest.Services.Friends,
 			ServerManifest.Services.Version
 		)
-		assertEqual(#providers, 3, "unexpected template global-save provider count")
+		assertEqual(#providers, 5, "unexpected template global-save provider count")
 		assertEqual(providers[1].Id, WalletConfig.ProviderId)
 		assertEqual(providers[2].Id, "Statistics")
+		assertEqual(providers[4].Id, "Friends")
 		assertEqual(providers[#providers].Id, VersionConfig.ProviderId)
 	end)
 

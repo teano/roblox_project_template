@@ -1,54 +1,78 @@
-# Architecture decision records
+# Архитектурные решения и происхождение систем
 
-## When to use an ADR
+## Когда нужно решение
 
-Create or supersede an ADR only for a durable decision about ownership,
-authority, lifecycle, persistence, synchronization, public contracts, or a
-deliberate reversal of a prior decision. Routine fixes, local implementation
-choices, project creation, and ordinary template divergences do not require an
-ADR.
+Создавать или заменять ADR только для долговечной границы владения,
+полномочий, жизненного цикла, сохранения, синхронизации, внешнего контракта
+или намеренного пересмотра прежнего решения. Обычная правка, перенос файлов
+и запись происхождения сами по себе не требуют нового ADR.
 
-When an ADR is needed, read `docs/adr/README.md`, the owning index, and only the
-relevant decisions. Do not read the complete history for an unrelated edit.
+Перед изменением читать `docs/adr/README.md`, указатель владельца и только
+относящиеся к задаче решения. Не загружать всю историю для локальной задачи.
 
-## Ownership
+## Владение
 
-- The reusable template owns `docs/adr/README.md`, `docs/adr/_template.md`, and
+- Шаблон владеет `docs/adr/README.md`, `docs/adr/_template.md` и
   `docs/adr/template/**`.
-- A derived game may create and own `docs/adr/project/**` when it has its first
-  durable game-specific decision.
-- A derived game never edits template ADRs or the template index.
-- The template never adds project ADR files.
+- Производная игра владеет собственными `docs/adr/project/**`, если они нужны.
+  Шаблон не добавляет туда файлы; игра не редактирует ADR шаблона и их указатель.
+- Нумерация четырёхзначная и независимая в каждом пространстве.
+  Указатель находится в его `README.md`, форма нового решения — в `_template.md`.
+- Происхождение принятых извне систем хранится в `docs/Migrations/**` по
+  [правилам журнала](../../docs/Migrations/README.md). Журнал фиксирует перенос,
+  системные руководства описывают текущее использование, ADR объясняют причины
+  архитектурных границ. Эти сведения не дублируются полными копиями документов.
 
-The two namespaces allocate independent four-digit IDs. Use the owning
-`README.md` as its index and `docs/adr/_template.md` as the document shape.
+## Сохранение и замена решений
 
-## Supersession
+Смысл принятого ADR, его аргументы, альтернативы и последствия являются
+историей. Изменение решения оформляется новым ADR в том же пространстве:
 
-Accepted ADR bodies are historical records. When an active decision changes:
+1. Указать только действующие решения, которые заменяются.
+2. В старых документах изменить состояние и ссылку на заменяющее решение.
+3. Обновить указатель владельца; не объявлять повторно заменённым уже
+   историческое решение.
 
-1. create a new ADR in the same owning namespace;
-2. name only the still-active decisions it supersedes;
-3. update the old records' status metadata and `Superseded by` field without
-   rewriting their reasoning;
-4. update only the owning index.
+Сопровождающий владеющего репозитория может исправлять адреса ссылок,
+служебные сведения о происхождении и формулировки о местонахождении источника
+без нового ADR, если не меняются смысл решения, его область действия,
+аргументы, альтернативы и последствия. Например, ссылка на удалённую
+архивную копию заменяется ссылкой на тот же исходный документ в закреплённом
+коммите. Это разрешение не даёт производной игре права править ADR шаблона.
 
-Do not claim to supersede an ADR that is already superseded. A derived project
-may locally choose a different durable policy with a project ADR while leaving
-template history unchanged.
+Для перенесённого решения добавлять необязательное служебное поле
+`Происхождение` со ссылкой на запись миграции. Внешние исходные решения
+связывать с полным коммитом. Новое поведение не оформляется как исправление
+происхождения; для него остаётся обычная процедура замены ADR.
 
-## Template updates
+## Переносы и обновления
 
-Project ADRs are optional context, not merge authorization. The updater
-preserves `docs/adr/project/**` when it exists, while Git handles ordinary
-non-overlapping divergence. A real unresolved conflict is reported for a
-focused decision; it is not solved by requiring an ADR for every touched path.
+Один самостоятельный перенос получает одну запись миграции и строку в её
+указателе. Сохранять дату, исходный репозиторий и ревизию, целевую ревизию либо
+явное отсутствие фиксации, состав по подсистемам, адаптацию, соответствие ADR,
+действия для существующих игр и границы проверок. Не создавать отдельную запись
+на каждое исправление или ADR и не копировать корпус планов, старых инструкций,
+контрольных сумм и журналов исходной игры в шаблон.
 
-## Verification
+Исходные обоснования должны оставаться доступными в закреплённом репозитории
+либо быть содержательно отражены в ADR шаблона. Перед удалением дублирующего
+архива проверить это и обновить входящие ссылки. Миграция не объявляет старые
+проверки доказательством новой реализации.
 
-- Confirm the new ADR is linked from the owning index.
-- Confirm every newly superseded ADR was active immediately before the change.
-- Confirm historical bodies changed only in status metadata.
-- Run link/reference checks and `git diff --check` for documentation-only ADR
-  work. Run executable checks only when the decision accompanies executable
-  changes.
+Обновляющая команда сохраняет проектные пути по своему контракту; обычные
+непересекающиеся изменения обрабатывает Git. Реальный конфликт требует
+конкретного решения по сообщению команды, а не ADR для каждого файла.
+Журнал миграций не заменяет `scripts/template-project.ps1` и не разрешает
+воспроизводить её слияние вручную.
+
+## Проверка
+
+- Новое решение присутствует в указателе; заменённое действительно было активным.
+- Правки принятого документа ограничены разрешёнными служебными сведениями
+  и ссылками либо оформлены новым ADR при изменении смысла.
+- Из системного руководства или указателя можно перейти к решению,
+  затем к миграции и закреплённому исходному материалу.
+- Ссылки разрешаются, а удалённые архивные пути больше не используются.
+- Для документации выполнять проверку ссылок, относящуюся к ней проверку
+  инструмента и `git diff --check`. Код и Studio проверять только тогда,
+  когда затронут соответствующий исполняемый контракт.

@@ -18,6 +18,9 @@ local ServerConfigManifest = require(ServerScriptService.Modules.Config.ServerCo
 local ServerGlobalSaveConfigCodec = require(ServerScriptService.Modules.Config.Codecs.GlobalSaveConfigCodec)
 local WalletConfigCodec = require(ServerScriptService.Modules.Config.Codecs.WalletConfigCodec)
 local StatisticsConfigCodec = require(ServerScriptService.Modules.Config.Codecs.StatisticsConfigCodec)
+local CharactersConfigCodec = require(ServerScriptService.Modules.Config.Codecs.CharactersConfigCodec)
+local PlayerSlotsConfigCodec = require(ServerScriptService.Modules.Config.Codecs.PlayerSlotsConfigCodec)
+local FriendsConfigCodec = require(ServerScriptService.Modules.Config.Codecs.FriendsConfigCodec)
 local TestHarness = require(script.Parent.TestHarness)
 
 local ConfigCatalogTestRunner = {}
@@ -257,7 +260,14 @@ function ConfigCatalogTestRunner.runAll()
 				snapshotRequestAttempts = 20,
 				snapshotRetryDelaySeconds = 0.5,
 			},
-			statistics_config = statisticsConfig(),
+		statistics_config = statisticsConfig(),
+		characters_config = { respawnDelaySeconds = 2.5 },
+		player_slots_config = { strategy = "Enabled" },
+		friends_config = {
+			minInviteCapacity = 3,
+			maxInviteCapacity = 3,
+			reserveLifetimeSeconds = 120,
+		},
 		})
 		local catalog = ExperienceConfigCatalog.new({
 			ConfigService = {
@@ -274,12 +284,18 @@ function ConfigCatalogTestRunner.runAll()
 		assertEqual(catalog:GetRequired("Wallet").StartingBalances.Coins, 100)
 		assertEqual(catalog:GetRequired("Statistics").SnapshotTypes.Place.Retention, 8)
 		assertEqual(catalog:GetRequired("GlobalSave").AutoSaveIntervalSeconds, 60)
+		assertEqual(catalog:GetRequired("Characters").RespawnDelaySeconds, 2.5)
+		assertEqual(catalog:GetRequired("PlayerSlots").Strategy, "Enabled")
+		assertEqual(catalog:GetRequired("Friends").ReserveLifetimeSeconds, 120)
 
 		local bundle = catalog:GetRequired("GlobalSave")
 		assertEqual(bundle.SnapshotRequestAttempts, 20)
 		local clientBundle = catalog:GetClientBundle("Bootstrap")
 		assertEqual(clientBundle.Configs.Wallet, nil, "Wallet startup config must remain server-only")
 		assertEqual(clientBundle.Configs.Statistics, nil, "Statistics policy must remain server-only")
+		assertEqual(clientBundle.Configs.Characters, nil, "Characters config must remain server-only")
+		assertEqual(clientBundle.Configs.PlayerSlots, nil, "PlayerSlots config must remain server-only")
+		assertEqual(clientBundle.Configs.Friends, nil, "Friends config must remain server-only")
 		assertEqual(clientBundle.Configs.GlobalSave.AutoSaveIntervalSeconds, nil)
 
 		local client = ClientConfigCatalog.new({
@@ -298,6 +314,21 @@ function ConfigCatalogTestRunner.runAll()
 		client:Destroy()
 		catalog:Destroy()
 		snapshot.UpdateAvailable:Destroy()
+	end)
+
+	test("Characters config accepts only its finite respawn delay", function()
+		local accepted, model = CharactersConfigCodec.decode({ respawnDelaySeconds = 0 })
+		assertTrue(accepted, "zero respawn delay was rejected")
+		assertEqual(model.RespawnDelaySeconds, 0)
+		for _, invalid in {
+			{},
+			{ respawnDelaySeconds = -0.1 },
+			{ respawnDelaySeconds = math.huge },
+			{ respawnDelaySeconds = "1" },
+			{ respawnDelaySeconds = 1, extra = true },
+		} do
+			assertEqual(CharactersConfigCodec.decode(invalid), false)
+		end
 	end)
 
 	test("Statistics config cross-validates mandatory identifiers and aggregate dedupe capacity", function()
@@ -547,6 +578,38 @@ function ConfigCatalogTestRunner.runAll()
 			})
 		end)
 		assertEqual(constructed, false)
+	end)
+
+	test("player-slots and Friends configs are strict server-only JSON models", function()
+		local enabledOk, enabled = PlayerSlotsConfigCodec.decode({ strategy = "Enabled" })
+		assertTrue(enabledOk, "enabled player-slots config was rejected")
+		assertEqual(enabled.Strategy, "Enabled")
+		assertEqual(PlayerSlotsConfigCodec.decode({ strategy = "Unknown" }), false)
+		assertEqual(PlayerSlotsConfigCodec.decode({ strategy = "Disabled", extra = true }), false)
+
+		local friendsOk, friends = FriendsConfigCodec.decode({
+			minInviteCapacity = 3,
+			maxInviteCapacity = 3,
+			reserveLifetimeSeconds = 120,
+		})
+		assertTrue(friendsOk, "Friends config was rejected")
+		assertEqual(friends.MinInviteCapacity, 3)
+		assertEqual(friends.MaxInviteCapacity, 3)
+		assertEqual(FriendsConfigCodec.decode({
+			minInviteCapacity = 4,
+			maxInviteCapacity = 3,
+			reserveLifetimeSeconds = 120,
+		}), false)
+		assertEqual(FriendsConfigCodec.decode({
+			minInviteCapacity = 3,
+			maxInviteCapacity = 3,
+			reserveLifetimeSeconds = 0,
+		}), false)
+
+		local definitions = {}
+		for _, definition in ServerConfigManifest.Definitions do definitions[definition.Id] = definition end
+		assertTrue(definitions.PlayerSlots ~= nil and definitions.PlayerSlots.ToClient == nil, "PlayerSlots config was exposed")
+		assertTrue(definitions.Friends ~= nil and definitions.Friends.ToClient == nil, "Friends config was exposed")
 	end)
 
 	return TestHarness.runAll("ConfigCatalogTestRunner", tests)

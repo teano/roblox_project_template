@@ -1,632 +1,821 @@
-# Initialization and Save System
+# Система запуска и сохранения
 
-## Initialization
+Происхождение перенесённых систем: [MIG-0001](Migrations/MIG-0001-find-a-baby.md).
 
-`Shared/Initialization/InitializationRunner` executes an explicit manifest sequentially. Every command declares:
+## Запуск
+
+`Shared/Initialization/InitializationRunner` последовательно выполняет явный
+перечень команд. Каждая команда объявляет:
 
 ```lua
 {
-  Id = "GlobalSave",
-  DependsOn = { "DomainData", "Teleport", "Statistics" },
-  Initialize = function(self, context) ... end,
+	Id = "GlobalSave",
+	DependsOn = { "DomainData", "Teleport", "Statistics" },
+	Initialize = function(self, context) ... end,
 }
 ```
 
-Dependencies are validation constraints: each referenced command must exist earlier in the manifest. A command failure stops the bootstrap and returns the same cached failure to every later `Initialize` call. Concurrent calls wait for the active run; a completed runner is idempotent.
+Зависимости являются условиями проверки: каждая указанная команда должна
+находиться раньше в перечне. Ошибка команды останавливает запуск, а каждый
+последующий вызов `Initialize` получает ту же сохранённую ошибку. Одновременные
+вызовы ждут выполняющийся запуск; завершённый исполнитель повторяем.
 
-A command taking longer than 30 seconds emits a watchdog error but is not cancelled. A module that intentionally starts background work owns that policy itself and may let its command complete immediately.
+Команда, работающая дольше 30 секунд, создаёт сторожевое сообщение об ошибке,
+но не отменяется. Модуль, намеренно запускающий фоновую работу, сам владеет этой
+политикой и может завершить свою команду сразу.
 
-Server order:
-
-```text
-Assets → Pooling → Players → Communication → Teleport → TeleportValidationPad → Config → Statistics
-       → Save → Migration → DomainData → GlobalSave → PersistenceSchedule
-```
-
-Client order:
+Порядок сервера:
 
 ```text
-Assets → StartupContentPreload → Pooling → Players → UI → Communication → Statistics
-       → Teleport → Config → Save → DomainData → GlobalSave
+Assets → AudioStartup → Pooling → Players → Communication → Config → Characters
+       → AudioGraph → OrdinarySound → Teleport → PlayerSlots → TeleportValidationPad
+       → Statistics → Save → Migration → DomainData → GlobalSave
+       → PlayerAdmission → PersistenceSchedule
 ```
 
-`UI` constructs no windows automatically. It atomically publishes one
-player-lifetime safe-area `UiRoot`, ordered `HudHost`, `ToastHost`, and empty
-`WindowHost`, plus the narrow host/context/event surfaces used by downstream
-client presentation. It depends explicitly on `StartupContentPreload`,
-`Pooling`, and `Players`; respawn does not rerun it. A typed initialization
-error becomes the stable runner failure `UiInitializationFailed:<Code>`, so
-later commands do not observe partial UI state. See [UiSystem.md](UiSystem.md)
-and [ADR-0045](adr/template/0045-client-ui-system-boundaries.md).
-
-Derived-project initialization creates the exact project-owned strict UTF-8
-`src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau` before
-implementation or build. Its empty frozen sequence is valid. The reusable
-template contains no `src/ReplicatedStorage/Project/` namespace, and runtime
-treats absence of the derived source as an empty sequence rather than trying
-to detect repository kind. Repository validation and the upstream merge rules,
-not bootstrap, enforce the derived ownership boundary.
-
-`Config` loads one server-owned Experience Config snapshot, decodes every
-explicit definition into an atomic immutable generation, and serves only
-code-approved client projections through named bundles. The client decodes its
-bootstrap bundle into a separate immutable generation before domain
-initialization. See [ExperienceConfiguration.md](ExperienceConfiguration.md).
-
-`Assets` builds an immutable side-owned catalog from explicit roots before
-game systems consume static templates. The server indexes `Shared` and
-`Server`; each client indexes `Shared` and `Client`. It discovers no startup
-commands and does not scan runtime hierarchies. See
-[AssetRegistry.md](AssetRegistry.md).
-
-`StartupContentPreload` uses the client-owned `ContentPreloader` to select
-catalog entries tagged `Preload` and route them through the injected Roblox
-`ContentProvider`. The request completes before `ClientInitialized`; delivery
-failures are logged under the best-effort startup policy. All production
-preloading uses this module instead of calling `ContentProvider:PreloadAsync()`
-directly. See
-[ContentPreloading.md](ContentPreloading.md).
-
-`Pooling` constructs no concrete pools during bootstrap. It initializes a
-side-owned registry exposed as `context.Services.Pooling`; project modules
-register their homogeneous pools explicitly through composition. The server
-and every client therefore own separate pool state while sharing the same
-side-neutral algorithm. See [ResourceManagement.md](ResourceManagement.md).
-
-To add a system, create a side-specific command, declare its dependency, and place it in that side's manifest. Modules expose `Initialize`; they do not decide their global launch order.
-
-### TF-0005 audio composition contract
-
-The audio implementation extends the relative order without adding a second
-runner:
+Порядок клиента:
 
 ```text
-Server: Assets -> AudioStartup -> Pooling -> Players -> Communication
-        -> AudioGraph -> OrdinarySound
-
-Client: Assets -> AudioStartup -> StartupContentPreload -> Pooling -> Players
-        -> Communication -> AudioGraph -> OrdinarySound -> Music
+Assets → AudioStartup → StartupContentPreload → Pooling → Players → Characters
+       → UI → Communication → AudioGraph → OrdinarySound → Music → Statistics
+       → Teleport → Config → Save → DomainData → GlobalSave → FriendInvitationsUI
 ```
 
-Manifest constructors pass roots and exact module names; only protected
-`AudioStartup.Initialize` resolves/requires the four raw audio modules and
-publishes immutable enabled/disabled state. Enabled and disabled hybrid
-handlers register after `Communication` and before `ClientReady`. Disabled
-handlers reject/no-op with `AudioDisabled` while owning no pools, graph,
-preload, or playback. See [AudioSystem.md](AudioSystem.md) and
+`UI` не создаёт окна автоматически. Команда атомарно публикует один живущий
+вместе с игроком `UiRoot` с безопасной областью, упорядоченные `HudHost`,
+`ToastHost`, пустой `WindowHost` и узкие поверхности контейнера, контекста и
+событий для последующего представления. Она явно зависит от
+`StartupContentPreload`, `Pooling` и `Players`; возрождение не запускает её
+повторно. Типизированная ошибка становится устойчивой ошибкой исполнителя
+`UiInitializationFailed:<Code>`, поэтому следующие команды не видят частичное
+состояние. См. [систему интерфейса](UiSystem.md) и
+[ADR-0050](adr/template/0050-stock-physical-windows-and-dual-sources.md).
+
+Инициализация производного проекта до реализации или сборки создаёт точный
+принадлежащий проекту строгий файл UTF-8
+`src/ReplicatedStorage/Project/Client/UI/DerivedWindowConfig.luau`. Пустая
+замороженная последовательность допустима. Переиспользуемый шаблон не содержит
+пространство `src/ReplicatedStorage/Project/`, а во время исполнения отсутствие
+производного источника означает пустую последовательность, а не попытку
+определить вид репозитория. Границу владения обеспечивают проверка репозитория и
+правила слияния с исходным шаблоном, а не точка запуска.
+
+`Config` загружает один принадлежащий серверу снимок конфигурации игры,
+декодирует каждое явное определение в атомарное неизменяемое поколение и
+передаёт клиентам только разрешённые кодом проекции через именованные наборы.
+Клиент декодирует свой начальный набор в отдельное неизменяемое поколение до
+запуска предметных систем. См.
+[конфигурацию игры](ExperienceConfiguration.md).
+
+`Assets` строит неизменяемый принадлежащий стороне каталог из явных корней до
+того, как игровые системы используют статические шаблоны. Сервер индексирует
+`Shared` и `Server`, каждый клиент — `Shared` и `Client`. Каталог не обнаруживает
+команды запуска и не сканирует динамические иерархии. См.
+[каталог ресурсов](AssetRegistry.md).
+
+`StartupContentPreload` использует клиентский `ContentPreloader`, выбирает
+записи каталога с меткой `Preload` и направляет их через внедрённый
+`ContentProvider` Roblox. Запрос завершается до `ClientInitialized`; ошибки
+доставки записываются согласно необязательной политике запуска. Вся
+производственная предварительная загрузка использует этот модуль, а не прямой
+`ContentProvider:PreloadAsync()`. См.
+[предварительную загрузку](ContentPreloading.md).
+
+`Pooling` не создаёт конкретные пулы во время запуска. Он инициализирует
+принадлежащий стороне реестр `context.Services.Pooling`; проектные модули явно
+регистрируют однородные пулы при сборке. Сервер и каждый клиент имеют отдельное
+состояние, используя один нейтральный к стороне алгоритм. См.
+[управление ресурсами](ResourceManagement.md).
+
+Для добавления системы создать команду нужной стороны, объявить её зависимость
+и поместить в перечень этой стороны. Модули предоставляют `Initialize`, но не
+выбирают собственный общий порядок запуска.
+
+### Контракт сборки звука TF-0005
+
+Звуковая реализация расширяет относительный порядок без второго исполнителя:
+
+```text
+Server: Assets → AudioStartup → Pooling → Players → Communication
+        → AudioGraph → OrdinarySound
+
+Client: Assets → AudioStartup → StartupContentPreload → Pooling → Players
+        → Communication → AudioGraph → OrdinarySound → Music
+```
+
+Конструкторы перечня передают корни и точные имена модулей; только защищённый
+`AudioStartup.Initialize` разрешает и подключает четыре исходных звуковых
+модуля и публикует неизменяемое включённое или отключённое состояние. Оба
+варианта смешанных обработчиков регистрируются после `Communication` и до
+`ClientReady`. Отключённые обработчики возвращают `AudioDisabled` без пулов,
+графа, предварительной загрузки и воспроизведения. См.
+[систему звука](AudioSystem.md) и
 [ADR-0041](adr/template/0041-protect-audio-startup-and-keep-disabled-transport-handlers.md).
 
-`Teleport` establishes server-owned per-player session continuity and the
-client read-only lifecycle projection after `Players` and `Communication` are
-ready. Its client handlers are registered during manifest construction before
-the bounded bootstrap request. Platform acceptance and source removal never
-stand in for target arrival. See [Teleport.md](Teleport.md).
+`Teleport` устанавливает принадлежащую серверу непрерывность сеанса каждого
+игрока и клиентскую проекцию жизненного цикла только для чтения после готовности
+`Players` и `Communication`. Клиентские обработчики регистрируются при сборке
+перечня до ограниченного начального запроса. Принятие платформой и удаление из
+исходного сервера никогда не подменяют прибытие в целевой. См.
+[телепортацию](Teleport.md).
 
-`TeleportValidationPad` is a server-only, runtime-created operator surface
-after `Teleport`. `TeleportValidationConfig` is injected by the server manifest
-and is disabled by default. A disabled, invalid, incomplete, inherited, or
-current-DataModel-mismatched configuration returns from initialization before
-it observes players or mutates `Workspace`. When explicitly enabled with one
-exact GameId, directed PlaceId routes, and a tester allowlist, it observes
-players through `PlayersModule`, batches the initial enumeration, and assigns
-the single runtime pad to the lowest present allowlisted UserId independently
-of observer order. The outer config must be an exact plain four-field
-dictionary. The controller calls only the public Teleport service; it does not
-widen `TeleportPolicy` and adds no startup Script, RemoteEvent, or canonical
-scene object. The complete temporary enable/publish/E2E/disable procedure is
-in [TeleportTesting.md](TeleportTesting.md).
+`TeleportValidationPad` является создаваемой во время исполнения серверной
+поверхностью оператора после `Teleport`. Внедрённая серверным перечнем
+`TeleportValidationConfig` по умолчанию отключена. Отключённая, неверная,
+неполная, унаследованная или не совпадающая с текущей моделью данных
+конфигурация завершает запуск до наблюдения игроков и изменения `Workspace`.
+При явном включении с одним точным `GameId`, направленными маршрутами `PlaceId`
+и списком проверяющих система наблюдает игроков через `PlayersModule`,
+объединяет исходное перечисление и назначает единственную временную площадку
+присутствующему разрешённому игроку с наименьшим `UserId` независимо от порядка
+наблюдения. Внешняя конфигурация является точным простым словарём из четырёх
+полей. Контроллер использует только общедоступную службу телепортации, не
+расширяет `TeleportPolicy` и не добавляет сценарий запуска, `RemoteEvent` или
+канонический объект сцены. Полная временная процедура включения, публикации,
+сквозной проверки и отключения описана в
+[проверке телепортации](TeleportTesting.md).
 
-`GlobalSave` captures the complete Teleport client projection in the same
-communication snapshot generation as provider state. The client validates the
-Teleport baseline before mutating provider state, applies providers
-transactionally, installs the prepared Teleport projection, and resumes the
-epoch only after both have succeeded. Each successful Teleport installation
-publishes `ProjectionReconciled` after the atomic replacement so subscribers
-can re-read the complete projection. Runtime resync repeats this path.
+`PlayerSlots` запускается одной серверной командой после `Players` и `Config`.
+`ServerManifest` создаёт единственный `PlayerSlotModule`, который выбирает
+включённую либо выключенную стратегию из серверной конфигурации места.
+Включённая стратегия один раз проверяет `Workspace.PlayerSlots`, соответствующие
+`Team`, точки `PlayerSpawn` и вместимость `Players.MaxPlayers`; выключенная не
+создаёт физические связи. Система слотов не наблюдает игроков самостоятельно и
+не получает снимок друзей.
 
-## Save controllers and layers
+`GlobalSave` создаёт единственный `FriendsModule` как авторитетный серверный
+поставщик `Friends` версии 1 до `Version`. Он сохраняет только личное поле
+`Current`. Клиентская проекция содержит вместимость, подключённых друзей,
+краткосрочные резервы `Native` или `SameServer` и необязательное
+`IncomingOffer`; она проходит через общий снимок сохранения и сообщения
+состояния.
 
-`SaveModule` is only a registry/factory. It does not know what a “global”, “session”, or “slot” layer means. A project-specific command uses `SaveControllerBuilder` to choose:
+После успешной загрузки `PlayerAdmissionCoordinator` сопоставляет
+`PlayerLoaded` и уже загруженных игроков. Обычный или внешний допуск
+подготавливается в порядке друзья → слоты → игроки, фиксируется в обратном
+предметном порядке и завершает наблюдаемую границу событием
+`ConnectionApproved`.
 
-- controller ID and lifetime;
-- storage and key resolver;
-- ordered save providers;
-- serialized-size limit.
+`Friends.Current` ограничивает личную вместимость исходящих приглашений.
+Единственная входящая связь гостя с пригласившим игроком при отсутствии
+резервов не расходует эту вместимость: гость с `Current=0` может принять
+приглашение. Для владельца и всех остальных сочетаний связей и резервов
+сохраняется обычная проверка занятой вместимости.
 
-The current `global_save` controller is created by
-`GlobalSaveInitializationCommand` and registers, in order:
+### Локальное предложение группы и внешний допуск
 
-1. Wallet
-2. Statistics
-3. Version
+Каждый запрос приглашения сначала повторно проверяет владельца слота,
+вместимость, отсутствие занятой операции, точную положительную цель и дружбу
+через Roblox. После этого `FriendsModule` получает текущую цель только через
+`PlayersModule`. Отсутствующая цель следует внешним путём; присутствующая и
+загруженная — только путём локального предложения. Присутствующая, но неготовая
+или непригодная цель отклоняется без перехода к внешнему системному окну.
 
-Projects insert additional ordinary domain providers before Version on both
-server and client. Version remains last because its `Run` is the commit point
-that advances the persisted game-version checkpoint only after every other
-provider has installed and started successfully.
+Начало и завершение асинхронной проверки дружбы публикуют изменение
+доступности в снимке. Отказ, ошибка, истечение срока и выход цели снимают
+занятость тем же путём. Полный снимок или изменение `Current` во время
+проверки не оставляют клиент на устаревшей основе.
 
-TF-0005 adds client-authority `AudioSettings` before `Version` and introduces
-optional provider-specific controller hooks. Server `ValidateEnvelope` receives
-`(player, envelope)`; client `ValidateEnvelope` receives `(envelope)`. Both
-return only acceptance plus an optional reason, never sanitize input, and fail
-closed before mutation on false or exception. The AudioSettings client also
-implements `ReconcileSnapshotEnvelope(envelope?)`: a missing provider or
-missing known data fields receive defaults, while unknown/invalid present data
-is rejected. Present envelope validation runs before reconciliation, and the
-returned envelope is validated again before `ValidateMemento`. Providers
-without these hooks keep the existing mandatory-envelope behavior.
+Внешняя попытка и полноценный резерв имеют независимые сроки. От
+`RequestInvite` действует блокировка не более 10 секунд, включая проверку
+дружбы и ожидание платформенных вызовов. Предварительное место `Native`
+ограничено тем же сроком. Переход к следующему этапу не начинает отсчёт заново.
+Предварительное место использует прежний формат `Reserves` с
+`Kind=Native`, `TargetUserId` и `ExpiresAtServerTime`; новый вид
+резерва или формат сообщения не вводятся. Истечение попытки завершает её
+результатом `TemporaryError`, не повреждая старый полноценный резерв.
 
-`wallet_config` supplies the one-time starting balances for a newly created
-Wallet provider. Wallet memento version 3 persists `IsInitialized` and the
-server-only `LastTransactionSequence`; versions 1 and 2 reconcile without
-changing balances or replaying startup grants.
+Только принятый сервером `PromptRequested` создаёт либо продлевает полный
+резерв на `reserveLifetimeSeconds` от момента этого результата: 120 секунд
+в согласованной конфигурации. Он означает успешный программный вызов, а не
+показ окна, выбор получателя, отправку, доставку или принятие. Публичного
+события открытия окна Roblox нет.
 
-`Statistics` is a server-authoritative provider omitted from every client save
-snapshot. It owns bounded Global, Teleport Session, Place, and configured
-custom statistic snapshots. Its required native-JSON `statistics_config`
-supplies snapshot types, retention, filters, projections, storage limits, and
-the requested-save cooldown. Current built-in client reads use a separate
-deny-by-default projection. See [Statistics.md](Statistics.md).
+Блокировка после успешного вызова заканчивается по исходной десятисекундной
+границе. Затем допустим повтор для той же цели во время полного резерва,
+включая заполненную им вместимость. Успех продлевает одно место; ошибка или
+истечение новой попытки не сокращают и не удаляют прежний полный резерв.
+Его естественное истечение и уход участников остаются авторитетными.
 
-`global_save_config` supplies the autosave interval, server snapshot-load
-timeout, and bounded client snapshot retry policy. The client receives only
-the two retry fields through the approved config bundle. All three required
-native-JSON Experience Config values -- `wallet_config`, `statistics_config`,
-and `global_save_config` -- are validated and frozen before `DomainData` or
-`GlobalSave` starts.
+`GameInvitePromptClosed` не содержит идентификатора попытки и потому
+инертен. Клиент не использует его для состояния и не пересылает его как
+управляющее действие. Совместимый `HandlePromptClosed` на сервере не
+изменяет занятость или резерв. Старое закрытие не относится к новой попытке.
 
-This ordered provider collection is the player profile. The template does not
-add a monolithic `ProfileModule`: projects extend the profile by registering
-their own domain providers in both server and client commands.
+Устойчивая внешняя возможность допуска остаётся отдельной от обоих сроков,
+связана с приглашающим, `TargetUserId`, `TargetJobId`, жетоном и
+идентификатором требования. Истечение резерва её не отзывает; отмена подготовки
+возвращает её в активное состояние, успешный допуск расходует, уход
+пригласившего и остановка отзывают. Память возможностей ограничена.
 
-A future session or game-slot controller can be built independently and
-removed through `SaveModule:RemoveSaveController`. The server composition
-registers a synchronous removal callback that unregisters the controller from
-both `AutoSaveModule` and `SessionLockModule` only after terminal provider
-cleanup and server lock release succeed. A failed single or bulk removal
-retains the controller in all three registries, keeps retry scheduling and
-signals owned, and can be retried after the cleanup failure is resolved.
-Successful unregistration is idempotent and clears periodic autosave and lock
-refresh scheduling, pending requested saves, per-player state, and the
-controller's `PlayerClosed` connection. Session-lock registration is
-identity-based, so rebuilding a removed controller installs exactly one live
-scheduler entry and an already registered controller cannot be appended twice.
-String-ID removal intentionally addresses the current registry member. The
-controller-object form instead requires exact object identity, so a stale
-reference cannot remove or tear down a same-ID replacement on either side.
+`CanSendGameInviteAsync` и `PromptGameInvite` выполняются асинхронно вне
+последовательного обработчика входящих пакетов. Продолжения проверяют точную
+попытку, поколение и срок после каждого ожидания. Поле `IsOpen` отсутствует;
+`Phase=PromptRequested` означает только выполненный вызов. Устаревшие
+результаты и таймеры не меняют новую попытку.
 
-On the client, `SaveModule` owns one `Save.ClientPatchResult` communication
-handler for its VM lifetime. Result envelopes carry `ControllerId`; the module
-resolves that ID against its live registry and then forwards the response to
-the matching controller, whose request ID gate rejects stale responses. A
-failed controller destroy retains that route for cleanup retry, while a
-successful removal revokes it. Rebuilding the ID therefore cannot retain an
-old controller closure, and multiple controller identities neither duplicate
-the fixed communication handler nor receive one another's patch results.
+При завершении локального переноса предыдущее опубликованное владение слотом
+сохраняется до общей фиксации, чтобы клиент применял отношения и счётчики
+от правильной основы.
 
-## Provider lifecycle
+Локальный путь создаёт резерв `SameServer` у приглашающего и одно
+`IncomingOffer` у точной цели. Цель должна быть загруженным владельцем другого
+слота без зависимых друзей; оба слота открыты и свободны от другой операции, а
+слот приглашающего имеет место. Посторонний, повторный, просроченный или поздний
+ответ не изменяет состояние.
 
-Server providers are stateless contracts whose methods receive `player`. Domain modules own their per-player runtime models. Client and server providers are separate implementations because their authority and data behavior differ.
+При `Accept` `PlayerAdmissionCoordinator` подготавливает операцию друзей и обе
+блокировки слотов, фиксирует новое физическое назначение слота, фиксирует пока
+не опубликованное изменение графа друзей и запрашивает у `CharacterModule`
+ровно одно явное возрождение цели. Только успешный обратный вызов завершает и
+публикует обе предметные операции. Ошибка, уход, остановка или сторожевой срок
+отменяет возрождение и откатывает слот, команду, `RespawnLocation` и предложение
+без `DisconnectPlayer` и `Player:Kick()`. Завершение друзей применяет изменение
+к текущему графу и не восстанавливает устаревшие отношения. См. [ADR-0052](adr/template/0052-separate-invite-attempt-and-reservation-deadlines.md).
 
-Replacing a snapshot is atomic from the runtime's perspective:
+До окончательного завершения переноса все снимки системы друзей сохраняют
+прежнюю опубликованную роль цели. Поэтому повторная синхронизация и изменение
+`Current` во время ожидания возрождения сохраняют единую основу сообщений.
+Новая роль публикуется вместе с итоговой связью после успешного возрождения.
+
+Отмена возрождения действует также после возврата `LoadCharacterAsync`, пока
+его отложенное завершение ещё не выполнено: временная модель и её подписки
+удаляются. Если прежней модели уже нет, после отката допускается одна
+восстановительная последовательность из не более трёх попыток. Постоянная
+ошибка не отключает игрока и не порождает бесконечные автоматические повторы;
+позднее систему можно явно вызвать через `RequestRespawn`.
+
+До вызова координатора `FriendsModule` переводит предложение в `Processing`,
+закрепляет поколение и сторожевой срок и асинхронно повторяет платформенную
+проверку дружбы. После ожидания он повторно проверяет точную идентичность
+предложения, поколение, срок, присутствие и загрузку обоих игроков, вместимость
+и локальную допустимость. Устаревшее продолжение, ошибка или отрицательный
+результат дружбы завершает предложение и никогда не начинает подготовку
+переноса.
+
+`GlobalSave` включает полную клиентскую проекцию телепортации в то же поколение
+снимка связи, что и состояние поставщиков. Клиент проверяет основу телепортации
+до изменения поставщиков, атомарно применяет их, устанавливает подготовленную
+проекцию и возобновляет эпоху только после обоих успехов. Каждая успешная
+установка публикует `ProjectionReconciled` после атомарной замены, чтобы
+подписчики могли заново прочитать полную проекцию. Повторная синхронизация
+использует тот же путь.
+
+## Контроллеры и слои сохранения
+
+`SaveModule` является только реестром и фабрикой. Он не знает смысла слоёв
+«общий», «сеанс» или «игровой слот». Проектная команда использует
+`SaveControllerBuilder` и выбирает:
+
+- идентификатор и срок жизни контроллера;
+- хранилище и правило ключей;
+- упорядоченных поставщиков;
+- предел сериализованного размера.
+
+Текущий контроллер `global_save` создаётся
+`GlobalSaveInitializationCommand` и регистрирует по порядку:
+
+1. `Wallet`
+2. `Statistics`
+3. `AudioSettings`
+4. `Friends`
+5. `Version`
+
+Проекты помещают дополнительные обычные предметные поставщики до `Version` на
+сервере и клиенте. `Version` остаётся последним, поскольку его `Run` продвигает
+сохранённую контрольную версию игры только после успешной установки и запуска
+всех остальных поставщиков.
+
+TF-0005 добавляет `AudioSettings` с клиентским полномочием до `Version` и
+необязательные обработчики конкретных поставщиков. Серверный
+`ValidateEnvelope` получает `(player, envelope)`, клиентский — `(envelope)`.
+Оба возвращают только принятие и необязательную причину, не исправляют ввод и
+закрываются до изменения при ложном результате или исключении. Клиент
+`AudioSettings` также реализует `ReconcileSnapshotEnvelope(envelope?)`:
+отсутствующий поставщик или известное поле получает исходное значение, а
+неизвестные или неверные присутствующие данные отклоняются. Присутствующий
+конверт проверяется до сверки, возвращённый — повторно до `ValidateMemento`.
+Поставщики без этих обработчиков сохраняют обязательный конверт.
+
+`wallet_config` задаёт однократные исходные остатки нового `Wallet`. Снимок
+кошелька версии 3 сохраняет `IsInitialized` и серверный
+`LastTransactionSequence`; версии 1 и 2 сверяются без изменения остатков и
+повторной исходной выдачи.
+
+`Statistics` является серверным поставщиком и отсутствует в каждом клиентском
+снимке сохранения. Он владеет ограниченными общим снимком, снимком сеанса
+телепортации, места и настроенными пользовательскими снимками статистики.
+Обязательный `statistics_config` в исходном формате JSON задаёт виды, хранение,
+фильтры, проекции, пределы и задержку запрошенного сохранения. Встроенное
+клиентское чтение использует отдельную запрещающую по умолчанию проекцию. См.
+[статистику](Statistics.md).
+
+`global_save_config` задаёт промежуток автосохранения, серверный срок загрузки
+снимка и ограниченную клиентскую политику повторов. Клиент получает только два
+поля повторов через разрешённый набор конфигурации. `wallet_config`,
+`statistics_config` и `global_save_config` проверяются и замораживаются до
+`DomainData` или `GlobalSave`.
+
+Эта упорядоченная коллекция является профилем игрока. Шаблон не вводит общий
+`ProfileModule`: проект расширяет профиль, регистрируя предметных поставщиков в
+обеих командах.
+
+Будущий контроллер сеанса или игрового слота можно собрать независимо и удалить
+через `SaveModule:RemoveSaveController`. Серверная сборка регистрирует
+синхронный обработчик удаления, который снимает контроллер с `AutoSaveModule` и
+`SessionLockModule` только после окончательной очистки поставщиков и
+освобождения серверной блокировки. Ошибка одиночного или общего удаления
+сохраняет контроллер во всех трёх реестрах, планирование повторов и сигналы;
+операцию можно повторить после устранения причины. Успешное снятие повторяемо и
+очищает автосохранение, обновление блокировки, ожидающие запросы, состояние
+игроков и соединение `PlayerClosed`.
+
+Регистрация блокировки основана на идентичности: перестроенный после удаления
+контроллер получает ровно одну живую запись планировщика, а существующий нельзя
+добавить повторно. Удаление по строковому идентификатору намеренно обращается к
+текущему члену реестра; объектная форма требует точную идентичность, поэтому
+устаревшая ссылка не удаляет замену с тем же идентификатором.
+
+На клиенте `SaveModule` владеет одним обработчиком связи
+`Save.ClientPatchResult` на срок жизни виртуальной машины. Конверт несёт
+`ControllerId`; модуль разрешает его по живому реестру и передаёт ответ
+совпадающему контроллеру, где идентификатор запроса отклоняет устаревший
+результат. Ошибка уничтожения сохраняет маршрут для повтора очистки, успешное
+удаление отзывает. Перестроение идентификатора не сохраняет старое замыкание, а
+несколько контроллеров не дублируют обработчик и не получают чужие результаты.
+
+## Жизненный цикл поставщиков
+
+Серверные поставщики являются контрактами без общего состояния, методы которых
+получают `player`; предметные модули владеют моделями каждого игрока. Клиент и
+сервер используют разные реализации, потому что их полномочия и работа с
+данными различаются.
+
+Замена снимка атомарна с точки зрения исполнения:
 
 ```text
-Validate/reconcile all target mementos
-  → capture current mementos
-  → Stop providers (reverse order)
-  → SetMemento providers (forward order)
-  → Run providers (forward order)
+Проверить и сверить все целевые снимки
+  → получить текущие снимки
+  → остановить поставщиков в обратном порядке
+  → установить снимки в прямом порядке
+  → запустить поставщиков в прямом порядке
 ```
 
-`Run` means every provider's data has already been installed, so runtime controllers may now be constructed. Closing captures and saves before `Stop`, preventing runtime changes from being lost.
+`Run` означает, что данные всех поставщиков уже установлены и можно создавать
+контроллеры исполнения. Закрытие получает и сохраняет снимки до `Stop`, чтобы
+не потерять последние изменения.
 
-Statistics treats an installed Global/Session/Place set that already matches
-the current trusted Teleport session and current PlaceId as lifecycle-ready.
-The save transaction marks its internal `Stop`/`SetMemento`/`Run` restart
-explicitly, which makes snapshot application and rollback an exact resume with
-no Session/Place replacement, dirty mark, or lifecycle event. An identical
-memento installed by a cold load is not marked as a restart; cold load, closed
-handoff state, or mismatched trusted session/place therefore still performs
-the normal lifecycle resolution before load success.
+`Statistics` считает установленный набор общего состояния, сеанса и места
+готовым к жизненному циклу, если он уже совпадает с доверенным сеансом
+телепортации и текущим `PlaceId`. Транзакция сохранения явно отмечает внутренний
+перезапуск `Stop`/`SetMemento`/`Run`, поэтому применение снимка и откат являются
+точным возобновлением без замены сеанса или места, отметки грязного состояния и
+события жизненного цикла. Такое же значение холодной загрузки не считается
+перезапуском: холодная загрузка, закрытая передача или несовпадающий сеанс либо
+место выполняет обычное разрешение жизненного цикла до успеха.
 
-Target mementos are reconciled and validated before runtime mutation. Current mementos are then captured before `Stop`. If any target `SetMemento` or `Run` fails, all partially installed providers are stopped and the complete previous memento set is restored before any provider is run again. A controller remains `Loaded` only when rollback fully succeeds; a cleanup or rollback failure moves it to `ApplyFailed`. Provider `Stop` must therefore be idempotent and safe after `SetMemento`, even if `Run` did not complete.
+Целевые снимки сверяются и проверяются до изменения исполнения. Текущие снимки
+получаются до `Stop`. Если любой `SetMemento` или `Run` завершается ошибкой, все
+частично запущенные поставщики останавливаются и полный прежний набор
+восстанавливается до повторного запуска. Контроллер остаётся `Loaded` только
+после полного успешного отката; ошибка очистки или отката переводит его в
+`ApplyFailed`. Поэтому `Stop` каждого поставщика повторяем и безопасен после
+`SetMemento`, даже если `Run` не завершился.
 
-The server reserves one generation-scoped lifecycle operation across the full
-yieldable `Load`, `ApplyMemento`, `ForceSave`, `Close`, Heartbeat capture,
-`FlushDirty`, or `BuildSnapshot` sequence. Snapshot projection remains inside
-the same operation. Every resumed provider hook and storage acknowledgement
-verifies that it still owns the same runtime and generation before changing
-dirty maps, the document/revision, persistence acknowledgement, lifecycle
-state, or ownership. A replacement therefore cannot start under any older
-capture/save/close, and an older continuation cannot overwrite replacement
-state, release the lock, or remove the runtime.
+Сервер резервирует одну принадлежащую поколению операцию жизненного цикла на
+всю допускающую ожидание последовательность `Load`, `ApplyMemento`,
+`ForceSave`, `Close`, захвата по `Heartbeat`, `FlushDirty` или `BuildSnapshot`.
+Проекция снимка остаётся внутри неё. Каждый возобновлённый обработчик поставщика
+и ответ хранилища перед изменением грязных карт, документа, ревизии,
+подтверждения записи, состояния или владения проверяет тот же объект исполнения
+и поколение. Замена не начинается под старым захватом, сохранением или
+закрытием, а старое продолжение не перезаписывает замену, не освобождает её
+блокировку и не удаляет её состояние.
 
-Both save controllers track each provider that may have started independently
-of the aggregate `Running`/ready flag. A `Run` attempt is tracked before the
-call and is cleared only after a successful `Stop`. Terminal server close and
-client destroy reverse-stop that tracked set even after failed transaction
-cleanup or rollback. The server retains the runtime and session lock when a
-terminal provider stop fails, so provider work is never knowingly orphaned
-after lock release or runtime removal. Storage-release failure also retains the
-runtime and controller for retry. Server/client controller destruction reports
-explicit success only after this cleanup completes; registry removal is
-conditional on that result.
+Оба контроллера отдельно отслеживают каждого поставщика, который мог начать
+работу, независимо от общего `Running`. Попытка `Run` отмечается до вызова и
+снимается только после успешного `Stop`. Окончательное серверное закрытие и
+клиентское уничтожение останавливает этот набор в обратном порядке даже после
+ошибки транзакционной очистки или отката. При ошибке окончательного `Stop`
+сервер сохраняет исполнение и блокировку сеанса, чтобы работа поставщика не
+осталась без владельца. Ошибка освобождения хранилища также сохраняет их для
+повтора. Уничтожение сообщает успех только после очистки; удаление из реестра
+зависит от этого результата.
 
-A retained server runtime in `CloseFailed` is not gameplay-ready and cannot
-capture, snapshot, patch, or save provider state. It does, however, retain one
-narrow session-lock heartbeat responsibility while terminal cleanup remains
-retryable. `ShouldRefreshLock` exposes that exact scheduler predicate: a normal
-`Loaded` runtime is eligible only before close is requested, and a
-`CloseFailed` runtime is eligible only while that close request still owns the
-retained runtime. `RefreshLock` reserves the same generation-scoped lifecycle
-operation as save and close, validates runtime/state ownership after the
-storage yield, and updates its monotonic refresh timestamp only while that
-ownership remains current. A concurrent close therefore waits behind an
-already-started refresh; a later refresh cannot enter an active close; Stop or
-Release failure resumes only heartbeat ownership; and successful Release plus
-runtime removal makes all later scheduler observations no-ops. If storage
-authoritatively reports `LockLost` or `NoSessionLock`, the controller clears
-the retry-retained heartbeat flag without reopening the runtime: terminal
-provider cleanup may still be retried, but gameplay/save work and further
-heartbeat scheduling remain fail-closed.
+Удержанное серверное исполнение `CloseFailed` не готово к игре и не может
+получать снимки, принимать изменения или сохранять поставщиков. Оно сохраняет
+только узкую обязанность обновлять блокировку сеанса, пока окончательную очистку
+можно повторить. `ShouldRefreshLock` раскрывает точное условие планировщика:
+обычное `Loaded` допустимо только до запроса закрытия, `CloseFailed` — только
+пока запрос закрытия владеет удержанным исполнением. `RefreshLock` резервирует
+то же поколение операции, проверяет владение после ожидания хранилища и
+обновляет монотонную отметку времени только при сохранённом владении.
 
-The scheduler discovers these owners from each registered controller rather
-than from the live `Players:GetPlayers()` collection. A player that has already
-crossed the real removal boundary therefore remains discoverable while its
-runtime still owns a lock or retryable terminal cleanup. Every enumerated owner
-carries its opaque runtime identity back into the refresh/retry rechecks. The
-scheduler refreshes a retained lock before cleanup and makes at most three
-automatic cleanup attempts; exhaustion leaves the runtime as a fail-closed
-terminal owner for explicit diagnosis rather than reopening gameplay or
-silently abandoning the runtime. Successful release removes the owner, so no
-later scheduler cycle can refresh it.
+Уже начатое обновление блокирует одновременное закрытие; позднее обновление не
+входит в активное закрытие. Ошибка `Stop` или `Release` возобновляет только
+обязанность обновления, а успешный `Release` с удалением исполнения делает
+последующие наблюдения пустыми. Авторитетные `LockLost` и `NoSessionLock`
+снимают признак обновления без открытия исполнения: очистку ещё можно повторить,
+но игра, сохранение и дальнейшее обновление остаются закрытыми.
 
-Cleanup attempt ownership is keyed by the registered controller plus that
-opaque runtime identity, never by `Player`. Exhausting an older runtime's
-three-attempt budget therefore cannot debit a same-UserId replacement. A late
-result clears or updates only its originating runtime; reload and controller
-unregistration discard the stale budget without touching the replacement.
-The scheduler revalidates the exact registered entry after every controller
-or logger yield and before retry counters, diagnostics, retry, or fail-closed
-finalization. A yielded third attempt from an unregistered controller is
-therefore discarded, while a rebuilt entry receives a fresh full budget.
+Планировщик обнаруживает владельцев по зарегистрированным контроллерам, а не по
+живому `Players:GetPlayers()`. Уже вышедший игрок остаётся видимым, пока его
+исполнение владеет блокировкой или повторяемой очисткой. Каждый владелец несёт
+непрозрачную идентичность исполнения во все повторные проверки. Планировщик
+сначала обновляет удержанную блокировку и делает не более трёх автоматических
+попыток очистки. Исчерпание сохраняет закрытого окончательного владельца для
+диагностики; успешное освобождение удаляет владельца и исключает дальнейшие
+обновления.
 
-The Global controller also owns one injected, provider-agnostic close-
-preparation callback. Production composition binds it to
-`StatisticsModule:PrepareForProfileClose`, so player removal and shutdown enter
-the same generation-scoped Close reservation before preparation can yield or
-fail. A preparation failure retains the runtime, pending save intent, and lock
-heartbeat while rejecting gameplay. Statistics failures are retryable because
-the rejected candidate never mutates provider data and is not memoized. After
-three unsuccessful automatic preparation retries, the scheduler performs one
-explicit fail-closed finalization that saves the still-valid current memento
-before Stop/Release; shutdown performs the same bounded handoff. Ordinary save
-failure never takes this fallback and remains no-loss/fail-closed.
-Shutdown snapshots an identity-deduplicated union of live players and exact
-controller-retained runtime owners before the heartbeat scheduler stops. The
-same worker that owns a player close also owns its bounded preparation retry
-and optional finalization under one absolute deadline, so departed retained
-owners cannot disappear merely because the live `Players` enumeration is
-empty.
+Бюджет очистки принадлежит паре зарегистрированного контроллера и непрозрачного
+исполнения, а не `Player`. Исчерпание старого исполнения не уменьшает бюджет
+замены с тем же `UserId`. Поздний результат меняет только исходное исполнение;
+повторная загрузка и снятие контроллера отбрасывают старый бюджет. После каждого
+ожидания контроллера или журнала планировщик заново проверяет точную запись до
+счётчиков, диагностики, повтора или окончательного закрытия. Поэтому
+приостановленная третья попытка снятого контроллера отбрасывается, а новая
+запись получает полный бюджет.
 
-Close failures before provider stop are failure-atomic. A deadline while
-waiting for Saving, Capturing, Snapshotting, Applying, or any other current
-lifecycle reservation withdraws only the same runtime/request/generation close
-owner and reopens normal mutation and refresh ownership regardless of the
-transient state observed at request time. Completion or failure of the
-yieldable operation then restores `Loaded`, and a later close remains valid.
-Capture failure or any unsuccessful save result—including deadline,
-serialization, size, retry exhaustion, storage loss, and unexpected exception
-codes—instead enters retry-retained `CloseFailed`, preserves whether the close
-still requires a save, and never reaches provider Stop or storage Release.
-Owned locks keep the guarded heartbeat; authoritative `LockLost`/
-`NoSessionLock` stays fail-closed without claiming a heartbeat. Gameplay/save
-mutation remains rejected until a later close retry completes. This prevents
-both unsaved release and the contradictory `Loaded + CloseRequested` state.
-A deadline close that waits behind a retained-owner refresh restores the exact
-pre-existing close/save/preparation/heartbeat flags under the same runtime,
-close-token, and operation generation; it cannot withdraw another cleanup
-owner. Public provider mutation is separately admitted by the controller.
-Wallet rejects `Add`, `TrySpend`, and zero-delta calls while terminal cleanup
-is retained, without changing balance, transaction sequence, signals, or
-queued client state, while provider capture remains available for retry.
+Общий контроллер владеет одним внедрённым, независимым от поставщика
+обработчиком подготовки закрытия. Производственная сборка связывает его с
+`StatisticsModule:PrepareForProfileClose`, поэтому выход и завершение сервера
+входят в ту же операцию `Close` до возможного ожидания или ошибки подготовки.
+Ошибка подготовки сохраняет исполнение, намерение записи и обновление
+блокировки, отклоняя игру. Ошибки статистики можно повторять, поскольку
+отклонённый кандидат не меняет данные и не запоминается.
 
-After reconciliation and default creation, the server validates and measures
-the complete prepared persistence document before `Stop`, `SetMemento`, or
-`Run`. Unsafe or oversized prepared state therefore aborts initial load and
-releases its lock, or leaves an already loaded runtime unchanged; the game
-never publishes a snapshot that is already impossible to persist.
+После трёх неуспешных автоматических подготовок планировщик выполняет одно явное
+закрытое завершение: сохраняет ещё допустимый текущий снимок до `Stop` и
+`Release`; завершение сервера использует ту же ограниченную передачу. Обычная
+ошибка сохранения этот запасной путь не использует и остаётся без потери данных.
+Завершение сервера до остановки планировщика снимает объединение живых игроков и
+точных удержанных исполнений без повторов идентичности. Один исполнитель
+закрытия владеет подготовкой, повторами и необязательным завершением под одним
+абсолютным сроком, поэтому вышедший удержанный владелец не исчезает из-за
+пустого перечня `Players`.
 
-When the prepared provider envelope differs from the stored envelope because
-of default creation, version reconciliation, or safe policy reconciliation,
-the controller advances the document revision and keeps it dirty. The next
-save therefore persists the prepared generation instead of leaving a
-runtime-only reconciliation that would repeat or disappear on reload.
+Ошибки закрытия до остановки поставщиков атомарны. Истечение срока во время
+`Saving`, `Capturing`, `Snapshotting`, `Applying` или другой операции отзывает
+только владельца того же исполнения, запроса и поколения и возвращает обычное
+изменение и обновление независимо от временного состояния. Затем завершение
+ожидавшей операции восстанавливает `Loaded`, и последующее закрытие допустимо.
 
-`MementoChanged` only marks a provider dirty. The controller captures dirty
-mementos on Heartbeat, but it does not write to DataStore every frame. An
-identical capture does not advance document revision. Close performs one full
-provider capture before persistence so a valid final change is not dependent
-on a prior dirty signal.
+Ошибка захвата или любой неуспех сохранения, включая срок, сериализацию, размер,
+исчерпание повторов, потерю хранилища и неожиданное исключение, переводит в
+удержанный `CloseFailed`, сохраняет необходимость записи и не достигает `Stop`
+или `Release`. Принадлежащая блокировка сохраняет обновление; `LockLost` и
+`NoSessionLock` остаются закрытыми. Игра и сохранение отклоняются до успешного
+повтора закрытия. Это предотвращает освобождение несохранённого состояния и
+противоречие `Loaded + CloseRequested`.
 
-## Persistence
+Закрытие, чей срок истёк за обновлением удержанного владельца, восстанавливает
+точные прежние признаки закрытия, сохранения, подготовки и обновления для того
+же исполнения, жетона и поколения и не отзывает чужого владельца очистки.
+Контроллер отдельно разрешает общедоступные изменения поставщика. `Wallet`
+отклоняет `Add`, `TrySpend` и нулевое изменение при удержанной окончательной
+очистке без изменения остатка, последовательности, сигналов или клиентской
+очереди, но позволяет захват для повтора.
 
-Production storage uses:
+После сверки и создания исходных значений сервер проверяет и измеряет весь
+подготовленный документ до `Stop`, `SetMemento` и `Run`. Небезопасное или слишком
+большое состояние прерывает исходную загрузку с освобождением блокировки либо
+оставляет загруженное исполнение неизменным; игра не публикует снимок, который
+уже нельзя сохранить.
 
-- DataStore `PlayerData_v1`;
+Если конверт поставщиков отличается от сохранённого после создания исходного
+значения, сверки версии или безопасной политики, контроллер продвигает ревизию
+и сохраняет грязное состояние. Следующее сохранение записывает подготовленное
+поколение, а не оставляет временную сверку, которая повторится или исчезнет.
+
+`MementoChanged` только отмечает поставщика грязным. Контроллер получает грязные
+снимки по `Heartbeat`, но не пишет в хранилище каждый кадр. Одинаковый захват не
+продвигает ревизию. Закрытие получает полный набор перед записью, поэтому
+последнее допустимое изменение не зависит от прежнего сигнала.
+
+## Сохранение
+
+Производственное хранилище использует:
+
+- `PlayerData_v1` в `DataStore`;
 - `UpdateAsync`;
-- bounded exponential retry with jitter;
-- session lock heartbeat every 5 minutes;
-- stale-lock takeover after 30 minutes;
-- dirty-only autosave, staggered at the validated
+- ограниченные показательные повторы со случайным отклонением;
+- обновление блокировки сеанса каждые 5 минут;
+- захват устаревшей блокировки через 30 минут;
+- автосохранение только грязного состояния с распределением по проверенному
   `global_save_config.autoSaveIntervalSeconds`;
-- per-controller/player requested saves coalesced behind a configured cooldown;
-- save on player exit and server shutdown.
+- объединение запросов каждого контроллера и игрока за настроенной задержкой;
+- сохранение при выходе игрока и завершении сервера.
 
-Dirty capture is atomic across the selected providers: if any capture or
-validation fails, the complete dirty set remains available for retry. Calls
-that join an active `ForceSave` receive that operation's actual success or
-failure instead of synthesizing success after the waiter wakes. A provider
-dirtied while the storage write yields remains pending; `ForceSave` captures
-and persists that newer state before it reports a clean success.
+Грязный захват атомарен для выбранных поставщиков: ошибка захвата или проверки
+сохраняет полный набор для повтора. Вызовы, присоединившиеся к выполняющемуся
+`ForceSave`, получают его настоящий успех или ошибку. Поставщик, изменённый во
+время ожидания записи, остаётся ожидающим; `ForceSave` получает и записывает
+новое состояние до сообщения о чистом успехе.
 
-Player close is also single-flight. A close that overlaps lock acquisition or
-snapshot application waits for that transition instead of removing the runtime
-under the active operation. If the player leaves while storage load is still
-in flight, the acquired lock is released without applying provider state.
-Overlapping player-removal and shutdown closes share one result and emit one
-`PlayerClosed` notification.
+Закрытие игрока также выполняется одной операцией. Пересечение с получением
+блокировки или применением снимка ждёт переход, а не удаляет активное исполнение.
+Если игрок вышел во время загрузки, полученная блокировка освобождается без
+применения поставщиков. Одновременные выход и завершение сервера разделяют один
+результат и одно событие `PlayerClosed`.
 
-Client-authority patches participate in the same generation-scoped lifecycle
-reservation. Provider envelope validation, memento validation, and provider
-application may yield, so the controller rechecks runtime identity and open
-authority after each boundary. Close requests wait for an already-started
-patch, later patches cannot enter closing state, and a patch that observes a
-close request returns no accepted-provider acknowledgement. If a provider had
-already mutated before yielding, the waiting close captures that state before
-save/release rather than leaving an unowned mutation.
+Изменения с клиентским полномочием участвуют в той же операции поколения.
+Проверка конверта, снимка и применение поставщика могут ждать, поэтому после
+каждой границы контроллер снова проверяет исполнение и полномочие открытия.
+Закрытие ждёт начатое изменение, позднее изменение не входит в закрытие, а
+изменение, увидевшее запрос закрытия, не возвращает подтверждение принятого
+поставщика. Если поставщик уже изменился до ожидания, закрытие получает это
+состояние перед сохранением и освобождением.
 
-Lock acquisition treats a live `SessionLocked` result as a possible
-cross-server teleport handoff. Production retries it with bounded exponential
-delays for up to eight attempts (9.75 seconds of configured delay) while the
-source server completes close, save, and release. Player removal cancels the
-wait; confirmed cancellation never applies provider state, and a lock acquired
-concurrently with cancellation is released by the existing load/close
-coordination. Exhaustion still fails closed and never weakens the 30-minute
-stale-lock takeover threshold.
+Получение живой ошибки `SessionLocked` рассматривается как возможная передача
+после телепортации. Производство делает до восьми попыток с общей настроенной
+задержкой 9,75 секунды, пока исходный сервер закрывает, сохраняет и освобождает.
+Выход игрока отменяет ожидание; подтверждённая отмена не применяет данные, а
+полученная одновременно блокировка освобождается существующей координацией.
+Исчерпание закрывается и не ослабляет 30-минутный срок устаревания.
 
-Session-lock ownership is verified from the final document returned by
-`UpdateAsync`. This matters because Roblox may invoke the transform repeatedly
-after concurrent writes; an earlier candidate can never establish local
-ownership by itself. New-profile and stale-takeover classification is also
-carried by the owned `Session` document. If an attempt commits but loses its
-response, a retry of the complete `UpdateAsync` operation with the same lock
-therefore preserves the final `Created`/takeover result instead of
-misclassifying the profile from callback-local state. A stale takeover also
-preserves `Created` when the previous owner crashed before the new profile's
-first provider save. Lock refresh preserves the marker, and an early release
-removes active ownership while leaving the pending profile immediately
-reacquirable. The first successful provider save replaces the transient marker.
+Владение блокировкой проверяется по окончательному документу `UpdateAsync`,
+поскольку Roblox может повторить преобразование после параллельной записи.
+Ранний кандидат не устанавливает местное владение. Классификация нового профиля
+и захвата устаревшего состояния хранится в принадлежащем документу `Session`.
+Повтор всей операции с той же блокировкой после потерянного ответа сохраняет
+окончательные `Created` и захват, а не выводит их из локального обратного вызова.
+Захват также сохраняет `Created`, если прежний владелец упал до первой записи.
+Обновление сохраняет признак, раннее освобождение удаляет владение и оставляет
+профиль доступным, первая успешная запись поставщиков заменяет временный
+признак.
 
-A stored value whose root is not a table is treated as corruption. Lock
-acquisition fails without replacing it with an empty profile, preserving the
-value for operator recovery instead of turning corruption into silent data
-loss.
+Сохранённое значение с корнем не-таблицей считается повреждённым. Получение
+блокировки завершается ошибкой, не заменяя его пустым профилем, чтобы сохранить
+данные для восстановления оператором.
 
-Before persistence, save documents must contain valid UTF-8 and DataStore-safe
-JSON shapes: tables are either string-keyed dictionaries or dense arrays, and
-mixed/sparse tables, metatables, cycles, unsupported values, and non-finite
-numbers are rejected. The 3.5 MB soft limit uses the actual `JSONEncode` byte
-count rather than a heuristic estimate.
-Storage acknowledgements are accepted only when the adapter returns a table
-whose `Ok` field is a boolean. Any malformed truthy result becomes stable
-`SaveFailed`; providers stay running, the lock stays owned, and Stop/Release
-remain unreachable until a valid retry.
+Перед записью документ содержит допустимый UTF-8 и безопасные для `DataStore`
+формы JSON: таблица является словарём со строковыми ключами или плотным
+массивом. Смешанные и разреженные таблицы, метатаблицы, циклы,
+неподдерживаемые значения и неконечные числа отклоняются. Мягкий предел 3,5 МБ
+использует настоящий размер `JSONEncode`.
 
-Shutdown uses a shared 20-second deadline and at most four concurrent close
-workers. The deadline is propagated through preparation, capture, save,
-provider stop, lock release, retained retry, and finalization. No stage or
-retry begins at or after expiration, and retries remain inside their owning
-worker rather than escaping the concurrency cap. An already executing Roblox
-`UpdateAsync` cannot be force-cancelled, so the coordinator returns an
-immutable result snapshot at the global deadline and reports unfinished
-players instead of serially consuming the entire shutdown window.
+Подтверждение хранилища принимается только как таблица с логическим `Ok`.
+Любой неверный истинный результат становится `SaveFailed`; поставщики работают,
+блокировка принадлежит контроллеру, а `Stop` и `Release` недоступны до
+правильного повтора.
 
-Studio uses the same controller and locking behavior over `MemoryStorage`.
+Завершение сервера использует общий срок 20 секунд и не более четырёх
+параллельных исполнителей закрытия. Срок проходит через подготовку, захват,
+запись, остановку поставщиков, освобождение блокировки, удержанный повтор и
+завершение. Новая стадия не начинается после истечения, повторы остаются внутри
+своего исполнителя и не обходят предел параллельности. Выполняющийся Roblox
+`UpdateAsync` нельзя принудительно отменить, поэтому координатор на общем сроке
+возвращает неизменяемый снимок результата и сообщает незавершённых игроков.
 
-## Raw-document migrations
+Studio использует тот же контроллер и блокировки поверх `MemoryStorage`.
 
-`MigrationModule` is a server-only ordered raw-document transformer. It is
-initialized after the generic `SaveModule` registry and before domain
-providers and `GlobalSave`. A player's migration runs later, inside
-`ServerSaveController:Load`, after `SessionLockingStorage` has acquired the
-profile lock and before provider reconciliation or `SetMemento`.
+## Переносы исходного документа
 
-This placement is the Roblox equivalent of running a local-game migration
-module before the save module consumes data. It prevents two servers from
-migrating one profile and preserves the existing atomic snapshot boundary.
-Provider `ReconcileMemento` remains the right tool for a local provider-schema
-upgrade; `MigrationModule` handles game-version transitions that may rename,
-split, combine, or otherwise coordinate any number of raw provider envelopes.
+`MigrationModule` является серверным упорядоченным преобразователем исходного
+документа. Он запускается после общего реестра `SaveModule` и до предметных
+поставщиков и `GlobalSave`. Перенос игрока выполняется позже внутри
+`ServerSaveController:Load`, после получения блокировки
+`SessionLockingStorage` и до сверки поставщиков либо `SetMemento`.
 
-Concrete controllers are registered explicitly in
-`ServerScriptService/Modules/Migration/MigrationManifest`. Each controller
-declares:
+Такое расположение соответствует переносу локальной игры до потребления данных
+системой сохранения. Оно не позволяет двум серверам преобразовывать один
+профиль и сохраняет атомарную границу снимка. `ReconcileMemento` остаётся
+средством местного обновления схемы поставщика; `MigrationModule` обрабатывает
+версии игры, которые переименовывают, разделяют, объединяют или координируют
+любое число исходных конвертов.
+
+Конкретные контроллеры явно регистрируются в
+`ServerScriptService/Modules/Migration/MigrationManifest`:
 
 ```lua
 {
-  Id = "WalletCurrencySplitV2",
-  TargetVersion = "2.0.0",
-  Order = 10,
-  Migrate = function(self, document, context)
-    -- Mutate the isolated document copy, or return a replacement document.
-  end,
+	Id = "WalletCurrencySplitV2",
+	TargetVersion = "2.0.0",
+	Order = 10,
+	Migrate = function(self, document, context)
+		-- Изменить изолированную копию или вернуть заменяющий документ.
+	end,
 }
 ```
 
-For a stored checkpoint `S` and current game version `C`, every registered
-controller in `(S, C]` executes. Target versions are ascending; controllers
-for one target execute by `Order`, then stable `Id`. The context reports the
-preceding applied target as `SourceVersion`, so a user moving from `1.0.0` to
-`4.0.0` receives the complete `2.0.0`, `3.0.0`, then `4.0.0` chain.
+Для сохранённой версии `S` и текущей `C` выполняются все контроллеры в
+`(S, C]`. Целевые версии возрастают; одинаковая цель упорядочивается по `Order`
+и устойчивому `Id`. Контекст передаёт предыдущую применённую цель как
+`SourceVersion`, поэтому переход `1.0.0` → `4.0.0` получает полную цепочку
+`2.0.0`, `3.0.0`, `4.0.0`.
 
-The module deep-copies the loaded document before the first controller,
-rejects malformed or newer-than-server checkpoints, prevents controllers from
-editing `Version.PreviousVersion` or the storage-owned `Session` lock, and
-validates the final DataStore shape and encoded-size limit. An existing
-profile without a Version provider fails closed unless
-`MigrationManifest.LegacyBaselineVersion` explicitly identifies a real
-pre-checkpoint schema. With that baseline, early controllers may normalize a
-legacy document that has no current `Providers` root, but the final chain must
-produce a string-keyed provider dictionary before application. Only a profile
-explicitly reported as newly created by lock storage starts at the current
-version with no providers; an existing empty provider table is not treated as
-proof of newness.
+Модуль глубоко копирует документ до первого контроллера, отклоняет неверные и
+более новые контрольные точки, запрещает изменение
+`Version.PreviousVersion` и принадлежащей хранилищу блокировки `Session`, затем
+проверяет форму `DataStore` и размер. Существующий профиль без `Version`
+закрывается, если `MigrationManifest.LegacyBaselineVersion` явно не называет
+настоящую старую схему. С ней ранние контроллеры могут нормализовать документ
+без текущего корня `Providers`, но итоговая цепочка обязана создать словарь
+поставщиков со строковыми ключами. Только явно новый по данным блокировки
+профиль начинает с текущей версии без поставщиков; пустая таблица существующего
+профиля не доказывает новизну.
 
-An exception aborts the load before runtime mutation and the controller
-attempts to release its session lock, surfacing a release failure separately.
-The release boundary also contains storage exceptions and malformed release
-results. During a load/close race it publishes the cancelled state even when
-that first release fails, allowing the coordinated close operation to retry
-release instead of waiting forever on a stuck `Loading` runtime.
-For an older checkpoint, the controller also refreshes the lock after the raw
-chain and before provider application, so a server that lost ownership during
-a yielding transform cannot start runtime state. `VersionModule:Run` advances
-the checkpoint only after the full chain and atomic provider application
-succeed. The load path then queues Version synchronously for dirty capture
-before publishing success, ensuring that no save can persist transformed
-provider data with the old checkpoint. Until that atomic save succeeds, a
-later join safely retries the chain from the stored checkpoint.
+Исключение прерывает загрузку до изменения исполнения; контроллер пытается
+освободить блокировку и отдельно сообщает ошибку освобождения. Граница
+освобождения также изолирует исключения и неверные результаты хранилища. В гонке
+загрузки с закрытием отмена публикуется даже при первой ошибке освобождения,
+позволяя скоординированному закрытию повторить её, а не ждать навсегда в
+`Loading`.
 
-Controllers may perform arbitrarily complex cross-provider table
-transformations and may receive dependencies through constructors, but they
-must be deterministic, bounded, retry-safe, stateless, and reentrant because
-one controller may migrate several players concurrently. No irreversible
-external side effects should be coupled to a transform that can be replayed.
-Registration snapshots the scheduling metadata and callable so later external
-table mutation cannot change the active plan.
+После цепочки старой версии контроллер обновляет блокировку до применения
+поставщиков, поэтому сервер, потерявший владение во время ожидающего
+преобразования, не запускает состояние. `VersionModule:Run` продвигает точку
+только после полной цепочки и атомарного применения. Затем загрузка синхронно
+ставит `Version` в грязный захват до публикации успеха, чтобы преобразованные
+данные не сохранялись со старой версией. До атомарной записи следующий вход
+безопасно повторяет цепочку.
 
-A controller-returned replacement is validated as a complete DataStore-safe
-document before it is deep-copied for isolation. This makes cycles and other
-unsafe table shapes a bounded, migration-attributed failure rather than an
-uncontrolled recursive copy.
+Контроллеры могут выполнять сложные межпоставщицкие преобразования и получать
+зависимости через конструктор, но обязаны быть детерминированными,
+ограниченными, безопасными для повтора, без состояния и допускающими повторный
+вход, поскольку один экземпляр может обслуживать несколько игроков. Нельзя
+связывать с повторяемым преобразованием необратимый внешний эффект. Регистрация
+снимает копию порядка и вызываемой функции, поэтому позднее изменение внешней
+таблицы не меняет план.
 
-The template registers no concrete migration because its old saves were test
-data. Add one only for a real released transition. The controller contract,
-legacy-baseline policy, deployment checklist, and example are documented in
-[UserDataMigrations.md](UserDataMigrations.md).
+Заменяющий документ проверяется целиком как безопасный для `DataStore` до
+глубокой изолирующей копии. Циклы и другие небезопасные формы становятся
+ограниченной ошибкой конкретного переноса, а не бесконтрольной рекурсией.
 
-## Client synchronization
+Шаблон не регистрирует конкретные переносы, поскольку его прежние сохранения
+были проверочными данными. Добавлять перенос только для настоящего выпущенного
+перехода. Контракт, политика старой основы, порядок развёртывания и пример
+описаны в [переносах данных](UserDataMigrations.md).
 
-Initial state and resync use `GlobalSnapshot` RemoteFunction:
+## Клиентская синхронизация
+
+Исходное состояние и повторная синхронизация используют снимковый
+`RemoteFunction` `GlobalSnapshot`:
 
 ```text
-register client handlers
-  → request snapshot
-  → server pauses/buffers outgoing messages
-  → client Stop/SetMemento/Run
-  → client sends ClientReady
-  → server flushes buffered messages in order
+зарегистрировать клиентские обработчики
+  → запросить снимок
+  → сервер приостанавливает и буферизует исходящие сообщения
+  → клиент выполняет Stop/SetMemento/Run
+  → клиент отправляет ClientReady
+  → сервер по порядку выпускает буфер
 ```
 
-`CommunicationModule` handles ordinary runtime messages through RemoteEvents.
-It batches messages once per Heartbeat, caps batch and queue sizes by both count
-and estimated bytes, validates envelopes, and sequences each direction.
-Continuously refilled token buckets authoritatively limit server inbound
-invocations/messages/bytes, cooperatively pace the client to those same
-budgets, and shape per-player server outbound batches/estimated bytes. Budget
-exhaustion leaves unsent queue entries and sequence numbers unchanged until a
-later Heartbeat.
+`CommunicationModule` передаёт обычные сообщения через `RemoteEvent`. Он
+объединяет их раз за `Heartbeat`, ограничивает пакет и очередь количеством и
+оценочными байтами, проверяет конверты и нумерует оба направления. Непрерывно
+пополняемые корзины авторитетно ограничивают серверные входящие вызовы,
+сообщения и байты, согласованно распределяют клиентские сообщения и отдельно
+формируют серверный исходящий поток каждого игрока. Исчерпание оставляет
+неотправленные записи и номера неизменными до следующего `Heartbeat`.
 
-The shared `Signal` module never crosses the client/server boundary. It is used
-only for side-local notifications before a message is queued or after a Roblox
-remote has delivered it. See [Communication.md](Communication.md) for the full
-transport contract.
+Общий `Signal` никогда не пересекает клиент-серверную границу. Он используется
+только для боковых уведомлений до помещения сообщения в очередь или после
+доставки удалённым объектом Roblox. Полный транспортный контракт описан в
+[правилах связи](Communication.md).
 
-Outgoing messages declare `Critical`, `State`, or `Presentation` priority. On pressure, the server evicts the oldest presentation messages first. If state still cannot fit, the queue collapses to one `ResyncRequired` message and refuses further state until a snapshot starts. Every server snapshot increments a communication epoch; late packets from an older epoch are ignored instead of causing a resync loop. A current-epoch sequence gap or handler failure requests a full snapshot.
+Исходящее сообщение объявляет `Critical`, `State` или `Presentation`. При
+давлении сервер сначала удаляет старые сообщения представления. Если состояние
+всё ещё не помещается, очередь сворачивается в одно `ResyncRequired` и
+отклоняет новые состояния до снимка. Каждый снимок увеличивает эпоху; поздний
+пакет старой эпохи игнорируется, а пропуск номера текущей эпохи или ошибка
+обработчика запрашивает полный снимок.
 
-Communication serialization is separate from DataStore serialization. It
-allows safe Roblox value types such as `Vector3` and `CFrame` only when every
-numeric component is finite. Tables must be either dense arrays or
-string-keyed dictionaries; mixed and sparse tables are rejected together with
-`Instance`, cycles, unsupported types, oversized messages, and overlong
-identifiers. Inspection work and issue collection are explicitly bounded.
+Сериализация связи отделена от `DataStore`. `Vector3` и `CFrame` допустимы
+только с конечными компонентами. Таблица является плотным массивом или
+словарём со строковыми ключами; смешанные и разреженные таблицы, `Instance`,
+циклы, неподдерживаемые типы, слишком большие сообщения и длинные
+идентификаторы отклоняются. Работа проверки и число найденных проблем
+ограничены.
 
-Server inbound invocation limits are charged before deep validation, so
-malformed envelopes cannot bypass rate limiting. Validators and handlers run
-behind protected boundaries; a failure is contained and moves the client to
-snapshot recovery.
+Бюджет входящего вызова списывается до глубокой проверки, поэтому неверный
+конверт не обходит ограничение частоты. Проверяющие функции и обработчики
+изолированы; ошибка переводит клиента к восстановлению снимка.
 
-The communication module also owns one bounded synchronous request
-RemoteFunction for server-read startup boundaries such as the client config
-bundle. Registered request handlers validate input and enforce request,
-response, rate, and byte limits. It is not used for ordinary gameplay
-mutations or notifications.
+Модуль связи также владеет одним ограниченным синхронным `RemoteFunction` для
+серверного чтения при запуске, например набора клиентской конфигурации.
+Зарегистрированный обработчик проверяет ввод и ограничивает запрос, ответ,
+частоту и байты. Обычные игровые изменения и уведомления этот путь не
+используют.
 
-Snapshot requests allow only one in-flight operation per player, enforce a
-cooldown, and bound the complete response envelope with a network-specific
-estimated-byte cap independent of the DataStore serialization limit. Snapshot
-construction and network validation complete before `BeginSnapshot` changes
-the epoch or clears buffered output. `ClientReady` carries the exact snapshot
-communication epoch; a stale acknowledgement cannot release a newer buffered
-queue. Applying a replacement snapshot also retires pending client-authority
-patch correlation from the previous baseline.
+Для игрока выполняется не более одного запроса снимка, применяется задержка и
+сетевой предел полного конверта, независимый от `DataStore`. Построение и
+сетевая проверка завершаются до того, как `BeginSnapshot` меняет эпоху или
+очередь. `ClientReady` несёт точную эпоху; старое подтверждение не освобождает
+новый буфер. Замена снимка также завершает связанную работу клиентского
+поставщика прежней основы.
 
-Normal gameplay does not replace whole provider tables. Server-authoritative
-modules emit small operation/change messages, preserving client runtime object
-identity. Client-authority providers may send dirty mementos; unknown,
-server-authority, or invalid providers are rejected and logged.
+Игровые изменения не заменяют таблицы поставщиков. Авторитетный серверный
+модуль отправляет малое семантическое изменение, сохраняя идентичность
+клиентского исполнения. Поставщик с клиентским полномочием может отправить
+грязный снимок; неизвестный, серверный или неверный поставщик отклоняется и
+записывается.
 
-Wallet balances are non-negative safe integers capped by
-`WalletConfig.MaxBalance` (`2^53 - 1`). Startup configuration, persisted
-mementos, client snapshots, and incremental changes enforce the same bound;
-an addition that would cross it returns `BalanceLimitExceeded` without
-changing state.
+Остаток кошелька является неотрицательным безопасным целым до
+`WalletConfig.MaxBalance` (`2^53 - 1`). Запуск, сохранённый снимок, клиентский
+снимок и изменение используют один предел; переполнение возвращает
+`BalanceLimitExceeded` без изменения.
 
-While the client is paused for snapshot recovery, ordinary outbound messages
-from the stale baseline are rejected and cannot be flushed. Normal queuing
-resumes only after the replacement snapshot is applied.
+Пока клиент приостановлен для восстановления, обычные исходящие сообщения
+старой основы отклоняются и не отправляются. Очередь возобновляется только
+после применения замены.
 
-## Player lifecycle
+Приглашения друзей используют тот же транспорт. `Friends.RequestInvite` несёт
+только `TargetUserId`, `Friends.RespondLocalOffer` — точные `OfferId` и
+`Accept` либо `Decline`, а транспортная сторона определяет игрока. Серверные
+`Friends.SnapshotChanged` и `Friends.LocalOfferResult` не заменяются клиентским
+предположением. `Friends.PromptClosed` сохраняет прежнюю проверяемую форму, но
+его совместимый обработчик не изменяет состояние. Поле получателей и
+утверждения о результате по-прежнему не принимаются. Ошибка
+очереди клиента запрашивает синхронизацию. См. [ADR-0052](adr/template/0052-separate-invite-attempt-and-reservation-deadlines.md).
 
-`PlayersModule` is the single wrapper around Roblox `Players`. It owns player and character signals. The global save command subscribes to it for load and close; gameplay modules consume the same wrapper instead of independently scattering `Players` event subscriptions. Existing-player enumeration rechecks membership before delivery, and per-observer membership is retired on removal even when the consumer does not need a removal callback.
+## Жизненный цикл игрока
 
-These notifications, initialization completion, and provider
-`MementoChanged` events use the shared side-local signal contract. Listener
-yields do not block publishers or later listeners, and disconnected callbacks
-are released immediately. See [Signal.md](Signal.md).
+`PlayersModule` является единственным адаптером Roblox `Players`. Он владеет
+платформенными событиями подключения, выхода и персонажа, но после
+`Initialize` остаётся подготовленным: не подключает источники, не перечисляет
+игроков и не меняет `Players.CharacterAutoLoads`. Сохранение и остальные
+системы наблюдают только этот адаптер. Перед доставкой уже присутствующего
+игрока членство проверяется повторно, а множество наблюдателя очищается при
+выходе даже без обработчика.
 
-## Logging
+Только серверный `CharacterModule` читает задержку из конфигурации
+`Characters`, вызывает `PlayersModule:SetCharacterAutoLoads(false)`, подключает
+боковые сигналы и единственный запускает
+`PlayersModule:StartPlatformObservation()`. Он удаляет ранний персонаж до
+одобрения, после `ConnectionApproved` отложенно создаёт первый и владеет
+последующим удалением и возрождением. Смерть и `CharacterRemoving` объединяются
+в одну последовательность с тремя попытками. Выход и `Stop` отменяют поколение
+и уничтожают текущий или поздний персонаж без поздней публикации.
 
-Initialization, persistence, communication, configuration, and client loading
-use the shared side-neutral Logger. It emits bounded one-line structured
-records, treats `Error` as a non-throwing severity, and leaves persistence or
-transport to an explicitly added consumer. See [Logger.md](Logger.md).
+Система игроков хранит только непрозрачную подготовку, фиксацию и отмену
+допуска без предметных сведений. `PlayerAdmissionCoordinator` собирает
+операции друзей, слотов и игроков, а `ConnectionApproved` публикуется последним
+после общей фиксации.
 
-## Loading screen
+Для уже подключённой цели локального предложения координатор отдельно
+подготавливает и фиксирует друзей и слоты и вызывает только
+`CharacterModule:RequestRespawn`. Успех завершает перенос после ровно одного
+явного возрождения; ошибка, уход или остановка вызывает `CancelRespawn` и
+откат. Это не новый допуск, поэтому отказ никогда не использует
+`DisconnectPlayer` или `Player:Kick()`.
 
-`ReplicatedFirst/Loading.client.luau` removes the default screen, displays initialization progress, and fades only after `ClientInitialized=true`. A failed bootstrap leaves a visible rejoin message.
+Отключение настоящего подключения запрашивается только через
+`PlayersModule:DisconnectPlayer`; предметные модули не вызывают
+`Player:Kick()` напрямую.
 
-## Tests
+Клиентский `PlayersModule` остаётся адаптером, а `CharacterClient` владеет
+текущим персонажем, ожиданием и клиентскими событиями. Потребители, включая
+`AudioGraphClient`, получают жизненный цикл только через `CharacterClient`.
 
-In Studio Play mode:
+Эти уведомления, завершение запуска и `MementoChanged` используют общий
+локальный сигнал. Ожидающий обработчик не блокирует издателя или следующих
+обработчиков, отключённый освобождается сразу. См. [сигналы](Signal.md).
+
+## Журналирование
+
+Запуск, сохранение, связь, конфигурация и клиентская загрузка используют общий
+нейтральный `Logger`. Он создаёт ограниченные однострочные структурные записи,
+считает `Error` не выбрасывающим исключение уровнем и оставляет сохранение или
+транспорт явно добавленному потребителю. См. [журнал](Logger.md).
+
+## Экран загрузки
+
+`ReplicatedFirst/Loading.client.luau` удаляет исходный экран, показывает ход
+запуска и исчезает только после `ClientInitialized=true`. Ошибка запуска
+оставляет видимое предложение переподключиться.
+
+## Проверки
+
+В игровом режиме Studio выполнить:
 
 ```lua
 require(game.ServerScriptService.Tests.AllTestsRunner).runAll()
 ```
 
-The production integration suite injects failures and verifies complete
-server/client rollback, lock contention and stale takeover, bounded retry,
-expired deadlines, shutdown concurrency, packet loss, stale epochs,
-serialization, token-bucket pacing, queue overflow, and snapshot network-cap
-failure safety. `RealDataStoreSmokeTest` is intentionally opt-in because Roblox
-requires a published place with Studio API access. It creates a fresh
-42-character `Smoke_<GUID>` key only in
-`PlayerData_IntegrationTests_v1`, writes data, releases the session lock,
-reloads and verifies the data, then removes the key. A run passes only when
-both `Ok` and `CleanupOk` are true. See
-[IntegrationTesting.md](IntegrationTesting.md) for the required environment
-setup order. Autosave and session-lock workers expose injected clock, wait,
-spawn, and random dependencies so their due/not-due, failure, and stop
-contracts are deterministic. The complete persistence contract matrix is in
-[TestCoverage.md](TestCoverage.md).
+`FriendsModuleTestRunner` проверяет безопасное ветвление локальной и внешней
+цели, точный ответ на предложение, независимость устойчивой возможности от
+краткого резерва, однократное расходование и ограниченную память.
+`PlayerSlotModuleTestRunner`, `PlayerAdmissionCoordinatorTestRunner` и
+`CharacterModuleTestRunner` проверяют блокировки обоих слотов, перенос
+владельца без зависимых друзей, восстановление физических свойств, одно явное
+возрождение, откат и отсутствие отключения. `ProductionIntegrationTestRunner`
+проходит настоящий составной путь модулей.
+
+Объединительный производственный набор также внедряет ошибки и проверяет полный
+серверный и клиентский откат, соперничество и захват устаревших блокировок,
+ограниченные повторы, истёкшие сроки, параллельное завершение, потерю пакетов,
+старые эпохи, сериализацию, распределение корзины, переполнение очереди и
+сетевой предел снимка.
+
+`RealDataStoreSmokeTest` намеренно не входит в общий набор: Roblox требует
+опубликованное место с доступом Studio к программному интерфейсу. Проверка
+создаёт новый 42-символьный ключ `Smoke_<GUID>` только в
+`PlayerData_IntegrationTests_v1`, записывает данные, освобождает блокировку,
+повторно загружает и проверяет данные, затем удаляет ключ. Успех требует
+одновременных `Ok` и `CleanupOk`. Порядок подготовки среды описан в
+[объединительной проверке](IntegrationTesting.md).
+
+Исполнители автосохранения и блокировок получают внедрённые время, ожидание,
+запуск и случайность, поэтому их сроки, ошибки и остановка детерминированы.
+Полная матрица находится в [покрытии проверок](TestCoverage.md).

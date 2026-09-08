@@ -7,6 +7,9 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local CollectionService = game:GetService("CollectionService")
+local Teams = game:GetService("Teams")
+local Players = game:GetService("Players")
 
 local Logger = require(ReplicatedStorage.Shared.Util.Logger)
 local AssetRegistry = require(ReplicatedStorage.Shared.Assets.AssetRegistry)
@@ -14,8 +17,12 @@ local PoolModule = require(ReplicatedStorage.Shared.Pooling.PoolModule)
 
 local Modules = script.Parent.Parent.Modules
 local PlayersModule = require(Modules.Players.PlayersModule)
+local CharacterModule = require(Modules.Characters.CharacterModule)
 local CommunicationServer = require(Modules.Communication.CommunicationServer)
 local TeleportModule = require(Modules.Teleport.TeleportModule)
+local PlayerSlotModule = require(Modules.PlayerSlots.PlayerSlotModule)
+local FriendsModule = require(Modules.Friends.FriendsModule)
+local PlayerAdmissionCoordinator = require(Modules.PlayerAdmission.PlayerAdmissionCoordinator)
 local TeleportPolicy = require(Modules.Teleport.TeleportPolicy)
 local TeleportValidationConfig = require(Modules.Teleport.TeleportValidationConfig)
 local TeleportValidationPad = require(Modules.Teleport.TeleportValidationPad)
@@ -47,8 +54,11 @@ local Commands = script.Parent.Commands
 local AssetRegistryInitializationCommand = require(Commands.AssetRegistryInitializationCommand)
 local PoolingInitializationCommand = require(Commands.PoolingInitializationCommand)
 local PlayersInitializationCommand = require(Commands.PlayersInitializationCommand)
+local CharacterInitializationCommand = require(Commands.CharacterInitializationCommand)
 local CommunicationInitializationCommand = require(Commands.CommunicationInitializationCommand)
 local TeleportInitializationCommand = require(Commands.TeleportInitializationCommand)
+local PlayerSlotInitializationCommand = require(Commands.PlayerSlotInitializationCommand)
+local PlayerAdmissionInitializationCommand = require(Commands.PlayerAdmissionInitializationCommand)
 local TeleportValidationPadInitializationCommand = require(Commands.TeleportValidationPadInitializationCommand)
 local ConfigInitializationCommand = require(Commands.ConfigInitializationCommand)
 local SaveInitializationCommand = require(Commands.SaveInitializationCommand)
@@ -106,6 +116,44 @@ local configCatalog = ExperienceConfigCatalog.new({
 	Communication = communication,
 	Definitions = ServerConfigManifest.Definitions,
 	ClientBundles = ServerConfigManifest.ClientBundles,
+})
+local playerSlotModule = PlayerSlotModule.new({
+	PlayersModule = playersModule,
+	Config = configCatalog,
+	CollectionService = CollectionService,
+	Workspace = Workspace,
+	Teams = Teams,
+	MaxPlayers = Players.MaxPlayers,
+})
+local playerAdmissionCoordinator: any = nil
+local friendsModule = FriendsModule.new({
+	Config = configCatalog,
+	PlayerSlots = playerSlotModule,
+	PlayersModule = playersModule,
+	Communication = communication,
+	GenerateId = function() return HttpService:GenerateGUID(false) end,
+	EncodeJson = function(value: any) return HttpService:JSONEncode(value) end,
+	JobId = game.JobId,
+	Clock = function() return Workspace:GetServerTimeNow() end,
+	CanCreateLocalOffer = function(inviter: Player, target: Player)
+		local coordinator = playerAdmissionCoordinator
+		if coordinator == nil then return false, "TargetIneligible" end
+		return coordinator:CanCreateLocalOffer(inviter, target)
+	end,
+})
+local characterModule = CharacterModule.new({
+	PlayersModule = playersModule,
+	Config = configCatalog,
+})
+playerAdmissionCoordinator = PlayerAdmissionCoordinator.new({
+	PlayersModule = playersModule,
+	FriendsModule = friendsModule,
+	PlayerSlots = playerSlotModule,
+	TeleportModule = teleportModule,
+	CharacterModule = characterModule,
+	PlaceId = game.PlaceId,
+	JobId = game.JobId,
+	DecodeJson = function(value: string) return HttpService:JSONDecode(value) end,
 })
 local autoSaveModule = AutoSaveModule.new()
 local baseStorage = if StorageConfig.UseMemoryStorage
@@ -168,8 +216,12 @@ local services = {
 	Assets = assetRegistry,
 	Pooling = poolModule,
 	Players = playersModule,
+	Characters = characterModule,
 	Communication = communication,
 	Teleport = teleportModule,
+	PlayerSlots = playerSlotModule,
+	Friends = friendsModule,
+	PlayerAdmission = playerAdmissionCoordinator,
 	TeleportValidationPad = teleportValidationPad,
 	Config = configCatalog,
 	Save = saveModule,
@@ -192,11 +244,13 @@ local commands = {
 	PoolingInitializationCommand.new(poolModule),
 	PlayersInitializationCommand.new(playersModule),
 	CommunicationInitializationCommand.new(communication),
+	ConfigInitializationCommand.new(configCatalog),
+	CharacterInitializationCommand.new(characterModule),
 	AudioGraphInitializationCommand.new(audioGraph),
 	OrdinarySoundInitializationCommand.new(ordinarySound, hybridAudio),
 	TeleportInitializationCommand.new(teleportModule),
+	PlayerSlotInitializationCommand.new(playerSlotModule),
 	TeleportValidationPadInitializationCommand.new(teleportValidationPad),
-	ConfigInitializationCommand.new(configCatalog),
 	StatisticsInitializationCommand.new({
 		Statistics = statisticsModule,
 		WalletController = walletStatisticsController,
@@ -222,7 +276,9 @@ local commands = {
 		WalletModule = walletModule,
 		StatisticsModule = statisticsModule,
 		AudioSettingsModule = audioSettings,
+		FriendsModule = friendsModule,
 	}),
+	PlayerAdmissionInitializationCommand.new(playerAdmissionCoordinator),
 	PersistenceScheduleInitializationCommand.new(autoSaveModule, sessionLockModule, playersModule),
 }
 

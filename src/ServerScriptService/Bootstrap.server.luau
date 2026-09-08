@@ -22,4 +22,6 @@ end
 if RunService:IsStudio() then
 	local AudioManualQaServer = require(script.Parent.Tests.AudioManualQaServer)
 	AudioManualQaServer.InstallBridge(manifest.Services, script)
+	local FriendInvitationsStudioQa = require(script.Parent.Tests.FriendInvitationsStudioQa)
+	FriendInvitationsStudioQa.InstallBridge(manifest.Services, script)
 end

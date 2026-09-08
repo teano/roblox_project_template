@@ -246,6 +246,7 @@ function Navigator:_resume(entry: any)
 		})
 	end
 	self:_emit(entry, UiActionIds.WindowResumed)
+	self:_recompute()
 	if entry.PauseHandle then entry.PauseHandle:Release(); entry.PauseHandle = nil end
 	entry.View:_SetNavigationActive(true)
 end
@@ -330,8 +331,8 @@ function Navigator:_add(caller: any?, definition: any, model: unknown, typedDefi
 		transitionHandle:Release()
 		table.remove(self._stack); self:_invalidate(entry)
 		local clean = self:_dispose(entry, openState)
-		if previous then self:_resume(previous) end
-		self:_recompute(); self:_release(operation)
+		if previous then self:_resume(previous) else self:_recompute() end
+		self:_release(operation)
 		if not clean then
 			return failure("CleanupFailed", definition.WindowId, operation.Generation, "Cleanup")
 		end
@@ -339,9 +340,10 @@ function Navigator:_add(caller: any?, definition: any, model: unknown, typedDefi
 	end
 	entry.State = "Active"
 	self:_emit(entry, UiActionIds.WindowOpened)
+	self:_recompute()
 	transitionHandle:Release()
 	entry.View:_SetNavigationActive(true)
-	self:_recompute(); self:_release(operation)
+	self:_release(operation)
 	return { Kind = "Success", Value = WindowHandle.new(self, entry.Registration, definition.WindowId, entry.Generation, definition.TryCastView) }
 end
 
@@ -388,8 +390,8 @@ function Navigator:_close(caller: any)
 	end
 	transitionHandle:Release()
 	local clean = self:_removeTop(top, state)
-	local lower = self:_top(); if lower then self:_resume(lower) end
-	self:_recompute(); self:_release(operation)
+	local lower = self:_top(); if lower then self:_resume(lower) else self:_recompute() end
+	self:_release(operation)
 	if state == "Success" and clean then return { Kind = "Success" } end
 	if not clean then
 		return failure("CleanupFailed", top.Definition.WindowId, operation.Generation, "Cleanup")
@@ -415,8 +417,8 @@ function Navigator:_replace(caller: any, definition: any, model: unknown, typedD
 	if closeState ~= "Success" or not oldClean then
 		operation.Prepared = nil
 		local candidateClean = self:_cleanup(candidate.Candidate)
-		local lower = self:_top(); if lower then self:_resume(lower) end
-		self:_recompute(); self:_release(operation)
+		local lower = self:_top(); if lower then self:_resume(lower) else self:_recompute() end
+		self:_release(operation)
 		if not candidateClean then
 			return failure("CleanupFailed", definition.WindowId, operation.Generation, "Cleanup")
 		end
@@ -441,8 +443,8 @@ function Navigator:_replace(caller: any, definition: any, model: unknown, typedD
 		openHandle:Release()
 		table.remove(self._stack); self:_invalidate(candidate)
 		local clean = self:_dispose(candidate, openState)
-		local lower = self:_top(); if lower then self:_resume(lower) end
-		self:_recompute(); self:_release(operation)
+		local lower = self:_top(); if lower then self:_resume(lower) else self:_recompute() end
+		self:_release(operation)
 		if not clean then
 			return failure("CleanupFailed", definition.WindowId, operation.Generation, "Cleanup")
 		end
@@ -450,9 +452,10 @@ function Navigator:_replace(caller: any, definition: any, model: unknown, typedD
 	end
 	candidate.State = "Active"
 	self:_emit(candidate, UiActionIds.WindowOpened)
+	self:_recompute()
 	openHandle:Release()
 	candidate.View:_SetNavigationActive(true)
-	self:_recompute(); self:_release(operation)
+	self:_release(operation)
 	return { Kind = "Success", Value = WindowHandle.new(self, candidate.Registration, definition.WindowId, candidate.Generation, definition.TryCastView) }
 end
 
